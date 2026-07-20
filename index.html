@@ -4,264 +4,53 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>우리 둘의 자금 시뮬레이터</title>
-<link
-  href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css"
-  rel="stylesheet"
-/>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css
+styles.css
+ivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <!-- Firebase (compat SDK) -->
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<style>
-  :root {
-    --bg: #f5f6f8;
-    --card: #ffffff;
-    --ink: #1f2430;
-    --sub: #6b7280;
-    --line: #e7e9ee;
-    --a: #6c5ce7;      /* 본인 색 */
-    --a-soft: #efecfd;
-    --b: #00b8a9;      /* 남자친구 색 */
-    --b-soft: #e2f7f4;
-    --accent: #ff5e8a;
-    --plus: #1a9e6b;   /* 유입(+) */
-    --minus: #e03131;  /* 지불(-) */
-    --shadow: 0 8px 30px rgba(31, 36, 48, 0.08);
-    --radius: 18px;
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    font-family: "Pretendard", -apple-system, BlinkMacSystemFont, sans-serif;
-    background: var(--bg);
-    color: var(--ink);
-    line-height: 1.5;
-    -webkit-font-smoothing: antialiased;
-  }
-  .wrap { max-width: 1120px; margin: 0 auto; padding: 20px 16px 90px; }
-
-  header.hero { text-align: center; padding: 34px 16px 20px; }
-  header.hero h1 { margin: 0 0 8px; font-size: 30px; font-weight: 800; letter-spacing: -0.5px; }
-  header.hero p { margin: 0; color: var(--sub); font-size: 15px; }
-  .badge {
-    display:inline-block; background:linear-gradient(135deg,var(--a),var(--accent));
-    color:#fff; font-size:12px; font-weight:700; padding:6px 14px; border-radius:999px;
-    margin-bottom:14px; letter-spacing:.3px;
-  }
-
-  /* Firebase 상태바 */
-  .fb-bar {
-    display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
-    background:#fff; border:1px solid var(--line); border-radius:14px;
-    padding:12px 16px; box-shadow:var(--shadow); margin-bottom:20px;
-  }
-  .fb-status { font-size:13px; font-weight:600; display:flex; align-items:center; gap:8px; }
-  .fb-dot { width:9px; height:9px; border-radius:50%; background:#c0c4cc; }
-  .fb-dot.on { background:#1a9e6b; } .fb-dot.err { background:#e03131; }
-  .fb-actions { display:flex; gap:8px; flex-wrap:wrap; }
-
-  .card {
-    background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
-    box-shadow:var(--shadow); padding:24px; margin-bottom:22px;
-  }
-  .card h2 { margin:0 0 4px; font-size:19px; font-weight:800; display:flex; align-items:center; gap:8px; }
-  .card .desc { color:var(--sub); font-size:13.5px; margin:0 0 18px; }
-  .step-num {
-    display:inline-flex; width:26px; height:26px; background:var(--a-soft); color:var(--a);
-    border-radius:8px; align-items:center; justify-content:center; font-size:14px; font-weight:800;
-  }
-
-  /* 탭 */
-  .tabs { display:flex; gap:8px; margin-bottom:20px; flex-wrap:wrap; }
-  .tabs button {
-    border:1.5px solid var(--line); background:#fff; color:var(--sub);
-    padding:12px 20px; border-radius:12px; cursor:pointer; font-size:14.5px; font-weight:700;
-    font-family:inherit; transition:.15s;
-  }
-  .tabs button.active { background:var(--a); border-color:var(--a); color:#fff; box-shadow:0 6px 16px rgba(108,92,231,.25); }
-  .tab-panel { display:none; }
-  .tab-panel.active { display:block; }
-
-  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
-  @media (max-width:820px){ .grid2 { grid-template-columns:1fr; } }
-
-  label.field { display:block; margin-bottom:14px; }
-  label.field .lbl { display:block; font-size:13px; font-weight:600; margin-bottom:6px; color:var(--sub); }
-  input[type="text"], input[type="number"], input[type="date"], select {
-    width:100%; padding:11px 13px; border:1px solid var(--line); border-radius:12px;
-    font-size:15px; font-family:inherit; background:#fbfbfd; transition:border .15s, box-shadow .15s;
-  }
-  input:focus, select:focus { outline:none; border-color:var(--a); box-shadow:0 0 0 3px var(--a-soft); }
-
-  .dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:6px; vertical-align:middle; }
-  .dot-a{background:var(--a);} .dot-b{background:var(--b);}
-
-  /* 주택 패널 카드 */
-  .house { border-radius:16px; padding:20px; border:1px solid var(--line); }
-  .house-a { background:linear-gradient(180deg,var(--a-soft),#fff); border-color:#ddd6fb; }
-  .house-b { background:linear-gradient(180deg,var(--b-soft),#fff); border-color:#c3ede8; }
-  .house h3 { margin:0 0 14px; font-size:16px; font-weight:800; }
-
-  /* 현금흐름 행 */
-  .cf-head, .cf-row {
-    display:grid; grid-template-columns:130px 1fr 150px 40px; gap:8px; align-items:center;
-  }
-  .cf-head { font-size:12px; color:var(--sub); font-weight:700; margin-bottom:8px; padding:0 2px; }
-  .cf-row { margin-bottom:8px; }
-  .cf-row input { background:#fff; }
-  .amt-plus  { color:var(--plus); font-weight:700; }
-  .amt-minus { color:var(--minus); font-weight:700; }
-  .btn-del {
-    border:none; background:#fce7ee; color:var(--accent); border-radius:10px; height:42px;
-    cursor:pointer; font-size:18px; font-weight:700;
-  }
-  .btn-add {
-    border:1.5px dashed var(--line); background:#fff; color:var(--sub); border-radius:12px;
-    padding:11px; width:100%; cursor:pointer; font-size:14px; font-weight:600; margin-top:4px;
-  }
-  .btn-add:hover { border-color:var(--a); color:var(--a); }
-  .btn-add.b:hover { border-color:var(--b); color:var(--b); }
-
-  .mini-summary {
-    display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-top:16px;
-  }
-  @media (max-width:560px){ .mini-summary{grid-template-columns:1fr;} }
-  .mini {
-    background:#fff; border:1px solid var(--line); border-radius:12px; padding:14px; text-align:center;
-  }
-  .mini .k { font-size:12px; color:var(--sub); margin-bottom:5px; }
-  .mini .v { font-size:19px; font-weight:800; letter-spacing:-.4px; }
-
-  /* 토글 (분담) */
-  .toggle { display:flex; gap:10px; flex-wrap:wrap; }
-  .toggle input { display:none; }
-  .toggle label {
-    flex:1; min-width:150px; border:1.5px solid var(--line); border-radius:12px; padding:14px;
-    cursor:pointer; text-align:center; font-size:14px; font-weight:600; color:var(--sub); transition:.15s;
-  }
-  .toggle input:checked + label { border-color:var(--a); background:var(--a-soft); color:var(--a); }
-
-  .exp-row { display:grid; grid-template-columns:1fr 150px 40px; gap:10px; align-items:center; margin-bottom:10px; }
-  .exp-row input:first-child { background:#fff; }
-
-  .btn-primary {
-    display:block; width:100%; border:none; cursor:pointer;
-    background:linear-gradient(135deg,var(--a),var(--accent)); color:#fff; font-size:16px; font-weight:800;
-    padding:16px; border-radius:14px; margin-top:6px; box-shadow:0 8px 20px rgba(108,92,231,.28); transition:transform .1s;
-  }
-  .btn-primary:active { transform:scale(.99); }
-  .btn-ghost {
-    flex:1; border:1.5px solid var(--line); background:#fff; color:var(--sub); border-radius:12px;
-    padding:11px 14px; cursor:pointer; font-size:13.5px; font-weight:700; font-family:inherit;
-  }
-  .btn-ghost:hover { border-color:var(--a); color:var(--a); }
-  .save-row { display:flex; gap:10px; margin-top:14px; flex-wrap:wrap; }
-
-  .stat { border-radius:14px; padding:18px; border:1px solid var(--line); }
-  .stat .k { font-size:13px; color:var(--sub); margin-bottom:6px; }
-  .stat .v { font-size:24px; font-weight:800; letter-spacing:-.5px; }
-  .stat .s { font-size:12.5px; color:var(--sub); margin-top:4px; }
-  .stat-a{background:var(--a-soft);} .stat-b{background:var(--b-soft);} .stat-total{background:#fff5f8;}
-  .result-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
-  @media (max-width:680px){ .result-grid{grid-template-columns:1fr;} }
-  .ok  { color:var(--plus); } .short { color:var(--minus); }
-
-  table.tbl { width:100%; border-collapse:collapse; font-size:13.5px; }
-  table.tbl th, table.tbl td { padding:10px 8px; text-align:right; border-bottom:1px solid var(--line); }
-  table.tbl th:first-child, table.tbl td:first-child { text-align:left; }
-  table.tbl th { color:var(--sub); font-weight:600; font-size:12px; }
-  table.tbl tfoot td { font-weight:800; border-top:2px solid var(--ink); border-bottom:none; }
-
-  .chart-box { position:relative; height:300px; margin-top:14px; }
-  .note {
-    background:#fffbe9; border:1px solid #f6e6a8; border-radius:12px; padding:14px 16px;
-    font-size:13.5px; color:#8a6d00; margin-top:16px;
-  }
-  .note b { color:#6b5400; }
-  .pill-row { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }
-  .pill { background:#f0f1f5; border-radius:999px; padding:8px 14px; font-size:13px; color:var(--sub); }
-  footer { text-align:center; color:var(--sub); font-size:12.5px; margin-top:30px; }
-
-  .modal-bg {
-    display:none; position:fixed; inset:0; background:rgba(20,22,30,.55); z-index:50;
-    align-items:center; justify-content:center; padding:16px;
-  }
-  .modal-bg.open { display:flex; }
-  .modal {
-    background:#fff; border-radius:18px; padding:24px; max-width:520px; width:100%;
-    box-shadow:0 20px 60px rgba(0,0,0,.3);
-  }
-  .modal h3 { margin:0 0 8px; font-size:18px; }
-  .modal p { font-size:13px; color:var(--sub); margin:0 0 14px; }
-  .modal textarea {
-    width:100%; min-height:150px; border:1px solid var(--line); border-radius:12px; padding:12px;
-    font-family:monospace; font-size:12.5px; resize:vertical;
-  }
-</style>
+.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 </head>
 <body>
 <div class="wrap">
-
   <header class="hero">
     <div class="badge">💜 미혼 동거 커플 자금 계획</div>
     <h1>우리 둘의 자금 시뮬레이터</h1>
     <p>주택 매수 자금 흐름은 각자 구분 · 생활비는 함께 · 데이터는 Firebase에 저장</p>
   </header>
 
-  <!-- Firebase 상태바 -->
   <div class="fb-bar">
-    <div class="fb-status"><span class="fb-dot" id="fbDot"></span><span id="fbStatus">Firebase 미설정 (로컬 저장만 동작)</span></div>
+    <div class="fb-status"><span class="fb-dot" id="fbDot"></span><span id="fbStatus">Firebase 연결 확인 중…</span></div>
     <div class="fb-actions">
-      <button class="btn-ghost" id="cfgBtn">⚙️ Firebase 설정</button>
       <button class="btn-ghost" id="loadBtn">☁️ 불러오기</button>
       <button class="btn-ghost" id="saveBtn">💾 저장</button>
     </div>
   </div>
 
-  <!-- 탭 -->
   <div class="tabs">
     <button class="tab-btn active" data-tab="house">🏠 주택 매수 자금</button>
     <button class="tab-btn" data-tab="living">🍚 생활비</button>
   </div>
 
-  <!-- ================= 주택 탭 ================= -->
+  <!-- 주택 탭 -->
   <div class="tab-panel active" id="tab-house">
-
     <section class="card">
       <h2><span class="step-num">1</span> 각자 보유 예산</h2>
-      <p class="desc">현재 각자 동원 가능한 현금(예산)을 입력하세요. 여기에 아래 자금흐름을 더해 부족액을 계산합니다.</p>
+      <p class="desc">현재 각자 동원 가능한 현금(예산)을 입력하세요.</p>
       <div class="grid2">
-        <label class="field">
-          <span class="lbl"><span class="dot dot-a"></span><span class="nA">본인</span> 호칭</span>
-          <input type="text" id="nameA" value="본인" />
-        </label>
-        <label class="field">
-          <span class="lbl"><span class="dot dot-b"></span><span class="nB">남자친구</span> 호칭</span>
-          <input type="text" id="nameB" value="남자친구" />
-        </label>
+        <label class="field"><span class="lbl"><span class="dot dot-a"></span><span class="nA">본인</span> 호칭</span><input type="text" id="nameA" value="본인" /></label>
+        <label class="field"><span class="lbl"><span class="dot dot-b"></span><span class="nB">남자친구</span> 호칭</span><input type="text" id="nameB" value="남자친구" /></label>
       </div>
       <div class="grid2">
-        <label class="field">
-          <span class="lbl"><span class="nA">본인</span> 보유 예산 (원)</span>
-          <input type="number" id="budgetA" value="300000000" />
-        </label>
-        <label class="field">
-          <span class="lbl"><span class="nB">남자친구</span> 보유 예산 (원)</span>
-          <input type="number" id="budgetB" value="250000000" />
-        </label>
+        <label class="field"><span class="lbl"><span class="nA">본인</span> 보유 예산 (원)</span><input type="number" id="budgetA" value="300000000" /></label>
+        <label class="field"><span class="lbl"><span class="nB">남자친구</span> 보유 예산 (원)</span><input type="number" id="budgetB" value="250000000" /></label>
       </div>
     </section>
 
     <section class="card">
       <h2><span class="step-num">2</span> 주택별 자금 흐름</h2>
-      <p class="desc">
-        날짜별로 발생하는 항목을 입력하세요.
-        <b class="amt-minus">지불은 음수(예: -100000000)</b>,
-        <b class="amt-plus">대출 등 유입은 양수(예: 350000000)</b>로 적으면 됩니다.
-      </p>
-
+      <p class="desc">날짜별 항목을 입력하세요. <b class="amt-minus">지불은 음수(-100000000)</b>, <b class="amt-plus">대출 등 유입은 양수(350000000)</b>로 적으면 됩니다.</p>
       <div class="grid2">
-        <!-- 본인 주택 -->
         <div class="house house-a">
           <h3><span class="dot dot-a"></span><input type="text" id="houseA" value="벽적골8단지 (리모델링)" style="font-weight:800;" /></h3>
           <div class="cf-head"><div>날짜</div><div>항목</div><div style="text-align:right;">금액(원)</div><div></div></div>
@@ -273,8 +62,6 @@
             <div class="mini"><div class="k">순현금흐름</div><div class="v" id="netA">-</div></div>
           </div>
         </div>
-
-        <!-- 남자친구 주택 -->
         <div class="house house-b">
           <h3><span class="dot dot-b"></span><input type="text" id="houseB" value="수원하늘채더퍼스트2단지" style="font-weight:800;" /></h3>
           <div class="cf-head"><div>날짜</div><div>항목</div><div style="text-align:right;">금액(원)</div><div></div></div>
@@ -294,83 +81,45 @@
     <div id="houseResults" style="display:none;">
       <section class="card" style="margin-top:24px;">
         <h2>📌 부족 금액 진단</h2>
-        <p class="desc">보유 예산 + 순현금흐름 결과입니다. 음수면 그만큼 추가 자금이 필요해요.</p>
         <div class="result-grid">
-          <div class="stat stat-a">
-            <div class="k"><span class="dot dot-a"></span><span class="nA">본인</span> · <span id="rHouseA">주택</span></div>
-            <div class="v" id="rBalA">-</div>
-            <div class="s" id="rBalADesc">-</div>
-          </div>
-          <div class="stat stat-b">
-            <div class="k"><span class="dot dot-b"></span><span class="nB">남자친구</span> · <span id="rHouseB">주택</span></div>
-            <div class="v" id="rBalB">-</div>
-            <div class="s" id="rBalBDesc">-</div>
-          </div>
+          <div class="stat stat-a"><div class="k"><span class="dot dot-a"></span><span class="nA">본인</span> · <span id="rHouseA">주택</span></div><div class="v" id="rBalA">-</div><div class="s" id="rBalADesc">-</div></div>
+          <div class="stat stat-b"><div class="k"><span class="dot dot-b"></span><span class="nB">남자친구</span> · <span id="rHouseB">주택</span></div><div class="v" id="rBalB">-</div><div class="s" id="rBalBDesc">-</div></div>
         </div>
-        <div class="stat stat-total" style="margin-top:16px;">
-          <div class="k">👫 두 사람 합산</div>
-          <div class="v" id="rBalTotal">-</div>
-          <div class="s" id="rBalTotalDesc">-</div>
-        </div>
+        <div class="stat stat-total" style="margin-top:16px;"><div class="k">👫 두 사람 합산</div><div class="v" id="rBalTotal">-</div><div class="s" id="rBalTotalDesc">-</div></div>
       </section>
-
-      <section class="card">
-        <h2>📅 날짜별 잔액 흐름</h2>
-        <p class="desc">예산에서 시작해 날짜순으로 지불/유입을 반영한 누적 잔액입니다. 잔액이 음수로 내려가는 시점을 주의하세요.</p>
-        <div class="chart-box"><canvas id="flowChart"></canvas></div>
-      </section>
-
-      <section class="card">
-        <h2>🧾 <span class="nA">본인</span> 자금 흐름 상세</h2>
-        <table class="tbl">
-          <thead><tr><th>날짜</th><th>항목</th><th>금액</th><th>누적 잔액</th></tr></thead>
-          <tbody id="ledgerA"></tbody>
-        </table>
-      </section>
-
-      <section class="card">
-        <h2>🧾 <span class="nB">남자친구</span> 자금 흐름 상세</h2>
-        <table class="tbl">
-          <thead><tr><th>날짜</th><th>항목</th><th>금액</th><th>누적 잔액</th></tr></thead>
-          <tbody id="ledgerB"></tbody>
-        </table>
-      </section>
+      <section class="card"><h2>📅 날짜별 잔액 흐름</h2><div class="chart-box"><canvas id="flowChart"></canvas></div></section>
+      <section class="card"><h2>🧾 <span class="nA">본인</span> 자금 흐름 상세</h2>
+        <table class="tbl"><thead><tr><th>날짜</th><th>항목</th><th>금액</th><th>누적 잔액</th></tr></thead><tbody id="ledgerA"></tbody></table></section>
+      <section class="card"><h2>🧾 <span class="nB">남자친구</span> 자금 흐름 상세</h2>
+        <table class="tbl"><thead><tr><th>날짜</th><th>항목</th><th>금액</th><th>누적 잔액</th></tr></thead><tbody id="ledgerB"></tbody></table></section>
     </div>
   </div>
 
-  <!-- ================= 생활비 탭 ================= -->
+  <!-- 생활비 탭 -->
   <div class="tab-panel" id="tab-living">
     <section class="card">
       <h2><span class="step-num">1</span> 두 사람 월 소득</h2>
-      <p class="desc">세후 실수령액(원) 기준으로 입력하세요.</p>
       <div class="grid2">
-        <label class="field"><span class="lbl"><span class="dot dot-a"></span><span class="nA">본인</span> 월 소득 (원)</span>
-          <input type="number" id="incomeA" value="3500000" /></label>
-        <label class="field"><span class="lbl"><span class="dot dot-b"></span><span class="nB">남자친구</span> 월 소득 (원)</span>
-          <input type="number" id="incomeB" value="4000000" /></label>
+        <label class="field"><span class="lbl"><span class="dot dot-a"></span><span class="nA">본인</span> 월 소득 (원)</span><input type="number" id="incomeA" value="3500000" /></label>
+        <label class="field"><span class="lbl"><span class="dot dot-b"></span><span class="nB">남자친구</span> 월 소득 (원)</span><input type="number" id="incomeB" value="4000000" /></label>
       </div>
     </section>
-
     <section class="card">
       <h2><span class="step-num">2</span> 매월 공동 생활비</h2>
-      <p class="desc">둘이 함께 쓰는 비용만 적으세요. 이 금액은 <b>공동계좌</b>에서 나가므로 서로 직접 주고받을 필요가 없어요.</p>
-      <div class="exp-row" style="color:var(--sub);font-size:12.5px;font-weight:600;">
-        <div>항목</div><div style="text-align:right;">금액 (원)</div><div></div>
-      </div>
+      <p class="desc">둘이 함께 쓰는 비용만 적으세요.</p>
+      <div class="exp-row" style="color:var(--sub);font-size:12.5px;font-weight:600;"><div>항목</div><div style="text-align:right;">금액 (원)</div><div></div></div>
       <div id="expList"></div>
       <button class="btn-add" id="addExp">＋ 항목 추가</button>
     </section>
-
     <section class="card">
       <h2><span class="step-num">3</span> 생활비 분담 방식</h2>
       <div class="toggle">
         <input type="radio" name="split" id="split-half" value="half" checked />
-        <label for="split-half">🤝 반반 (50:50)<br /><span style="font-size:12px;font-weight:500;">소득과 무관하게 똑같이</span></label>
+        <label for="split-half">🤝 반반 (50:50)</label>
         <input type="radio" name="split" id="split-income" value="income" />
-        <label for="split-income">📊 소득 비례<br /><span style="font-size:12px;font-weight:500;">많이 버는 쪽이 더 부담</span></label>
+        <label for="split-income">📊 소득 비례</label>
       </div>
     </section>
-
     <section class="card">
       <h2><span class="step-num">4</span> 공동 저축</h2>
       <div class="grid2">
@@ -378,443 +127,35 @@
         <label class="field"><span class="lbl">모으는 기간 (년)</span><input type="number" id="saveYears" value="3" min="1" /></label>
       </div>
     </section>
-
     <button class="btn-primary" id="calcLiving">💡 생활비 시뮬레이션</button>
-
     <div id="livingResults" style="display:none;">
       <section class="card" style="margin-top:24px;">
         <h2>📌 월간 결과 요약</h2>
         <div class="result-grid">
-          <div class="stat stat-a">
-            <div class="k"><span class="dot dot-a"></span><span class="nA">본인</span> 월 분담액</div>
-            <div class="v" id="rContribA">-</div><div class="s" id="rLeftA">-</div>
-          </div>
-          <div class="stat stat-b">
-            <div class="k"><span class="dot dot-b"></span><span class="nB">남자친구</span> 월 분담액</div>
-            <div class="v" id="rContribB">-</div><div class="s" id="rLeftB">-</div>
-          </div>
+          <div class="stat stat-a"><div class="k"><span class="dot dot-a"></span><span class="nA">본인</span> 월 분담액</div><div class="v" id="rContribA">-</div><div class="s" id="rLeftA">-</div></div>
+          <div class="stat stat-b"><div class="k"><span class="dot dot-b"></span><span class="nB">남자친구</span> 월 분담액</div><div class="v" id="rContribB">-</div><div class="s" id="rLeftB">-</div></div>
         </div>
-        <div class="stat stat-total" style="margin-top:16px;">
-          <div class="k">🏦 공동계좌 총 입금액 (월)</div>
-          <div class="v" id="rTotal">-</div>
-          <div class="s">공동 생활비 + 공동 저축이 매월 이 계좌에서 관리돼요.</div>
-        </div>
+        <div class="stat stat-total" style="margin-top:16px;"><div class="k">🏦 공동계좌 총 입금액 (월)</div><div class="v" id="rTotal">-</div></div>
       </section>
-
       <section class="card">
         <h2>📊 생활비 분담 상세</h2>
-        <table class="tbl">
-          <thead><tr><th>항목</th><th>금액</th><th class="nA2">본인</th><th class="nB2">남자친구</th></tr></thead>
-          <tbody id="detailBody"></tbody>
-          <tfoot><tr><td>합계</td><td id="dSum">-</td><td id="dSumA">-</td><td id="dSumB">-</td></tr></tfoot>
-        </table>
+        <table class="tbl"><thead><tr><th>항목</th><th>금액</th><th class="nA2">본인</th><th class="nB2">남자친구</th></tr></thead>
+          <tbody id="detailBody"></tbody><tfoot><tr><td>합계</td><td id="dSum">-</td><td id="dSumA">-</td><td id="dSumB">-</td></tr></tfoot></table>
         <div class="chart-box"><canvas id="pieChart"></canvas></div>
       </section>
-
       <section class="card">
         <h2>💰 공동 저축 성장 예상</h2>
-        <div class="stat stat-total">
-          <div class="k">목표 기간 후 예상 공동 저축액</div>
-          <div class="v" id="rSaveTotal">-</div><div class="s" id="rSaveDesc">-</div>
-        </div>
+        <div class="stat stat-total"><div class="k">목표 기간 후 예상 공동 저축액</div><div class="v" id="rSaveTotal">-</div><div class="s" id="rSaveDesc">-</div></div>
         <div class="chart-box" style="margin-top:18px;"><canvas id="saveChart"></canvas></div>
       </section>
-
-      <section class="card">
-        <h2>✅ 서로 이체를 줄이는 운영 원칙</h2>
-        <div class="pill-row">
-          <span class="pill">① 공동계좌 1개 개설</span>
-          <span class="pill">② 매월 정해진 분담액만 각자 입금</span>
-          <span class="pill">③ 공동지출은 공동계좌 카드로</span>
-          <span class="pill">④ 개인 지출은 각자 개인계좌</span>
-          <span class="pill">⑤ 보증금·저축은 지분 기록</span>
-          <span class="pill">⑥ 서로 직접 송금 ❌ (증여 오해 방지)</span>
-        </div>
-      </section>
     </div>
   </div>
 
-  <footer>
-    이 페이지는 참고용 자금 계획 도구이며, 법률·세무 효력을 갖지 않습니다.<br />
-    큰 금액 거래·지분 정리는 전문가(변호사·세무사) 상담을 권장합니다.
-  </footer>
+  <footer>참고용 자금 계획 도구이며 법률·세무 효력은 없습니다. 큰 거래는 전문가 상담을 권장합니다.</footer>
 </div>
 
-<!-- Firebase 설정 모달 -->
-<div class="modal-bg" id="cfgModal">
-  <div class="modal">
-    <h3>⚙️ Firebase 설정</h3>
-    <p>Firebase 콘솔 → 프로젝트 설정 → 내 앱(웹)의 <b>firebaseConfig</b> 객체를 그대로 붙여넣으세요. 이 브라우저에 저장되어 다음부터 자동 연결됩니다.</p>
-    <textarea id="cfgInput" placeholder='{
-  "apiKey": "AIza...",
-  "authDomain": "xxx.firebaseapp.com",
-  "projectId": "xxx",
-  "storageBucket": "xxx.appspot.com",
-  "messagingSenderId": "123",
-  "appId": "1:123:web:abc"
-}'></textarea>
-    <div class="save-row">
-      <button class="btn-ghost" id="cfgCancel">취소</button>
-      <button class="btn-primary" style="margin-top:0;flex:1;" id="cfgSave">연결하기</button>
-    </div>
-  </div>
-</div>
-
-<script>
-  const $ = (id) => document.getElementById(id);
-  const won = (v) => (Math.round(v)).toLocaleString("ko-KR") + "원";
-  const eok = (v) => {
-    const sign = v < 0 ? "-" : "";
-    const a = Math.abs(v);
-    if (a >= 100000000) return sign + (a/100000000).toFixed(2).replace(/\.00$/,"") + "억";
-    if (a >= 10000)     return sign + Math.round(a/10000).toLocaleString() + "만";
-    return won(v);
-  };
-  const DOC_PATH = ["coupleFund", "main"]; // Firestore: collection/doc
-
-  /* ---------- 기본 데이터 ---------- */
-  const defaultCfA = [
-    { date:"2026-03-10", label:"계약금", amt:-100000000 },
-    { date:"2026-06-20", label:"중도금", amt:-150000000 },
-    { date:"2026-09-30", label:"주택담보대출 실행", amt:350000000 },
-    { date:"2026-09-30", label:"잔금", amt:-400000000 },
-    { date:"2026-10-05", label:"법무사·취득세", amt:-15000000 },
-  ];
-  const defaultCfB = [
-    { date:"2026-04-01", label:"계약금", amt:-80000000 },
-    { date:"2026-08-15", label:"주택담보대출 실행", amt:300000000 },
-    { date:"2026-08-15", label:"잔금", amt:-350000000 },
-    { date:"2026-08-20", label:"법무사·취득세", amt:-12000000 },
-  ];
-  const defaultExpenses = [
-    { name:"월세 / 관리비", amt:900000 },
-    { name:"식비 / 장보기", amt:600000 },
-    { name:"공과금 (전기·가스·수도)", amt:200000 },
-    { name:"통신비 / 구독", amt:150000 },
-    { name:"생필품", amt:100000 },
-    { name:"데이트 / 여가", amt:300000 },
-  ];
-
-  let cfA = [...defaultCfA];
-  let cfB = [...defaultCfB];
-  let expenses = [...defaultExpenses];
-
-  /* ---------- 렌더링 ---------- */
-  function renderCf(list, boxId) {
-    const box = $(boxId);
-    box.innerHTML = "";
-    list.forEach((e, i) => {
-      const row = document.createElement("div");
-      row.className = "cf-row";
-      row.innerHTML = `
-        <input type="date" value="${e.date}" data-i="${i}" data-k="date" />
-        <input type="text" value="${e.label}" data-i="${i}" data-k="label" placeholder="항목" />
-        <input type="number" value="${e.amt}" data-i="${i}" data-k="amt" placeholder="±금액" />
-        <button class="btn-del" data-del="${i}">×</button>`;
-      box.appendChild(row);
-    });
-  }
-  function renderExpenses(list) {
-    const box = $("expList");
-    box.innerHTML = "";
-    list.forEach((e, i) => {
-      const row = document.createElement("div");
-      row.className = "exp-row";
-      row.innerHTML = `
-        <input type="text" value="${e.name}" data-i="${i}" data-k="name" placeholder="항목명" />
-        <input type="number" value="${e.amt}" data-i="${i}" data-k="amt" min="0" />
-        <button class="btn-del" data-del="${i}">×</button>`;
-      box.appendChild(row);
-    });
-  }
-  renderCf(cfA, "cfListA");
-  renderCf(cfB, "cfListB");
-  renderExpenses(expenses);
-
-  function bindCf(boxId, list) {
-    $(boxId).addEventListener("input", (ev) => {
-      const t = ev.target; if (t.dataset.i === undefined) return;
-      const i = +t.dataset.i, k = t.dataset.k;
-      if (k === "amt") list[i].amt = +t.value || 0; else list[i][k] = t.value;
-    });
-    $(boxId).addEventListener("click", (ev) => {
-      if (ev.target.dataset.del !== undefined) { list.splice(+ev.target.dataset.del,1); renderCf(list, boxId); }
-    });
-  }
-  bindCf("cfListA", cfA);
-  bindCf("cfListB", cfB);
-  $("addCfA").addEventListener("click", () => { cfA.push({date:"2026-01-01",label:"새 항목",amt:0}); renderCf(cfA,"cfListA"); });
-  $("addCfB").addEventListener("click", () => { cfB.push({date:"2026-01-01",label:"새 항목",amt:0}); renderCf(cfB,"cfListB"); });
-
-  $("expList").addEventListener("input", (ev) => {
-    const t = ev.target; if (t.dataset.i === undefined) return;
-    const i = +t.dataset.i;
-    if (t.dataset.k === "name") expenses[i].name = t.value; else expenses[i].amt = +t.value || 0;
-  });
-  $("expList").addEventListener("click", (ev) => {
-    if (ev.target.dataset.del !== undefined) { expenses.splice(+ev.target.dataset.del,1); renderExpenses(expenses); }
-  });
-  $("addExp").addEventListener("click", () => { expenses.push({name:"새 항목",amt:0}); renderExpenses(expenses); });
-
-  /* ---------- 이름 동기화 ---------- */
-  function syncNames() {
-    const a = $("nameA").value || "본인", b = $("nameB").value || "남자친구";
-    document.querySelectorAll(".nA,.nA2").forEach(el=>el.textContent=a);
-    document.querySelectorAll(".nB,.nB2").forEach(el=>el.textContent=b);
-  }
-  $("nameA").addEventListener("input", syncNames);
-  $("nameB").addEventListener("input", syncNames);
-
-  /* ---------- 탭 ---------- */
-  document.querySelectorAll(".tab-btn").forEach(btn => {
-    btn.addEventListener("click", () => {
-      document.querySelectorAll(".tab-btn").forEach(b=>b.classList.remove("active"));
-      document.querySelectorAll(".tab-panel").forEach(p=>p.classList.remove("active"));
-      btn.classList.add("active");
-      $("tab-" + btn.dataset.tab).classList.add("active");
-    });
-  });
-
-  /* ---------- 주택 시뮬레이션 ---------- */
-  let flowChart;
-  function buildLedger(budget, list) {
-    const sorted = [...list].sort((x,y)=> (x.date||"").localeCompare(y.date||""));
-    let bal = budget; const rows = [];
-    sorted.forEach(e => { bal += (+e.amt||0); rows.push({...e, bal}); });
-    return { sorted, rows, final: bal };
-  }
-  function calcHouse() {
-    syncNames();
-    const budgetA = +$("budgetA").value || 0;
-    const budgetB = +$("budgetB").value || 0;
-    const nameA = $("nameA").value || "본인", nameB = $("nameB").value || "남자친구";
-
-    const inSum = (l)=> l.filter(e=>e.amt>0).reduce((s,e)=>s+e.amt,0);
-    const outSum = (l)=> l.filter(e=>e.amt<0).reduce((s,e)=>s+e.amt,0);
-    $("inA").textContent = eok(inSum(cfA)); $("outA").textContent = eok(outSum(cfA));
-    $("netA").textContent = eok(inSum(cfA)+outSum(cfA));
-    $("inB").textContent = eok(inSum(cfB)); $("outB").textContent = eok(outSum(cfB));
-    $("netB").textContent = eok(inSum(cfB)+outSum(cfB));
-
-    const A = buildLedger(budgetA, cfA);
-    const B = buildLedger(budgetB, cfB);
-
-    $("rHouseA").textContent = $("houseA").value;
-    $("rHouseB").textContent = $("houseB").value;
-
-    const setBal = (id, descId, val) => {
-      $(id).textContent = eok(val);
-      $(id).className = "v " + (val < 0 ? "short" : "ok");
-      $(descId).textContent = val < 0 ? `부족액 ${won(Math.abs(val))} — 추가 자금 필요` : `여유 ${won(val)}`;
-    };
-    setBal("rBalA","rBalADesc",A.final);
-    setBal("rBalB","rBalBDesc",B.final);
-    const tot = A.final + B.final;
-    $("rBalTotal").textContent = eok(tot);
-    $("rBalTotal").className = "v " + (tot<0?"short":"ok");
-    $("rBalTotalDesc").textContent = tot<0 ? `합산 부족액 ${won(Math.abs(tot))}` : `합산 여유 ${won(tot)}`;
-
-    // 원장 테이블
-    const fillLedger = (rows, tbId, budget) => {
-      const tb = $(tbId); tb.innerHTML = "";
-      const tr0 = document.createElement("tr");
-      tr0.innerHTML = `<td>시작</td><td>보유 예산</td><td>${won(budget)}</td><td>${won(budget)}</td>`;
-      tb.appendChild(tr0);
-      rows.forEach(r => {
-        const cls = r.amt<0?"amt-minus":"amt-plus";
-        const balcls = r.bal<0?"short":"";
-        const tr = document.createElement("tr");
-        tr.innerHTML = `<td>${r.date}</td><td>${r.label}</td>
-          <td class="${cls}">${won(r.amt)}</td><td class="${balcls}">${won(r.bal)}</td>`;
-        tb.appendChild(tr);
-      });
-    };
-    fillLedger(A.rows,"ledgerA",budgetA);
-    fillLedger(B.rows,"ledgerB",budgetB);
-
-    // 잔액 흐름 차트 (날짜 통합)
-    const allDates = Array.from(new Set([...A.rows,...B.rows].map(r=>r.date))).sort();
-    const seriesFor = (rows, budget) => {
-      let last = budget; const map = {};
-      rows.forEach(r => map[r.date] = r.bal);
-      return allDates.map(d => { if (map[d]!==undefined) last = map[d]; return last; });
-    };
-    if (flowChart) flowChart.destroy();
-    flowChart = new Chart($("flowChart"), {
-      type:"line",
-      data:{ labels:["시작",...allDates],
-        datasets:[
-          { label:nameA, data:[budgetA,...seriesFor(A.rows,budgetA)], borderColor:"#6c5ce7", backgroundColor:"rgba(108,92,231,.12)", fill:true, tension:.2, stepped:false },
-          { label:nameB, data:[budgetB,...seriesFor(B.rows,budgetB)], borderColor:"#00b8a9", backgroundColor:"rgba(0,184,169,.12)", fill:true, tension:.2 },
-        ]},
-      options:{
-        plugins:{ legend:{position:"bottom", labels:{font:{family:"Pretendard"}}},
-          tooltip:{ callbacks:{ label:(c)=> c.dataset.label+": "+won(c.parsed.y) } } },
-        scales:{ y:{ ticks:{ callback:(v)=> eok(v) } } },
-        maintainAspectRatio:false,
-      },
-    });
-
-    $("houseResults").style.display = "block";
-    $("houseResults").scrollIntoView({behavior:"smooth"});
-  }
-  $("calcHouse").addEventListener("click", calcHouse);
-
-  /* ---------- 생활비 시뮬레이션 ---------- */
-  let pieChart, saveChart;
-  function calcLiving() {
-    syncNames();
-    const nameA=$("nameA").value||"본인", nameB=$("nameB").value||"남자친구";
-    const incA=+$("incomeA").value||0, incB=+$("incomeB").value||0;
-    const totalExp = expenses.reduce((s,e)=>s+(+e.amt||0),0);
-    const saveMonthly=+$("saveMonthly").value||0, saveYears=+$("saveYears").value||1;
-    const split=document.querySelector('input[name="split"]:checked').value;
-    let rA=.5,rB=.5;
-    if (split==="income" && incA+incB>0){ rA=incA/(incA+incB); rB=incB/(incA+incB); }
-
-    const pot = totalExp+saveMonthly, cA=pot*rA, cB=pot*rB;
-    $("rContribA").textContent=won(cA); $("rContribB").textContent=won(cB);
-    $("rLeftA").textContent="개인 여유자금 "+won(incA-cA);
-    $("rLeftB").textContent="개인 여유자금 "+won(incB-cB);
-    $("rTotal").textContent=won(pot);
-
-    const body=$("detailBody"); body.innerHTML="";
-    expenses.forEach(e=>{ const a=+e.amt||0; const tr=document.createElement("tr");
-      tr.innerHTML=`<td>${e.name}</td><td>${won(a)}</td><td>${won(a*rA)}</td><td>${won(a*rB)}</td>`; body.appendChild(tr); });
-    if (saveMonthly>0){ const tr=document.createElement("tr");
-      tr.innerHTML=`<td>공동 저축</td><td>${won(saveMonthly)}</td><td>${won(saveMonthly*rA)}</td><td>${won(saveMonthly*rB)}</td>`; body.appendChild(tr); }
-    $("dSum").textContent=won(pot); $("dSumA").textContent=won(cA); $("dSumB").textContent=won(cB);
-
-    const totalSave=saveMonthly*12*saveYears;
-    $("rSaveTotal").textContent=won(totalSave);
-    $("rSaveDesc").textContent=`매월 ${won(saveMonthly)} × ${saveYears}년`;
-
-    if (pieChart) pieChart.destroy();
-    pieChart=new Chart($("pieChart"),{ type:"doughnut",
-      data:{ labels:expenses.map(e=>e.name), datasets:[{ data:expenses.map(e=>+e.amt||0),
-        backgroundColor:["#6c5ce7","#00b8a9","#ff5e8a","#ffa94d","#4dabf7","#82c91e","#e64980","#a78bfa"], borderWidth:2, borderColor:"#fff" }] },
-      options:{ plugins:{legend:{position:"bottom",labels:{font:{family:"Pretendard"}}}}, cutout:"58%", maintainAspectRatio:false } });
-
-    if (saveChart) saveChart.destroy();
-    const labels=[],dA=[],dB=[];
-    for(let y=0;y<=saveYears;y++){ labels.push(y+"년"); dA.push(Math.round(saveMonthly*rA*12*y)); dB.push(Math.round(saveMonthly*rB*12*y)); }
-    saveChart=new Chart($("saveChart"),{ type:"line",
-      data:{ labels, datasets:[
-        {label:nameA,data:dA,borderColor:"#6c5ce7",backgroundColor:"#efecfd",fill:true,tension:.3},
-        {label:nameB,data:dB,borderColor:"#00b8a9",backgroundColor:"#e2f7f4",fill:true,tension:.3}] },
-      options:{ plugins:{legend:{position:"bottom",labels:{font:{family:"Pretendard"}}}},
-        scales:{y:{ticks:{callback:(v)=>eok(v)}}}, maintainAspectRatio:false } });
-
-    $("livingResults").style.display="block";
-    $("livingResults").scrollIntoView({behavior:"smooth"});
-  }
-  $("calcLiving").addEventListener("click", calcLiving);
-
-  /* ---------- 데이터 수집/적용 ---------- */
-  function collect() {
-    return {
-      nameA:$("nameA").value, nameB:$("nameB").value,
-      budgetA:$("budgetA").value, budgetB:$("budgetB").value,
-      houseA:$("houseA").value, houseB:$("houseB").value,
-      cfA, cfB,
-      incomeA:$("incomeA").value, incomeB:$("incomeB").value,
-      expenses, split:document.querySelector('input[name="split"]:checked').value,
-      saveMonthly:$("saveMonthly").value, saveYears:$("saveYears").value,
-      updatedAt: new Date().toISOString(),
-    };
-  }
-  function apply(d) {
-    if (!d) return;
-    if (d.nameA!=null) $("nameA").value=d.nameA;
-    if (d.nameB!=null) $("nameB").value=d.nameB;
-    if (d.budgetA!=null) $("budgetA").value=d.budgetA;
-    if (d.budgetB!=null) $("budgetB").value=d.budgetB;
-    if (d.houseA!=null) $("houseA").value=d.houseA;
-    if (d.houseB!=null) $("houseB").value=d.houseB;
-    if (d.incomeA!=null) $("incomeA").value=d.incomeA;
-    if (d.incomeB!=null) $("incomeB").value=d.incomeB;
-    if (d.saveMonthly!=null) $("saveMonthly").value=d.saveMonthly;
-    if (d.saveYears!=null) $("saveYears").value=d.saveYears;
-    if (d.split==="income") $("split-income").checked=true;
-    if (Array.isArray(d.cfA)) { cfA=d.cfA; renderCf(cfA,"cfListA"); bindCf("cfListA",cfA); }
-    if (Array.isArray(d.cfB)) { cfB=d.cfB; renderCf(cfB,"cfListB"); bindCf("cfListB",cfB); }
-    if (Array.isArray(d.expenses)) { expenses=d.expenses; renderExpenses(expenses); }
-    syncNames();
-  }
-
-  /* ---------- Firebase ---------- */
-  let db = null;
-  function setStatus(text, state) {
-    $("fbStatus").textContent = text;
-    $("fbDot").className = "fb-dot" + (state?" "+state:"");
-  }
-  function initFirebase() {
-    const cfgStr = localStorage.getItem("fbConfig");
-    if (!cfgStr) { setStatus("Firebase 미설정 (로컬 저장만 동작)", ""); return; }
-    try {
-      const cfg = JSON.parse(cfgStr);
-      if (!firebase.apps.length) firebase.initializeApp(cfg);
-      db = firebase.firestore();
-      setStatus("Firebase 연결됨 · 프로젝트 " + (cfg.projectId||""), "on");
-      loadFromCloud(true);
-    } catch(e) {
-      console.error(e); setStatus("Firebase 설정 오류 — 다시 설정하세요", "err");
-    }
-  }
-  async function saveToCloud() {
-    const data = collect();
-    localStorage.setItem("coupleFund", JSON.stringify(data)); // 로컬 백업
-    if (!db) { alert("로컬에 저장했어요. (Firebase를 설정하면 클라우드에도 저장됩니다)"); return; }
-    try {
-      await db.collection(DOC_PATH[0]).doc(DOC_PATH[1]).set(data);
-      setStatus("저장 완료 · " + new Date().toLocaleString("ko-KR"), "on");
-    } catch(e) { console.error(e); alert("클라우드 저장 실패: "+e.message); }
-  }
-  async function loadFromCloud(silent) {
-    if (!db) {
-      const s = localStorage.getItem("coupleFund");
-      if (s) { apply(JSON.parse(s)); if(!silent) alert("로컬에 저장된 데이터를 불러왔어요."); }
-      else if(!silent) alert("저장된 데이터가 없어요.");
-      return;
-    }
-    try {
-      const snap = await db.collection(DOC_PATH[0]).doc(DOC_PATH[1]).get();
-      if (snap.exists) {
-        apply(snap.data());
-        setStatus("불러오기 완료 · " + new Date().toLocaleString("ko-KR"), "on");
-      } else if(!silent) { alert("클라우드에 저장된 데이터가 아직 없어요. 먼저 저장해 주세요."); }
-    } catch(e) { console.error(e); if(!silent) alert("불러오기 실패: "+e.message); }
-  }
-  $("saveBtn").addEventListener("click", saveToCloud);
-  $("loadBtn").addEventListener("click", ()=>loadFromCloud(false));
-
-  // 설정 모달
-  $("cfgBtn").addEventListener("click", ()=>{
-    $("cfgInput").value = localStorage.getItem("fbConfig") || "";
-    $("cfgModal").classList.add("open");
-  });
-  $("cfgCancel").addEventListener("click", ()=> $("cfgModal").classList.remove("open"));
-  $("cfgSave").addEventListener("click", ()=>{
-    const raw = $("cfgInput").value.trim();
-    if (!raw) { alert("설정 값을 입력하세요."); return; }
-    try {
-      // JS 객체 형태로 붙여넣어도 파싱되도록 보정
-      const jsonish = raw.replace(/(\w+)\s*:/g,'"$1":').replace(/'/g,'"').replace(/,(\s*[}\]])/g,'$1');
-      const cfg = JSON.parse(jsonish);
-      localStorage.setItem("fbConfig", JSON.stringify(cfg));
-      $("cfgModal").classList.remove("open");
-      initFirebase();
-    } catch(e) { alert("설정 형식을 확인하세요. firebaseConfig 객체를 그대로 붙여넣으면 됩니다.\n\n"+e.message); }
-  });
-
-  /* ---------- 시작 시 ---------- */
-  (function boot(){
-    // 로컬 우선 적용 후, Firebase 있으면 클라우드로 덮어씀
-    const s = localStorage.getItem("coupleFund");
-    if (s) { try { apply(JSON.parse(s)); } catch(e){} }
-    syncNames();
-    initFirebase();
-  })();
-</script>
+<!-- 스크립트 로드 순서 중요: config → app -->
+firebase-config.js
+app.js
 </body>
 </html>
