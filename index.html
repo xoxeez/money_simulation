@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>우리 둘의 자금 시뮬레이터</title>
+<link rel="preconnect" href="https://cdn.jsdelt/web/static/pretendard.min.css"
+  rel="stylesheet"
+/>
+sdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --card: #ffffff;
+    --ink: #1f2430;
+    --sub: #6b7280;
+    --line: #e7e9ee;
+    --a: #6c5ce7;      /* 본인 색 */
+    --a-soft: #efecfd;
+    --b: #00b8a9;      /* 남자친구 색 */
+    --b-soft: #e2f7f4;
+    --accent: #ff5e8a;
+    --shadow: 0 8px 30px rgba(31, 36, 48, 0.08);
+    --radius: 18px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Pretendard", -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 24px 18px 80px; }
+
+  header.hero {
+    text-align: center;
+    padding: 40px 20px 28px;
+  }
+  header.hero h1 {
+    margin: 0 0 8px;
+    font-size: 30px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+  header.hero p {
+    margin: 0;
+    color: var(--sub);
+    font-size: 15px;
+  }
+  .badge {
+    display: inline-block;
+    background: linear-gradient(135deg, var(--a), var(--accent));
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 6px 14px;
+    border-radius: 999px;
+    margin-bottom: 14px;
+    letter-spacing: 0.3px;
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 24px;
+    margin-bottom: 22px;
+  }
+  .card h2 {
+    margin: 0 0 4px;
+    font-size: 19px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card .desc { color: var(--sub); font-size: 13.5px; margin: 0 0 18px; }
+  .step-num {
+    display: inline-flex;
+    width: 26px; height: 26px;
+    background: var(--a-soft);
+    color: var(--a);
+    border-radius: 8px;
+    align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 800;
+  }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+  @media (max-width: 680px) {
+    .grid2, .grid3 { grid-template-columns: 1fr; }
+  }
+
+  label.field { display: block; margin-bottom: 14px; }
+  label.field .lbl { display:block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--sub); }
+  input[type="text"], input[type="number"], select {
+    width: 100%;
+    padding: 11px 13px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    font-size: 15px;
+    font-family: inherit;
+    background: #fbfbfd;
+    transition: border .15s, box-shadow .15s;
+  }
+  input:focus, select:focus {
+    outline: none;
+    border-color: var(--a);
+    box-shadow: 0 0 0 3px var(--a-soft);
+  }
+
+  .person-card { border-radius: 14px; padding: 16px; }
+  .person-a { background: var(--a-soft); border: 1px solid #ddd6fb; }
+  .person-b { background: var(--b-soft); border: 1px solid #c3ede8; }
+  .person-card h3 { margin: 0 0 12px; font-size: 15px; }
+  .dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:6px; vertical-align:middle;}
+  .dot-a{background:var(--a);} .dot-b{background:var(--b);}
+
+  /* 분담 방식 토글 */
+  .toggle { display:flex; gap:10px; flex-wrap:wrap; }
+  .toggle input { display:none; }
+  .toggle label {
+    flex:1; min-width:140px;
+    border:1.5px solid var(--line); border-radius:12px;
+    padding:14px; cursor:pointer; text-align:center;
+    font-size:14px; font-weight:600; color:var(--sub);
+    transition:.15s;
+  }
+  .toggle input:checked + label {
+    border-color: var(--a); background: var(--a-soft); color: var(--a);
+  }
+
+  /* 생활비 항목 테이블 */
+  .exp-row { display:grid; grid-template-columns: 1fr 150px 40px; gap:10px; align-items:center; margin-bottom:10px; }
+  .exp-row input:first-child { background:#fff; }
+  .btn-del {
+    border:none; background:#fce7ee; color:var(--accent);
+    border-radius:10px; height:42px; cursor:pointer; font-size:18px; font-weight:700;
+  }
+  .btn-add {
+    border:1.5px dashed var(--line); background:#fff; color:var(--sub);
+    border-radius:12px; padding:11px; width:100%; cursor:pointer; font-size:14px; font-weight:600;
+    margin-top:4px;
+  }
+  .btn-add:hover { border-color:var(--a); color:var(--a); }
+
+  .btn-primary {
+    display:block; width:100%; border:none; cursor:pointer;
+    background: linear-gradient(135deg, var(--a), var(--accent));
+    color:#fff; font-size:16px; font-weight:800;
+    padding:16px; border-radius:14px; margin-top:6px;
+    box-shadow: 0 8px 20px rgba(108,92,231,.28);
+    transition: transform .1s;
+  }
+  .btn-primary:active { transform: scale(.99); }
+
+  /* 결과 */
+  #results { display:none; }
+  .result-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media (max-width:680px){ .result-grid{grid-template-columns:1fr;} }
+  .stat {
+    border-radius:14px; padding:18px; border:1px solid var(--line);
+  }
+  .stat .k { font-size:13px; color:var(--sub); margin-bottom:6px; }
+  .stat .v { font-size:24px; font-weight:800; letter-spacing:-.5px; }
+  .stat .s { font-size:12.5px; color:var(--sub); margin-top:4px; }
+  .stat-a { background: var(--a-soft); }
+  .stat-b { background: var(--b-soft); }
+  .stat-total { background:#fff5f8; }
+
+  table.tbl { width:100%; border-collapse:collapse; font-size:14px; }
+  table.tbl th, table.tbl td { padding:11px 10px; text-align:right; border-bottom:1px solid var(--line); }
+  table.tbl th:first-child, table.tbl td:first-child { text-align:left; }
+  table.tbl th { color:var(--sub); font-weight:600; font-size:12.5px; }
+  table.tbl tfoot td { font-weight:800; border-top:2px solid var(--ink); border-bottom:none; }
+
+  .chart-box { position:relative; height:280px; margin-top:8px; }
+
+  .note {
+    background:#fffbe9; border:1px solid #f6e6a8; border-radius:12px;
+    padding:14px 16px; font-size:13.5px; color:#8a6d00; margin-top:16px;
+  }
+  .note b { color:#6b5400; }
+
+  .pill-row { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }
+  .pill {
+    background:#f0f1f5; border-radius:999px; padding:8px 14px; font-size:13px; color:var(--sub);
+  }
+  footer { text-align:center; color:var(--sub); font-size:12.5px; margin-top:30px; }
+  .save-row { display:flex; gap:10px; margin-top:14px; }
+  .btn-ghost {
+    flex:1; border:1.5px solid var(--line); background:#fff; color:var(--sub);
+    border-radius:12px; padding:12px; cursor:pointer; font-size:13.5px; font-weight:600;
+  }
+  .btn-ghost:hover { border-color:var(--a); color:var(--a); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <div class="badge">💜 미혼 동거 커플 자금 계획</div>
+    <h1>우리 둘의 자금 시뮬레이터</h1>
+    <p>서로 간 직접 이체는 최소화하고, 공동생활비는 공정하게 · 보증금 지분은 명확하게</p>
+  </header>
+
+  <!-- STEP 1: 소득 -->
+  <section class="card">
+    <h2><span class="step-num">1</span> 두 사람 월 소득</h2>
+    <p class="desc">세후 실수령액 기준으로 입력하면 더 정확해요.</p>
+    <div class="grid2">
+      <div class="person-card person-a">
+        <h3><span class="dot dot-a"></span><span id="nameA-label">본인</span></h3>
+        <label class="field">
+          <span class="lbl">호칭</span>
+          <input type="text" id="nameA" value="본인" />
+        </label>
+        <label class="field">
+          <span class="lbl">월 소득 (만원)</span>
+          <input type="number" id="incomeA" value="350" min="0" />
+        </label>
+      </div>
+      <div class="person-card person-b">
+        <h3><span class="dot dot-b"></span><span id="nameB-label">남자친구</span></h3>
+        <label class="field">
+          <span class="lbl">호칭</span>
+          <input type="text" id="nameB" value="남자친구" />
+        </label>
+        <label class="field">
+          <span class="lbl">월 소득 (만원)</span>
+          <input type="number" id="incomeB" value="400" min="0" />
+        </label>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 2: 공동 생활비 -->
+  <section class="card">
+    <h2><span class="step-num">2</span> 매월 공동 생활비</h2>
+    <p class="desc">둘이 함께 쓰는 비용만 적으세요. 이 금액은 <b>공동계좌</b>에서 나가므로 서로 직접 주고받을 필요가 없어요.</p>
+    <div class="exp-row" style="color:var(--sub);font-size:12.5px;font-weight:600;">
+      <div>항목</div><div style="text-align:right;">금액 (만원)</div><div></div>
+    </div>
+    <div id="expList"></div>
+    <button class="btn-add" id="addExp">＋ 항목 추가</button>
+  </section>
+
+  <!-- STEP 3: 분담 방식 -->
+  <section class="card">
+    <h2><span class="step-num">3</span> 생활비 분담 방식</h2>
+    <p class="desc">동거 커플이 가장 많이 쓰는 두 방식이에요.</p>
+    <div class="toggle">
+      <input type="radio" name="split" id="split-half" value="half" checked />
+      <label for="split-half">🤝 반반 (50:50)<br /><span style="font-size:12px;font-weight:500;">소득과 무관하게 똑같이</span></label>
+      <input type="radio" name="split" id="split-income" value="income" />
+      <label for="split-income">📊 소득 비례<br /><span style="font-size:12px;font-weight:500;">많이 버는 쪽이 더 부담</span></label>
+    </div>
+  </section>
+
+  <!-- STEP 4: 보증금/공동자산 -->
+  <section class="card">
+    <h2><span class="step-num">4</span> 전세보증금 · 공동자산 지분</h2>
+    <p class="desc">각자 낸 만큼 지분을 기록해두면, 나중에 정리할 때 다툼을 막을 수 있어요. (미혼 관계라 특히 중요!)</p>
+    <label class="field">
+      <span class="lbl">총 보증금 / 공동자산 (만원)</span>
+      <input type="number" id="deposit" value="20000" min="0" />
+    </label>
+    <div class="grid2">
+      <label class="field">
+        <span class="lbl"><span class="dot dot-a"></span><span class="depNameA">본인</span> 부담액 (만원)</span>
+        <input type="number" id="depA" value="8000" min="0" />
+      </label>
+      <label class="field">
+        <span class="lbl"><span class="dot dot-b"></span><span class="depNameB">남자친구</span> 부담액 (만원)</span>
+        <input type="number" id="depB" value="12000" min="0" />
+      </label>
+    </div>
+  </section>
+
+  <!-- STEP 5: 저축 시뮬레이션 -->
+  <section class="card">
+    <h2><span class="step-num">5</span> 공동 저축 시뮬레이션</h2>
+    <p class="desc">매월 공동계좌에 함께 모을 금액과 기간을 정해보세요.</p>
+    <div class="grid2">
+      <label class="field">
+        <span class="lbl">매월 공동 저축액 (만원)</span>
+        <input type="number" id="saveMonthly" value="100" min="0" />
+      </label>
+      <label class="field">
+        <span class="lbl">모으는 기간 (년)</span>
+        <input type="number" id="saveYears" value="3" min="1" />
+      </label>
+    </div>
+  </section>
+
+  <button class="btn-primary" id="calcBtn">💡 시뮬레이션 실행하기</button>
+  <div class="save-row">
+    <button class="btn-ghost" id="saveBtn">💾 입력값 저장</button>
+    <button class="btn-ghost" id="printBtn">🖨️ 인쇄 / PDF 저장</button>
+    <button class="btn-ghost" id="resetBtn">↺ 초기화</button>
+  </div>
+
+  <!-- RESULTS -->
+  <div id="results">
+    <section class="card" style="margin-top:26px;">
+      <h2>📌 월간 결과 요약</h2>
+      <p class="desc">각자 공동계좌에 넣을 금액과, 개인적으로 남는 여유자금이에요.</p>
+      <div class="result-grid">
+        <div class="stat stat-a">
+          <div class="k"><span class="dot dot-a"></span><span class="rNameA">본인</span> 월 분담액</div>
+          <div class="v" id="rContribA">-</div>
+          <div class="s" id="rLeftA">-</div>
+        </div>
+        <div class="stat stat-b">
+          <div class="k"><span class="dot dot-b"></span><span class="rNameB">남자친구</span> 월 분담액</div>
+          <div class="v" id="rContribB">-</div>
+          <div class="s" id="rLeftB">-</div>
+        </div>
+      </div>
+      <div class="stat stat-total" style="margin-top:16px;">
+        <div class="k">🏦 공동계좌 총 입금액 (월)</div>
+        <div class="v" id="rTotal">-</div>
+        <div class="s" id="rTotalDesc">공동 생활비 + 공동 저축이 매월 이 계좌에서 관리돼요.</div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>📊 생활비 분담 상세</h2>
+      <table class="tbl">
+        <thead>
+          <tr><th>항목</th><th>금액</th><th class="rNameA2">본인</th><th class="rNameB2">남자친구</th></tr>
+        </thead>
+        <tbody id="detailBody"></tbody>
+        <tfoot>
+          <tr><td>합계</td><td id="dSum">-</td><td id="dSumA">-</td><td id="dSumB">-</td></tr>
+        </tfoot>
+      </table>
+      <div class="chart-box"><canvas id="pieChart"></canvas></div>
+    </section>
+
+    <section class="card">
+      <h2>🏠 보증금 지분</h2>
+      <div class="result-grid">
+        <div class="stat stat-a">
+          <div class="k"><span class="dot dot-a"></span><span class="rNameA3">본인</span> 지분</div>
+          <div class="v" id="rShareA">-</div>
+          <div class="s" id="rShareAmtA">-</div>
+        </div>
+        <div class="stat stat-b">
+          <div class="k"><span class="dot dot-b"></span><span class="rNameB3">남자친구</span> 지분</div>
+          <div class="v" id="rShareB">-</div>
+          <div class="s" id="rShareAmtB">-</div>
+        </div>
+      </div>
+      <div class="note">
+        <b>💡 미혼 동거 팁:</b> 이 지분 비율을 <b>동거 계약서 / 공동생활 합의서</b>에 명시해두면,
+        나중에 관계를 정리하거나 집을 처분할 때 각자 낸 만큼 돌려받을 수 있어요.
+        보증금은 반드시 <b>계좌이체</b>로 이동시키고 이체 메모에 목적을 남겨두세요.
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>💰 공동 저축 성장 예상</h2>
+      <div class="stat stat-total">
+        <div class="k">목표 기간 후 예상 공동 저축액</div>
+        <div class="v" id="rSaveTotal">-</div>
+        <div class="s" id="rSaveDesc">-</div>
+      </div>
+      <div class="chart-box" style="margin-top:18px;"><canvas id="saveChart"></canvas></div>
+      <div class="note">
+        공동 저축은 <b>공동 명의 계좌</b> 또는 <b>지분을 기록한 별도 계좌</b>로 관리하는 것을 권장해요.
+        (이 시뮬레이션은 단순 원금 누적 기준이며 이자·투자수익은 제외했어요.)
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>✅ 서로 이체를 줄이는 운영 원칙</h2>
+      <div class="pill-row">
+        <span class="pill">① 공동계좌 1개 개설</span>
+        <span class="pill">② 매월 정해진 분담액만 각자 입금</span>
+        <span class="pill">③ 모든 공동지출은 공동계좌 카드로 결제</span>
+        <span class="pill">④ 개인 지출은 각자 개인계좌</span>
+        <span class="pill">⑤ 보증금·저축은 지분 기록</span>
+        <span class="pill">⑥ 서로 직접 송금 ❌ (증여 오해 방지)</span>
+      </div>
+    </section>
+  </div>
+
+  <footer>
+    이 페이지는 참고용 자금 계획 도구이며, 법률·세무 효력을 갖지 않습니다.<br />
+    큰 금액 거래나 지분 정리는 전문가(변호사·세무사) 상담을 권장합니다.
+  </footer>
+</div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const won = (manwon) => (manwon * 10000).toLocaleString("ko-KR") + "원";
+  const man = (v) => Math.round(v).toLocaleString("ko-KR") + "만원";
+
+  const defaultExpenses = [
+    { name: "월세 / 관리비", amt: 90 },
+    { name: "식비 / 장보기", amt: 60 },
+    { name: "공과금 (전기·가스·수도)", amt: 20 },
+    { name: "통신비 / 구독", amt: 15 },
+    { name: "생필품", amt: 10 },
+    { name: "데이트 / 여가", amt: 30 },
+  ];
+
+  function renderExpenses(list) {
+    const box = $("expList");
+    box.innerHTML = "";
+    list.forEach((e, i) => {
+      const row = document.createElement("div");
+      row.className = "exp-row";
+      row.innerHTML = `
+        <input type="text" value="${e.name}" data-i="${i}" data-k="name" placeholder="항목명" />
+        <input type="number" value="${e.amt}" data-i="${i}" data-k="amt" min="0" />
+        <button class="btn-del" data-del="${i}">×</button>`;
+      box.appendChild(row);
+    });
+  }
+
+  let expenses = [...defaultExpenses];
+  renderExpenses(expenses);
+
+  $("expList").addEventListener("input", (ev) => {
+    const t = ev.target;
+    if (t.dataset.i !== undefined) {
+      const i = +t.dataset.i;
+      if (t.dataset.k === "name") expenses[i].name = t.value;
+      else expenses[i].amt = +t.value || 0;
+    }
+  });
+  $("expList").addEventListener("click", (ev) => {
+    if (ev.target.dataset.del !== undefined) {
+      expenses.splice(+ev.target.dataset.del, 1);
+      renderExpenses(expenses);
+    }
+  });
+  $("addExp").addEventListener("click", () => {
+    expenses.push({ name: "새 항목", amt: 0 });
+    renderExpenses(expenses);
+  });
+
+  // 이름 동기화
+  function syncNames() {
+    const a = $("nameA").value || "본인";
+    const b = $("nameB").value || "남자친구";
+    document.querySelectorAll(".depNameA,.rNameA,.rNameA2,.rNameA3").forEach(el=>el.textContent=a);
+    document.querySelectorAll(".depNameB,.rNameB,.rNameB2,.rNameB3").forEach(el=>el.textContent=b);
+    $("nameA-label").textContent = a;
+    $("nameB-label").textContent = b;
+  }
+  $("nameA").addEventListener("input", syncNames);
+  $("nameB").addEventListener("input", syncNames);
+
+  let pieChart, saveChart;
+
+  function calculate() {
+    syncNames();
+    const nameA = $("nameA").value || "본인";
+    const nameB = $("nameB").value || "남자친구";
+    const incA = +$("incomeA").value || 0;
+    const incB = +$("incomeB").value || 0;
+    const totalExp = expenses.reduce((s, e) => s + (+e.amt || 0), 0);
+    const saveMonthly = +$("saveMonthly").value || 0;
+    const saveYears = +$("saveYears").value || 1;
+
+    const split = document.querySelector('input[name="split"]:checked').value;
+    let ratioA = 0.5, ratioB = 0.5;
+    if (split === "income" && incA + incB > 0) {
+      ratioA = incA / (incA + incB);
+      ratioB = incB / (incA + incB);
+    }
+
+    // 생활비 + 공동저축 분담
+    const potMonthly = totalExp + saveMonthly;
+    const contribA = potMonthly * ratioA;
+    const contribB = potMonthly * ratioB;
+
+    $("rContribA").textContent = man(contribA);
+    $("rContribB").textContent = man(contribB);
+    $("rLeftA").textContent = "개인 여유자금 " + man(incA - contribA);
+    $("rLeftB").textContent = "개인 여유자금 " + man(incB - contribB);
+    $("rTotal").textContent = man(potMonthly);
+
+    // 상세 테이블
+    const body = $("detailBody");
+    body.innerHTML = "";
+    expenses.forEach((e) => {
+      const amt = +e.amt || 0;
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${e.name}</td><td>${man(amt)}</td>
+        <td>${man(amt * ratioA)}</td><td>${man(amt * ratioB)}</td>`;
+      body.appendChild(tr);
+    });
+    // 공동저축 행
+    if (saveMonthly > 0) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>공동 저축</td><td>${man(saveMonthly)}</td>
+        <td>${man(saveMonthly*ratioA)}</td><td>${man(saveMonthly*ratioB)}</td>`;
+      body.appendChild(tr);
+    }
+    $("dSum").textContent = man(potMonthly);
+    $("dSumA").textContent = man(contribA);
+    $("dSumB").textContent = man(contribB);
+
+    // 보증금 지분
+    const dep = +$("deposit").value || 0;
+    const depA = +$("depA").value || 0;
+    const depB = +$("depB").value || 0;
+    const depSum = depA + depB || 1;
+    const shA = (depA / depSum) * 100;
+    const shB = (depB / depSum) * 100;
+    $("rShareA").textContent = shA.toFixed(1) + "%";
+    $("rShareB").textContent = shB.toFixed(1) + "%";
+    $("rShareAmtA").textContent = "부담액 " + man(depA);
+    $("rShareAmtB").textContent = "부담액 " + man(depB);
+
+    // 저축 성장
+    const totalSave = saveMonthly * 12 * saveYears;
+    $("rSaveTotal").textContent = man(totalSave);
+    $("rSaveDesc").textContent = `매월 ${man(saveMonthly)} × ${saveYears}년 (${nameA} ${man(saveMonthly*ratioA)} + ${nameB} ${man(saveMonthly*ratioB)})`;
+
+    // 차트: 생활비 파이
+    if (pieChart) pieChart.destroy();
+    pieChart = new Chart($("pieChart"), {
+      type: "doughnut",
+      data: {
+        labels: expenses.map((e) => e.name),
+        datasets: [{
+          data: expenses.map((e) => +e.amt || 0),
+          backgroundColor: ["#6c5ce7","#00b8a9","#ff5e8a","#ffa94d","#4dabf7","#82c91e","#e64980","#a78bfa"],
+          borderWidth: 2, borderColor: "#fff",
+        }],
+      },
+      options: {
+        plugins: { legend: { position: "bottom", labels:{font:{family:"Pretendard"}} } },
+        cutout: "58%",
+        maintainAspectRatio: false,
+      },
+    });
+
+    // 차트: 저축 성장 라인
+    if (saveChart) saveChart.destroy();
+    const labels = [], dataA = [], dataB = [];
+    for (let y = 0; y <= saveYears; y++) {
+      labels.push(y + "년");
+      dataA.push(Math.round(saveMonthly * ratioA * 12 * y));
+      dataB.push(Math.round(saveMonthly * ratioB * 12 * y));
+    }
+    saveChart = new Chart($("saveChart"), {
+      type: "line",
+      data: {
+        labels,
+        datasets: [
+          { label: nameA, data: dataA, borderColor:"#6c5ce7", backgroundColor:"#efecfd", fill:true, tension:.3 },
+          { label: nameB, data: dataB, borderColor:"#00b8a9", backgroundColor:"#e2f7f4", fill:true, tension:.3 },
+        ],
+      },
+      options: {
+        plugins:{ legend:{position:"bottom", labels:{font:{family:"Pretendard"}}} },
+        scales:{ y:{ ticks:{ callback:(v)=> (v).toLocaleString()+"만" } } },
+        maintainAspectRatio:false,
+      },
+    });
+
+    $("results").style.display = "block";
+    $("results").scrollIntoView({ behavior: "smooth" });
+  }
+
+  $("calcBtn").addEventListener("click", calculate);
+
+  // 저장 / 불러오기 (localStorage)
+  function collect() {
+    return {
+      nameA:$("nameA").value, nameB:$("nameB").value,
+      incomeA:$("incomeA").value, incomeB:$("incomeB").value,
+      expenses, split:document.querySelector('input[name="split"]:checked').value,
+      deposit:$("deposit").value, depA:$("depA").value, depB:$("depB").value,
+      saveMonthly:$("saveMonthly").value, saveYears:$("saveYears").value,
+    };
+  }
+  $("saveBtn").addEventListener("click", () => {
+    localStorage.setItem("coupleFund", JSON.stringify(collect()));
+    alert("입력값이 이 브라우저에 저장됐어요. 다음에 열면 자동으로 불러옵니다.");
+  });
+  $("resetBtn").addEventListener("click", () => {
+    if (confirm("모든 입력값을 초기화할까요?")) { localStorage.removeItem("coupleFund"); location.reload(); }
+  });
+  $("printBtn").addEventListener("click", () => window.print());
+
+  (function load() {
+    const s = localStorage.getItem("coupleFund");
+    if (!s) { syncNames(); return; }
+    try {
+      const d = JSON.parse(s);
+      $("nameA").value=d.nameA; $("nameB").value=d.nameB;
+      $("incomeA").value=d.incomeA; $("incomeB").value=d.incomeB;
+      $("deposit").value=d.deposit; $("depA").value=d.depA; $("depB").value=d.depB;
+      $("saveMonthly").value=d.saveMonthly; $("saveYears").value=d.saveYears;
+      if (d.split==="income") $("split-income").checked=true;
+      if (Array.isArray(d.expenses)&&d.expenses.length){ expenses=d.expenses; renderExpenses(expenses); }
+      syncNames();
+    } catch(e){ syncNames(); }
+  })();
+</script>
+</body>
+</html>
