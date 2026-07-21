@@ -1,24 +1,24 @@
 :root {
-    --bg: #f7f6fb;
-    /* 아주 연한 라벤더빛 배경 */
+    --bg: #f4f4f9;
+    /* 살짝 라벤더빛 배경 */
     --card: #ffffff;
-    --ink: #4a4a5a;
-    /* 진한 검정 대신 부드러운 먹색 */
-    --sub: #9a9aa8;
-    --line: #ecebf3;
-    --a: #b3a7e0;
-    /* 파스텔 라벤더 (본인) */
-    --a-soft: #f0edfa;
-    --b: #9fd8cf;
-    /* 파스텔 민트 (남자친구) */
-    --b-soft: #e9f6f3;
-    --accent: #f2b8cf;
-    /* 파스텔 핑크 */
-    --plus: #7cc0a3;
-    /* 연한 그린 (유입) */
-    --minus: #e89b9b;
-    /* 연한 코랄 (지불) */
-    --shadow: 0 8px 30px rgba(120, 110, 160, 0.08);
+    --ink: #2f3140;
+    /* 숫자·글씨 진하게 (선명) */
+    --sub: #6f7180;
+    --line: #e5e4ee;
+    --a: #8b7bd8;
+    /* 중간 라벤더 (본인) */
+    --a-soft: #ece8f9;
+    --b: #5cc4b6;
+    /* 중간 민트 (남자친구) */
+    --b-soft: #e0f4f0;
+    --accent: #ec8fb0;
+    /* 중간 핑크 */
+    --plus: #3aa87a;
+    /* 선명한 그린 (유입) */
+    --minus: #d95f5f;
+    /* 선명한 코랄 (지불) */
+    --shadow: 0 8px 26px rgba(90, 84, 130, 0.10);
     --radius: 18px;
 }
 
@@ -62,16 +62,15 @@ header.hero p {
 .badge {
     display: inline-block;
     background: var(--a-soft);
-    /* 그라데이션 → 연한 단색 */
-    color: #8f82c4;
-    /* 차분한 라벤더 글씨 */
+    color: #6f5fc0;
+    /* 또렷한 라벤더 글씨 */
     font-size: 12px;
     font-weight: 700;
     padding: 6px 14px;
     border-radius: 999px;
     margin-bottom: 14px;
     letter-spacing: .3px;
-    border: 1px solid #e3ddf5;
+    border: 1px solid #ddd5f4;
 }
 
 .fb-bar {
@@ -178,7 +177,7 @@ header.hero p {
     background: var(--a);
     border-color: var(--a);
     color: #fff;
-    box-shadow: 0 4px 12px rgba(179, 167, 224, 0.28);
+    box-shadow: 0 5px 14px rgba(139, 123, 216, 0.3);
 }
 
 .tab-panel {
@@ -422,20 +421,19 @@ select:focus {
     width: 100%;
     border: none;
     cursor: pointer;
-    background: var(--a);
-    /* 진한 그라데이션 → 파스텔 단색 */
+    background: linear-gradient(135deg, var(--a), var(--accent));
     color: #fff;
-    font-size: 15.5px;
-    font-weight: 700;
-    padding: 15px;
+    font-size: 16px;
+    font-weight: 800;
+    padding: 16px;
     border-radius: 14px;
     margin-top: 6px;
-    box-shadow: 0 6px 16px rgba(179, 167, 224, 0.35);
-    transition: background .15s, transform .1s;
+    box-shadow: 0 7px 18px rgba(139, 123, 216, 0.32);
+    transition: transform .1s, box-shadow .15s;
 }
 
 .btn-primary:hover {
-    background: #a595d9;
+    box-shadow: 0 9px 22px rgba(139, 123, 216, 0.42);
 }
 
 .btn-primary:active {
