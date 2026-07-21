@@ -88,3 +88,45 @@ table.tbl tfoot td { font-weight:800; border-top:2px solid var(--ink); border-bo
 .pill-row { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }
 .pill { background:#f0f1f5; border-radius:999px; padding:8px 14px; font-size:13px; color:var(--sub); }
 footer { text-align:center; color:var(--sub); font-size:12.5px; margin-top:30px; }
+/* ===== 모바일 반응형 (화면 넘침 방지) ===== */
+html, body { max-width: 100%; overflow-x: hidden; }
+
+@media (max-width: 640px) {
+  .wrap { padding: 16px 12px 80px; }
+  header.hero h1 { font-size: 24px; }
+
+  /* 주택 자금 흐름: 4열 → 세로 카드형으로 전환 */
+  .cf-head { display: none; }               /* 상단 라벨 숨김 */
+  .cf-row {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "date  del"
+      "label del"
+      "amt   del";
+    gap: 8px;
+    padding: 12px;
+    margin-bottom: 12px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    align-items: center;
+  }
+  .cf-row input[data-k="date"]  { grid-area: date; }
+  .cf-row input[data-k="label"] { grid-area: label; }
+  .cf-row input[data-k="amt"]   { grid-area: amt; }
+  .cf-row .btn-del { grid-area: del; height: 100%; min-height: 42px; }
+
+  /* 생활비 항목도 넉넉하게 */
+  .exp-row { grid-template-columns: 1fr 110px 40px; gap: 8px; }
+
+  /* 결과 표는 가로 스크롤 허용(잘림 방지) */
+  .card { padding: 18px 14px; }
+  table.tbl { display: block; overflow-x: auto; white-space: nowrap; }
+
+  /* 미니 요약 카드 1열 */
+  .mini-summary { grid-template-columns: 1fr; }
+
+  /* 상단 Firebase 바 / 탭 줄바꿈 */
+  .fb-bar { flex-direction: column; align-items: stretch; }
+  .fb-actions { justify-content: space-between; }
+}
