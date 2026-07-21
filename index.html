@@ -1,194 +1,315 @@
 <!DOCTYPE html>
 <html lang="ko">
+
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>우리 둘의 자금 시뮬레이터</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>우리 둘의 자금 시뮬레이터</title>
 </head>
+
 <body>
-<div class="wrap">
-  <header class="hero">
-    <div class="badge">💜 미혼 동거 커플 자금 계획</div>
-    <h1>우리 둘의 자금 시뮬레이터</h1>
-    <p>주택 매수 자금 흐름은 각자 구분 · 생활비는 함께 · 데이터는 Firebase에 저장</p>
-  </header>
+    <div class="wrap">
+        <header class="hero">
+            <div class="badge">💜 미혼 동거 커플 자금 계획</div>
+            <h1>우리 둘의 자금 시뮬레이터</h1>
+            <p>주택 매수 자금 흐름은 각자 구분 · 생활비는 함께 · 데이터는 Firebase에 저장</p>
+        </header>
 
-  <div class="fb-bar">
-    <div class="fb-status"><span class="fb-dot" id="fbDot"></span><span id="fbStatus">Firebase 연결 확인 중…</span></div>
-    <div class="fb-actions">
-      <button class="btn-ghost" id="loadBtn">☁️ 불러오기</button>
-      <button class="btn-ghost" id="saveBtn">💾 저장</button>
+        <div class="fb-bar">
+            <div class="fb-status"><span class="fb-dot" id="fbDot"></span><span id="fbStatus">Firebase 연결 확인 중…</span>
+            </div>
+            <div class="fb-actions">
+                <button class="btn-ghost" id="loadBtn">☁️ 불러오기</button>
+                <button class="btn-ghost" id="saveBtn">💾 저장</button>
+            </div>
+        </div>
+
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="house">🏠 주택 매수 자금</button>
+            <button class="tab-btn" data-tab="living">🍚 생활비</button>
+        </div>
+
+        <!-- 주택 탭 -->
+        <div class="tab-panel active" id="tab-house">
+            <section class="card">
+                <h2><span class="step-num">1</span> 각자 보유 예산</h2>
+                <p class="desc">현재 각자 동원 가능한 현금(예산)을 입력하세요.</p>
+                <div class="grid2">
+                    <label class="field"><span class="lbl"><span class="dot dot-a"></span><span class="nA">본인</span>
+                            호칭</span><input type="text" id="nameA" value="본인" /></label>
+                    <label class="field"><span class="lbl"><span class="dot dot-b"></span><span class="nB">남자친구</span>
+                            호칭</span><input type="text" id="nameB" value="남자친구" /></label>
+                </div>
+                <div class="grid2">
+                    <label class="field"><span class="lbl"><span class="nA">본인</span> 보유 예산 (원)</span><input
+                            type="number" id="budgetA" value="300000000" /></label>
+                    <label class="field"><span class="lbl"><span class="nB">남자친구</span> 보유 예산 (원)</span><input
+                            type="number" id="budgetB" value="250000000" /></label>
+                </div>
+            </section>
+
+            <section class="card">
+                <h2><span class="step-num">2</span> 주택별 자금 흐름</h2>
+                <p class="desc">날짜별 항목을 입력하세요. <b class="amt-minus">지불은 음수(-100000000)</b>, <b class="amt-plus">대출 등 유입은
+                        양수(350000000)</b>로 적으면 됩니다.</p>
+                <div class="grid2">
+                    <div class="house house-a">
+                        <h3><span class="dot dot-a"></span><input type="text" id="houseA" value="벽적골8단지 (리모델링)"
+                                style="font-weight:800;" /></h3>
+                        <div class="cf-head">
+                            <div>날짜</div>
+                            <div>항목</div>
+                            <div style="text-align:right;">금액(원)</div>
+                            <div></div>
+                        </div>
+                        <div id="cfListA"></div>
+                        <button class="btn-add" id="addCfA">＋ 항목 추가</button>
+                        <div class="mini-summary">
+                            <div class="mini">
+                                <div class="k">총 유입(+)</div>
+                                <div class="v amt-plus" id="inA">-</div>
+                            </div>
+                            <div class="mini">
+                                <div class="k">총 지불(−)</div>
+                                <div class="v amt-minus" id="outA">-</div>
+                            </div>
+                            <div class="mini">
+                                <div class="k">순현금흐름</div>
+                                <div class="v" id="netA">-</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="house house-b">
+                        <h3><span class="dot dot-b"></span><input type="text" id="houseB" value="수원하늘채더퍼스트2단지"
+                                style="font-weight:800;" /></h3>
+                        <div class="cf-head">
+                            <div>날짜</div>
+                            <div>항목</div>
+                            <div style="text-align:right;">금액(원)</div>
+                            <div></div>
+                        </div>
+                        <div id="cfListB"></div>
+                        <button class="btn-add b" id="addCfB">＋ 항목 추가</button>
+                        <div class="mini-summary">
+                            <div class="mini">
+                                <div class="k">총 유입(+)</div>
+                                <div class="v amt-plus" id="inB">-</div>
+                            </div>
+                            <div class="mini">
+                                <div class="k">총 지불(−)</div>
+                                <div class="v amt-minus" id="outB">-</div>
+                            </div>
+                            <div class="mini">
+                                <div class="k">순현금흐름</div>
+                                <div class="v" id="netB">-</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <button class="btn-primary" id="calcHouse">💡 주택 자금 시뮬레이션</button>
+
+            <div id="houseResults" style="display:none;">
+                <section class="card" style="margin-top:24px;">
+                    <h2>📌 부족 금액 진단</h2>
+                    <div class="result-grid">
+                        <div class="stat stat-a">
+                            <div class="k"><span class="dot dot-a"></span><span class="nA">본인</span> · <span
+                                    id="rHouseA">주택</span></div>
+                            <div class="v" id="rBalA">-</div>
+                            <div class="s" id="rBalADesc">-</div>
+                        </div>
+                        <div class="stat stat-b">
+                            <div class="k"><span class="dot dot-b"></span><span class="nB">남자친구</span> · <span
+                                    id="rHouseB">주택</span></div>
+                            <div class="v" id="rBalB">-</div>
+                            <div class="s" id="rBalBDesc">-</div>
+                        </div>
+                    </div>
+                    <div class="stat stat-total" style="margin-top:16px;">
+                        <div class="k">👫 두 사람 합산</div>
+                        <div class="v" id="rBalTotal">-</div>
+                        <div class="s" id="rBalTotalDesc">-</div>
+                    </div>
+                </section>
+                <section class="card">
+                    <h2>📅 날짜별 잔액 흐름</h2>
+                    <div class="chart-box"><canvas id="flowChart"></canvas></div>
+                </section>
+                <section class="card">
+                    <h2>🧾 <span class="nA">본인</span> 자금 흐름 상세</h2>
+                    <table class="tbl">
+                        <thead>
+                            <tr>
+                                <th>날짜</th>
+                                <th>항목</th>
+                                <th>금액</th>
+                                <th>누적 잔액</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ledgerA"></tbody>
+                    </table>
+                </section>
+                <section class="card">
+                    <h2>🧾 <span class="nB">남자친구</span> 자금 흐름 상세</h2>
+                    <table class="tbl">
+                        <thead>
+                            <tr>
+                                <th>날짜</th>
+                                <th>항목</th>
+                                <th>금액</th>
+                                <th>누적 잔액</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ledgerB"></tbody>
+                    </table>
+                </section>
+            </div>
+        </div>
+
+        <!-- 생활비 탭 -->
+        <div class="tab-panel" id="tab-living">
+            <section class="card">
+                <h2><span class="step-num">1</span> 두 사람 월 소득</h2>
+                <div class="grid2">
+                    <label class="field"><span class="lbl"><span class="dot dot-a"></span><span class="nA">본인</span> 월
+                            소득 (원)</span><input type="number" id="incomeA" value="3500000" /></label>
+                    <label class="field"><span class="lbl"><span class="dot dot-b"></span><span class="nB">남자친구</span> 월
+                            소득 (원)</span><input type="number" id="incomeB" value="4000000" /></label>
+                </div>
+            </section>
+            <section class="card">
+                <h2><span class="step-num">2</span> 매월 공동 생활비</h2>
+                <p class="desc">둘이 함께 쓰는 비용만 적으세요.</p>
+                <div class="exp-row" style="color:var(--sub);font-size:12.5px;font-weight:600;">
+                    <div>항목</div>
+                    <div style="text-align:right;">금액 (원)</div>
+                    <div></div>
+                </div>
+                <div id="expList"></div>
+                <button class="btn-add" id="addExp">＋ 항목 추가</button>
+            </section>
+            <section class="card">
+                <h2><span class="step-num">3</span> 생활비 분담 방식</h2>
+                <div class="toggle">
+                    <input type="radio" name="split" id="split-half" value="half" checked />
+                    <label for="split-half">🤝 반반 (50:50)</label>
+                    <input type="radio" name="split" id="split-income" value="income" />
+                    <label for="split-income">📊 소득 비례</label>
+                </div>
+            </section>
+            <section class="card">
+                <h2><span class="step-num">4</span> 공동 저축</h2>
+                <div class="grid2">
+                    <label class="field"><span class="lbl">매월 공동 저축액 (원)</span><input type="number" id="saveMonthly"
+                            value="1000000" /></label>
+                    <label class="field"><span class="lbl">모으는 기간 (년)</span><input type="number" id="saveYears"
+                            value="3" min="1" /></label>
+                </div>
+            </section>
+            <button class="btn-primary" id="calcLiving">💡 생활비 시뮬레이션</button>
+            <div id="livingResults" style="display:none;">
+                <section class="card" style="margin-top:24px;">
+                    <h2>📌 월간 결과 요약</h2>
+                    <div class="result-grid">
+                        <div class="stat stat-a">
+                            <div class="k"><span class="dot dot-a"></span><span class="nA">본인</span> 월 분담액</div>
+                            <div class="v" id="rContribA">-</div>
+                            <div class="s" id="rLeftA">-</div>
+                        </div>
+                        <div class="stat stat-b">
+                            <div class="k"><span class="dot dot-b"></span><span class="nB">남자친구</span> 월 분담액</div>
+                            <div class="v" id="rContribB">-</div>
+                            <div class="s" id="rLeftB">-</div>
+                        </div>
+                    </div>
+                    <div class="stat stat-total" style="margin-top:16px;">
+                        <div class="k">🏦 공동계좌 총 입금액 (월)</div>
+                        <div class="v" id="rTotal">-</div>
+                    </div>
+                </section>
+                <section class="card">
+                    <h2>📊 생활비 분담 상세</h2>
+                    <table class="tbl">
+                        <thead>
+                            <tr>
+                                <th>항목</th>
+                                <th>금액</th>
+                                <th class="nA2">본인</th>
+                                <th class="nB2">남자친구</th>
+                            </tr>
+                        </thead>
+                        <tbody id="detailBody"></tbody>
+                        <tfoot>
+                            <tr>
+                                <td>합계</td>
+                                <td id="dSum">-</td>
+                                <td id="dSumA">-</td>
+                                <td id="dSumB">-</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                    <div class="chart-box"><canvas id="pieChart"></canvas></div>
+                </section>
+                <section class="card">
+                    <h2>💰 공동 저축 성장 예상</h2>
+                    <div class="stat stat-total">
+                        <div class="k">목표 기간 후 예상 공동 저축액</div>
+                        <div class="v" id="rSaveTotal">-</div>
+                        <div class="s" id="rSaveDesc">-</div>
+                    </div>
+                    <div class="chart-box" style="margin-top:18px;"><canvas id="saveChart"></canvas></div>
+                </section>
+            </div>
+        </div>
+
+        <footer>참고용 자금 계획 도구이며 법률·세무 효력은 없습니다. 큰 거래는 전문가 상담을 권장합니다.</footer>
     </div>
-  </div>
 
-  <div class="tabs">
-    <button class="tab-btn active" data-tab="house">🏠 주택 매수 자금</button>
-    <button class="tab-btn" data-tab="living">🍚 생활비</button>
-  </div>
+    <script>
+        /* =========================================================
+           리소스 자동 로더 — 태그 깨짐 방지를 위해 JS로 불러옵니다.
+           CSS → 라이브러리 → firebase-config.js → app.js 순서 보장
+        ========================================================= */
+        (function () {
+            function addCss(href) {
+                var l = document.createElement("link");
+                l.rel = "stylesheet"; l.href = href;
+                document.head.appendChild(l);
+            }
+            function addScript(src) {
+                return new Promise(function (resolve, reject) {
+                    var s = document.createElement("script");
+                    s.src = src; s.async = false;
+                    s.onload = resolve;
+                    s.onerror = function () { reject(new Error("로드 실패: " + src)); };
+                    document.head.appendChild(s);
+                });
+            }
 
-  <!-- 주택 탭 -->
-  <div class="tab-panel active" id="tab-house">
-    <section class="card">
-      <h2><span class="step-num">1</span> 각자 보유 예산</h2>
-      <p class="desc">현재 각자 동원 가능한 현금(예산)을 입력하세요.</p>
-      <div class="grid2">
-        <label class="field"><span class="lbl"><span class="dot dot-a"></span><span class="nA">본인</span> 호칭</span><input type="text" id="nameA" value="본인" /></label>
-        <label class="field"><span class="lbl"><span class="dot dot-b"></span><span class="nB">남자친구</span> 호칭</span><input type="text" id="nameB" value="남자친구" /></label>
-      </div>
-      <div class="grid2">
-        <label class="field"><span class="lbl"><span class="nA">본인</span> 보유 예산 (원)</span><input type="number" id="budgetA" value="300000000" /></label>
-        <label class="field"><span class="lbl"><span class="nB">남자친구</span> 보유 예산 (원)</span><input type="number" id="budgetB" value="250000000" /></label>
-      </div>
-    </section>
+            // 1) CSS (글꼴 + 내 스타일)
+            addCss("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css");
+            addCss("styles.css");
 
-    <section class="card">
-      <h2><span class="step-num">2</span> 주택별 자금 흐름</h2>
-      <p class="desc">날짜별 항목을 입력하세요. <b class="amt-minus">지불은 음수(-100000000)</b>, <b class="amt-plus">대출 등 유입은 양수(350000000)</b>로 적으면 됩니다.</p>
-      <div class="grid2">
-        <div class="house house-a">
-          <h3><span class="dot dot-a"></span><input type="text" id="houseA" value="벽적골8단지 (리모델링)" style="font-weight:800;" /></h3>
-          <div class="cf-head"><div>날짜</div><div>항목</div><div style="text-align:right;">금액(원)</div><div></div></div>
-          <div id="cfListA"></div>
-          <button class="btn-add" id="addCfA">＋ 항목 추가</button>
-          <div class="mini-summary">
-            <div class="mini"><div class="k">총 유입(+)</div><div class="v amt-plus" id="inA">-</div></div>
-            <div class="mini"><div class="k">총 지불(−)</div><div class="v amt-minus" id="outA">-</div></div>
-            <div class="mini"><div class="k">순현금흐름</div><div class="v" id="netA">-</div></div>
-          </div>
-        </div>
-        <div class="house house-b">
-          <h3><span class="dot dot-b"></span><input type="text" id="houseB" value="수원하늘채더퍼스트2단지" style="font-weight:800;" /></h3>
-          <div class="cf-head"><div>날짜</div><div>항목</div><div style="text-align:right;">금액(원)</div><div></div></div>
-          <div id="cfListB"></div>
-          <button class="btn-add b" id="addCfB">＋ 항목 추가</button>
-          <div class="mini-summary">
-            <div class="mini"><div class="k">총 유입(+)</div><div class="v amt-plus" id="inB">-</div></div>
-            <div class="mini"><div class="k">총 지불(−)</div><div class="v amt-minus" id="outB">-</div></div>
-            <div class="mini"><div class="k">순현금흐름</div><div class="v" id="netB">-</div></div>
-          </div>
-        </div>
-      </div>
-    </section>
+            // 2) 라이브러리 → 설정 → 앱 순서대로 로드
+            var libs = [
+                "https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js",
+                "https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js",
+                "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js",
+                "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js",
+                "firebase-config.js",
+                "app.js"
+            ];
 
-    <button class="btn-primary" id="calcHouse">💡 주택 자금 시뮬레이션</button>
-
-    <div id="houseResults" style="display:none;">
-      <section class="card" style="margin-top:24px;">
-        <h2>📌 부족 금액 진단</h2>
-        <div class="result-grid">
-          <div class="stat stat-a"><div class="k"><span class="dot dot-a"></span><span class="nA">본인</span> · <span id="rHouseA">주택</span></div><div class="v" id="rBalA">-</div><div class="s" id="rBalADesc">-</div></div>
-          <div class="stat stat-b"><div class="k"><span class="dot dot-b"></span><span class="nB">남자친구</span> · <span id="rHouseB">주택</span></div><div class="v" id="rBalB">-</div><div class="s" id="rBalBDesc">-</div></div>
-        </div>
-        <div class="stat stat-total" style="margin-top:16px;"><div class="k">👫 두 사람 합산</div><div class="v" id="rBalTotal">-</div><div class="s" id="rBalTotalDesc">-</div></div>
-      </section>
-      <section class="card"><h2>📅 날짜별 잔액 흐름</h2><div class="chart-box"><canvas id="flowChart"></canvas></div></section>
-      <section class="card"><h2>🧾 <span class="nA">본인</span> 자금 흐름 상세</h2>
-        <table class="tbl"><thead><tr><th>날짜</th><th>항목</th><th>금액</th><th>누적 잔액</th></tr></thead><tbody id="ledgerA"></tbody></table></section>
-      <section class="card"><h2>🧾 <span class="nB">남자친구</span> 자금 흐름 상세</h2>
-        <table class="tbl"><thead><tr><th>날짜</th><th>항목</th><th>금액</th><th>누적 잔액</th></tr></thead><tbody id="ledgerB"></tbody></table></section>
-    </div>
-  </div>
-
-  <!-- 생활비 탭 -->
-  <div class="tab-panel" id="tab-living">
-    <section class="card">
-      <h2><span class="step-num">1</span> 두 사람 월 소득</h2>
-      <div class="grid2">
-        <label class="field"><span class="lbl"><span class="dot dot-a"></span><span class="nA">본인</span> 월 소득 (원)</span><input type="number" id="incomeA" value="3500000" /></label>
-        <label class="field"><span class="lbl"><span class="dot dot-b"></span><span class="nB">남자친구</span> 월 소득 (원)</span><input type="number" id="incomeB" value="4000000" /></label>
-      </div>
-    </section>
-    <section class="card">
-      <h2><span class="step-num">2</span> 매월 공동 생활비</h2>
-      <p class="desc">둘이 함께 쓰는 비용만 적으세요.</p>
-      <div class="exp-row" style="color:var(--sub);font-size:12.5px;font-weight:600;"><div>항목</div><div style="text-align:right;">금액 (원)</div><div></div></div>
-      <div id="expList"></div>
-      <button class="btn-add" id="addExp">＋ 항목 추가</button>
-    </section>
-    <section class="card">
-      <h2><span class="step-num">3</span> 생활비 분담 방식</h2>
-      <div class="toggle">
-        <input type="radio" name="split" id="split-half" value="half" checked />
-        <label for="split-half">🤝 반반 (50:50)</label>
-        <input type="radio" name="split" id="split-income" value="income" />
-        <label for="split-income">📊 소득 비례</label>
-      </div>
-    </section>
-    <section class="card">
-      <h2><span class="step-num">4</span> 공동 저축</h2>
-      <div class="grid2">
-        <label class="field"><span class="lbl">매월 공동 저축액 (원)</span><input type="number" id="saveMonthly" value="1000000" /></label>
-        <label class="field"><span class="lbl">모으는 기간 (년)</span><input type="number" id="saveYears" value="3" min="1" /></label>
-      </div>
-    </section>
-    <button class="btn-primary" id="calcLiving">💡 생활비 시뮬레이션</button>
-    <div id="livingResults" style="display:none;">
-      <section class="card" style="margin-top:24px;">
-        <h2>📌 월간 결과 요약</h2>
-        <div class="result-grid">
-          <div class="stat stat-a"><div class="k"><span class="dot dot-a"></span><span class="nA">본인</span> 월 분담액</div><div class="v" id="rContribA">-</div><div class="s" id="rLeftA">-</div></div>
-          <div class="stat stat-b"><div class="k"><span class="dot dot-b"></span><span class="nB">남자친구</span> 월 분담액</div><div class="v" id="rContribB">-</div><div class="s" id="rLeftB">-</div></div>
-        </div>
-        <div class="stat stat-total" style="margin-top:16px;"><div class="k">🏦 공동계좌 총 입금액 (월)</div><div class="v" id="rTotal">-</div></div>
-      </section>
-      <section class="card">
-        <h2>📊 생활비 분담 상세</h2>
-        <table class="tbl"><thead><tr><th>항목</th><th>금액</th><th class="nA2">본인</th><th class="nB2">남자친구</th></tr></thead>
-          <tbody id="detailBody"></tbody><tfoot><tr><td>합계</td><td id="dSum">-</td><td id="dSumA">-</td><td id="dSumB">-</td></tr></tfoot></table>
-        <div class="chart-box"><canvas id="pieChart"></canvas></div>
-      </section>
-      <section class="card">
-        <h2>💰 공동 저축 성장 예상</h2>
-        <div class="stat stat-total"><div class="k">목표 기간 후 예상 공동 저축액</div><div class="v" id="rSaveTotal">-</div><div class="s" id="rSaveDesc">-</div></div>
-        <div class="chart-box" style="margin-top:18px;"><canvas id="saveChart"></canvas></div>
-      </section>
-    </div>
-  </div>
-
-  <footer>참고용 자금 계획 도구이며 법률·세무 효력은 없습니다. 큰 거래는 전문가 상담을 권장합니다.</footer>
-</div>
-
-<script>
-/* =========================================================
-   리소스 자동 로더 — 태그 깨짐 방지를 위해 JS로 불러옵니다.
-   CSS → 라이브러리 → firebase-config.js → app.js 순서 보장
-========================================================= */
-(function () {
-  function addCss(href) {
-    var l = document.createElement("link");
-    l.rel = "stylesheet"; l.href = href;
-    document.head.appendChild(l);
-  }
-  function addScript(src) {
-    return new Promise(function (resolve, reject) {
-      var s = document.createElement("script");
-      s.src = src; s.async = false;
-      s.onload = resolve;
-      s.onerror = function () { reject(new Error("로드 실패: " + src)); };
-      document.head.appendChild(s);
-    });
-  }
-
-  // 1) CSS (글꼴 + 내 스타일)
-  addCss("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css");
-  addCss("styles.css");
-
-  // 2) 라이브러리 → 설정 → 앱 순서대로 로드
-  var libs = [
-    "https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js",
-    "https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js",
-    "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js",
-    "firebase-config.js",
-    "app.js"
-  ];
-
-  (function next(i) {
-    if (i >= libs.length) return;
-    addScript(libs[i])
-      .then(function () { next(i + 1); })
-      .catch(function (err) { console.error(err); });
-  })(0);
-})();
-</script>
+            (function next(i) {
+                if (i >= libs.length) return;
+                addScript(libs[i])
+                    .then(function () { next(i + 1); })
+                    .catch(function (err) { console.error(err); });
+            })(0);
+        })();
+    </script>
 </body>
+
 </html>
