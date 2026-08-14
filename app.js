@@ -122,28 +122,54 @@ function solveGraduated(P, annualRate, n, grace, growth) {
     return hi;
 }
 function loanCalc(l) {
-    const P = l.principal, n = l.term, grace = l.grace || 0;
-    const prepays = (l.prepayments || []).slice().sort((a, b) => (a.month || 0) - (b.month || 0));
-    function rateAt(i) { let r = l.rate; if (l.rateType === "variable" && Array.isArray(l.rateChanges)) { l.rateChanges.slice().sort((a, b) => a.month - b.month).forEach(rc => { if (i >= rc.month) r = rc.rate; }); } return r / 100 / 12; }
+    // 숫자 필드 안전 변환 (빈값·문자열·undefined → 0 등으로 강제)
+    const P = +l.principal || 0, n = Math.max(0, Math.round(+l.term || 0)), grace = Math.max(0, Math.round(+l.grace || 0));
+    const baseRate = +l.rate || 0, growth = (+l.growth || 0) / 100, fixedPay = +l.fixed || 0;
+    const prepays = (l.prepayments || []).slice().map(p => ({ month: +p.month || 0, amount: +p.amount || 0 })).sort((a, b) => a.month - b.month);
+    const rateChanges = (l.rateChanges || []).slice().map(rc => ({ month: +rc.month || 0, rate: +rc.rate || 0 })).sort((a, b) => a.month - b.month);
+    function rateAt(i) { let r = baseRate; if (l.rateType === "variable") { rateChanges.forEach(rc => { if (i >= rc.month) r = rc.rate; }); } return r / 100 / 12; }
+    // 유효하지 않은 대출은 즉시 안전값 반환
+    if (P <= 0 || n <= 0) return { firstPay: 0, totalInterest: 0, months: 0, sched: [], remain: P > 0 ? P : 0 };
     let gradBase = 0;
-    if (l.repay === "graduate") gradBase = solveGraduated(P, l.rate, n, grace, (l.growth || 0) / 100);
+    if (l.repay === "graduate") gradBase = solveGraduated(P, baseRate, n, grace, growth) || 0;
     let bal = P, totalInterest = 0, firstPay = 0; const sched = [];
     for (let i = 1; i <= n && bal > 0.5; i++) {
         const r = rateAt(i);
         let interest = bal * r, principal = 0, pay = 0;
         if (i <= grace) { principal = 0; pay = interest; }
         else if (l.repay === "io") { principal = (i === n) ? bal : 0; pay = interest + principal; }
-        else if (l.repay === "pr") { const pr = P / (n - grace); principal = Math.min(pr, bal); pay = principal + interest; }
-        else if (l.repay === "custom") { pay = l.fixed || 0; principal = Math.min(Math.max(pay - interest, 0), bal); pay = principal + interest; }
-        else if (l.repay === "graduate") { const yr = Math.floor((i - 1 - grace) / 12); pay = gradBase * Math.pow(1 + (l.growth || 0) / 100, yr); principal = Math.min(Math.max(pay - interest, 0), bal); pay = principal + interest; }
+        else if (l.repay === "pr") { const pr = P / Math.max(1, (n - grace)); principal = Math.min(pr, bal); pay = principal + interest; }
+        else if (l.repay === "custom") { pay = fixedPay; principal = Math.min(Math.max(pay - interest, 0), bal); pay = principal + interest; }
+        else if (l.repay === "graduate") { const yr = Math.floor((i - 1 - grace) / 12); pay = gradBase * Math.pow(1 + growth, yr); principal = Math.min(Math.max(pay - interest, 0), bal); pay = principal + interest; }
         else { const m = amort(bal, r, n - i + 1); principal = Math.min(m - interest, bal); pay = principal + interest; }
+        // NaN 방어: 비정상 값이면 이 회차 건너뜀
+        if (!Number.isFinite(principal)) principal = 0;
+        if (!Number.isFinite(interest)) interest = 0;
+        if (!Number.isFinite(pay)) pay = 0;
         bal -= principal; totalInterest += interest;
-        prepays.filter(p => p.month === i).forEach(p => { const amt = Math.min(p.amount, bal); bal -= amt; });
+        prepays.filter(p => p.month === i).forEach(p => { const amt = Math.min(p.amount, bal); if (Number.isFinite(amt)) bal -= amt; });
         sched.push({ month: i, interest, principal, pay, bal: Math.max(0, bal) });
         if (i === grace + 1) firstPay = pay;
     }
     if (!firstPay && sched.length) firstPay = sched[0].pay;
-    return { firstPay, totalInterest, months: sched.length, sched, remain: bal > 0.5 ? bal : 0 };
+    // 최종 안전 보정
+    if (!Number.isFinite(firstPay)) firstPay = 0;
+    if (!Number.isFinite(totalInterest)) totalInterest = 0;
+    // 오늘 기준 잔여 원금: 아직 상환일이 도래하지 않은 회차는 미반영 (미래 시작 대출은 원금 전액)
+    let remain = P;
+    const startValid = l.start && !isNaN(new Date(l.start).getTime());
+    if (startValid) {
+        const startDate = new Date(l.start);
+        for (let i = 0; i < sched.length; i++) {
+            const d = new Date(startDate); d.setMonth(startDate.getMonth() + i);
+            if (d.toISOString().slice(0, 10) <= TODAY) remain = sched[i].bal; else break;
+        }
+    } else if (sched.length) {
+        // 시작일이 없으면 만기 잔액(≈0)이 아니라 원금을 유지 (안전)
+        remain = P;
+    }
+    if (!Number.isFinite(remain)) remain = 0;
+    return { firstPay, totalInterest, months: sched.length, sched, remain: remain > 0.5 ? remain : 0 };
 }
 const KIND_LABEL = { bank: "은행", family: "부모님 차용" };
 const REPAY_LABEL = { eq: "원리금균등", pr: "원금균등", io: "만기일시", graduate: "원리금체증식", custom: "기타(직접입력)" };
@@ -239,8 +265,9 @@ $("cardLedgers").addEventListener("click", e => {
 });
 
 /* ---------- 대출 렌더 + 모달 ---------- */
-function totalDebtRemain() { return loans.reduce((s, l) => s + (loanCalc(l).remain || 0), 0); }
-function monthlyPayTotal() { return loans.reduce((s, l) => s + loanCalc(l).firstPay, 0); }
+const fin = (v) => (Number.isFinite(v) ? v : 0);
+function totalDebtRemain() { return loans.reduce((s, l) => s + fin(loanCalc(l).remain), 0); }
+function monthlyPayTotal() { return loans.reduce((s, l) => s + fin(loanCalc(l).firstPay), 0); }
 function renderLoans() {
     const box = $("loanList"); box.innerHTML = "";
     loans.forEach(l => {
@@ -579,14 +606,14 @@ $("calcHouse").addEventListener("click", calcHouse);
 
 /* ---------- 요약/차트 ---------- */
 let assetChart, balanceChart, flowChartHome, expenseChart, burdenChart;
-function debtOf(o) { return loans.filter(l => l.owner === o).reduce((s, l) => s + loanCalc(l).remain, 0) + loans.filter(l => l.owner === "J").reduce((s, l) => s + loanCalc(l).remain / 2, 0); }
+function debtOf(o) { return loans.filter(l => l.owner === o).reduce((s, l) => s + fin(loanCalc(l).remain), 0) + loans.filter(l => l.owner === "J").reduce((s, l) => s + fin(loanCalc(l).remain) / 2, 0); }
 // 매월 반복 수입/지출 합계 (기타 매월 포함, 이번달 카드사용 포함)
-function monthlyIncomeTotal() { return incomes.reduce((s, i) => s + i.amt, 0) + extraIncomes.filter(x => x.freq === "monthly").reduce((s, x) => s + x.amt, 0); }
+function monthlyIncomeTotal() { return incomes.reduce((s, i) => s + (+i.amt || 0), 0) + extraIncomes.filter(x => x.freq === "monthly").reduce((s, x) => s + (+x.amt || 0), 0); }
 function monthlyExpenseTotal() {
-    let s = expenses.reduce((a, e) => a + e.amt, 0);
-    s += extraExpenses.filter(x => x.freq === "monthly").reduce((a, x) => a + x.amt, 0);
+    let s = expenses.reduce((a, e) => a + (+e.amt || 0), 0);
+    s += extraExpenses.filter(x => x.freq === "monthly").reduce((a, x) => a + (+x.amt || 0), 0);
     const ym = TODAY.slice(0, 7);
-    s += cardTxns.filter(t => t.date.slice(0, 7) === ym).reduce((a, t) => a + t.amt, 0);
+    s += cardTxns.filter(t => t.date.slice(0, 7) === ym).reduce((a, t) => a + (+t.amt || 0), 0);
     return s;
 }
 function refreshSummary() {
@@ -595,9 +622,9 @@ function refreshSummary() {
     $("heroNet").textContent = eok(totalAsset - debtRemain);
     $("heroAsset").textContent = eok(totalAsset);
     $("heroDebt").textContent = eok(debtRemain);
-    const incTot = monthlyIncomeTotal();
-    const expTot = monthlyExpenseTotal();
-    const payTot = monthlyPayTotal();
+    const incTot = fin(monthlyIncomeTotal());
+    const expTot = fin(monthlyExpenseTotal());
+    const payTot = fin(monthlyPayTotal());
     const flow = incTot - expTot - payTot;
     $("heroFlow").textContent = (flow >= 0 ? "＋" : "－") + eok(Math.abs(flow));
     $("heroFlow").style.color = flow >= 0 ? "var(--plus)" : "var(--minus)";
