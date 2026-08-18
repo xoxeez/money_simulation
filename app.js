@@ -865,6 +865,13 @@ function monthExpenseTotal() {
     s += cardTxns.reduce((a, t) => a + num(t.amt), 0);
     return s;
 }
+/* [v8.2] 상단 '이번 달 순현금흐름' = 캘린더 순흐름과 동일하게
+   현재 달(currentMonth)에 실제 발생하는 모든 현금 이벤트(cash)의 합.
+   → 대출은 실제 상환일이 있는 달에만 반영되고, 주택 등 대형 이벤트도 포함되어 캘린더와 항상 일치. */
+function monthNetFlow() {
+    const [y, mo] = currentMonth.split("-");
+    return eventsForMonth(+y, +mo - 1).filter(e => e.cash).reduce((s, e) => s + num(e.amt), 0);
+}
 function refreshSummary() {
     const accountsTotal = accounts.reduce((s, a) => s + num(a.amt), 0);
     const houseTotal = houseValueTotal();
@@ -873,8 +880,7 @@ function refreshSummary() {
     $("heroNet").textContent = eok(totalAsset - debtRemain);
     $("heroAsset").textContent = eok(totalAsset);
     $("heroDebt").textContent = eok(debtRemain);
-    const incTot = fin(monthIncomeTotal()), expTot = fin(monthExpenseTotal()), payTot = fin(monthlyPayTotal());
-    const flow = incTot - expTot - payTot;
+    const flow = fin(monthNetFlow());   /* [v8.2] 캘린더 순흐름과 동일 계산 */
     $("heroFlow").textContent = (flow >= 0 ? "＋" : "－") + eok(Math.abs(flow));
     $("heroFlow").style.color = flow >= 0 ? "var(--plus)" : "var(--minus)";
     const netA = assetOf("A") - debtOf("A"), netB = assetOf("B") - debtOf("B");
