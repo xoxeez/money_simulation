@@ -1,5 +1,5 @@
 /* =========================================================
-   우리 둘의 자산 플래너 v4 — Summer Cool Tone
+   우리 둘의 자산 플래너 v6 — Summer Cool Tone
 ========================================================= */
 :root {
     --bg: #eef4fa;
@@ -536,8 +536,19 @@ select:focus {
     grid-template-columns: 38px 1.4fr 0.9fr 1.1fr 34px;
 }
 
+/* v6: 카드 아이템에 결제일 열 추가 (7열) */
 .card-item {
-    grid-template-columns: 38px 1.3fr 0.9fr 1.2fr 0.7fr 34px;
+    grid-template-columns: 38px 1.2fr 0.8fr 1.1fr 0.7fr 0.7fr 34px;
+}
+
+.cardhead {
+    display: grid;
+    grid-template-columns: 38px 1.2fr 0.8fr 1.1fr 0.7fr 0.7fr 34px;
+    gap: 12px;
+    padding: 2px 15px 6px;
+    font-size: 11px;
+    color: var(--sub);
+    font-weight: 700;
 }
 
 .item .aico {
@@ -571,6 +582,11 @@ select:focus {
 .item input.amt {
     text-align: right;
     font-weight: 800;
+}
+
+.item input.payday {
+    text-align: center;
+    font-weight: 700;
 }
 
 .item input:focus,
@@ -1042,6 +1058,24 @@ footer {
     margin-bottom: 8px;
 }
 
+/* v6: 주택 자산 요약 스트립 */
+.note-strip {
+    margin-top: 6px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: var(--plus-bg);
+    color: var(--ink);
+    font-size: 12.5px;
+    font-weight: 600;
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.note-strip b {
+    color: var(--plus);
+}
+
 html,
 body {
     max-width: 100%;
@@ -1056,16 +1090,21 @@ body {
         grid-auto-rows: auto;
     }
 
+    .cardhead {
+        display: none;
+    }
+
     .acc-item > :nth-child(3),
     .acc-item > :nth-child(4),
     .card-item > :nth-child(3),
     .card-item > :nth-child(4),
-    .card-item > :nth-child(5) {
+    .card-item > :nth-child(5),
+    .card-item > :nth-child(6) {
         grid-column: 2 / 4;
     }
 }
 
-/* ===== v4 추가: 카드 세부내역(가계부) · 잔액 표기 ===== */
+/* ===== 카드 세부내역(가계부) · 잔액 표기 ===== */
 .card-ledger {
     border: 1px solid var(--line2);
     border-radius: 14px;
@@ -1186,24 +1225,6 @@ body {
     padding: 1px 6px;
     border-radius: 5px;
     margin-left: 4px;
-}
-
-/* ===== v5 추가: 기타 수입/지출 (반복 유형 뱃지) ===== */
-.freq-badge {
-    font-size: 10px;
-    font-weight: 700;
-    padding: 2px 7px;
-    border-radius: 999px;
-}
-
-.freq-once {
-    background: var(--peri-soft);
-    color: var(--peri);
-}
-
-.freq-monthly {
-    background: var(--plus-bg);
-    color: var(--plus);
 }
 
 @media (max-width:640px) {
