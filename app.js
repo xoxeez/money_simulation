@@ -31,7 +31,7 @@ const fin = (v) => (Number.isFinite(v) ? v : 0);
 /* [핵심] 콤마 문자열이든 숫자든 항상 안전한 number로 */
 const num = (v) => { if (typeof v === "number") return Number.isFinite(v) ? v : 0; return parseNum(v); };
 
-const TODAY = new Date().toISOString().slice(0, 10);
+const TODAY = ymd(new Date());  /* 로컬 기준 오늘 (UTC 변환으로 하루 밀리는 문제 방지) */
 const REAL_MONTH = TODAY.slice(0, 7);
 const uid = () => Math.random().toString(36).slice(2, 9);
 function ink() { return getComputedStyle(document.body).getPropertyValue('--ink').trim(); }
@@ -680,7 +680,7 @@ $("expenseList").addEventListener("click", e => { if (e.target.dataset.del) { se
 $("addExpense").addEventListener("click", () => { const v = validMethodForOwner("acc", "", "J"); expenses.push({ id: uid(), name: "새 지출", amt: 0, owner: "J", method: v.method, ref: v.ref, day: 1 }); renderExpenses(); refreshSummary(); });
 
 /* ---------- 이벤트 빌드 (월 단위) — 모든 금액 num()으로 방어 ---------- */
-function ymd(d) { return d.toISOString().slice(0, 10); }
+function ymd(d) { const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, "0"), day = String(d.getDate()).padStart(2, "0"); return `${y}-${m}-${day}`; }
 function nthDayOfMonth(y, m, day) { const last = new Date(y, m + 1, 0).getDate(); return new Date(y, m, Math.min(day, last)); }
 function eventsForMonth(y, mo) {
     const key = `${y}-${String(mo + 1).padStart(2, "0")}`;
