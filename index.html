@@ -27,7 +27,7 @@
         <div class="fb-bar"><span class="fb-dot" id="fbDot"></span><span id="fbStatus">연결 확인 중…</span></div>
 
         <div class="hero">
-            <div class="names"><span class="nA">소희</span><span class="heart">&#10084;</span><span
+            <div class="names"><span class="nA">소희</span><span class="heart">❤</span><span
                     class="nB">남자친구</span></div>
             <div class="meta">순자산 = 총자산 − 총부채 · 매월 수입/지출/상환이 캘린더에 반영됩니다</div>
             <div class="hero-grid">
@@ -37,9 +37,9 @@
                     <div class="s">총자산 − 총부채</div>
                 </div>
                 <div class="hero-cell">
-                    <div class="k">총자산 (계좌 합계)</div>
+                    <div class="k">총자산</div>
                     <div class="v" id="heroAsset" style="color:var(--plus)">-</div>
-                    <div class="s">예금·주식·청약 등</div>
+                    <div class="s">예금·주식·청약·주택 등</div>
                 </div>
                 <div class="hero-cell">
                     <div class="k">총부채</div>
@@ -94,7 +94,7 @@
             <div class="grid2">
                 <div class="card">
                     <h2>💠 자산 구성</h2>
-                    <p class="desc">두 사람 자산을 유형별로</p>
+                    <p class="desc">두 사람 자산을 유형별로 (주택 포함)</p>
                     <div class="chart-box"><canvas id="assetChart"></canvas></div>
                 </div>
                 <div class="card">
@@ -146,7 +146,9 @@
 
             <div class="card">
                 <h2>💳 카드 & 계좌 매핑</h2>
-                <p class="desc">각 카드가 어느 <b>결제 계좌</b>에서 빠져나가는지 연결하세요. 신용카드는 결제일에 연결 계좌에서 합산 출금됩니다.</p>
+                <p class="desc">각 카드가 어느 <b>결제 계좌</b>에서 빠져나가는지 연결하세요. 신용카드는 <b>카드별 결제일</b>에 연결 계좌에서 합산 출금됩니다. (체크카드는
+                    결제일 0으로 두면 즉시 출금)</p>
+                <div class="cardhead" id="cardHead"></div>
                 <div id="cardList"></div>
                 <button class="btn-add" id="addCard">＋ 카드 추가</button>
             </div>
@@ -177,29 +179,29 @@
             <div class="card">
                 <div class="section-label">STEP 1</div>
                 <h2>💰 매월 수입 (월급 등)</h2>
-                <p class="desc">담당자와 입금 계좌를 매핑하세요.</p>
+                <p class="desc">담당자를 고르면 그 사람의 계좌만 나타납니다.</p>
                 <div id="incomeList"></div>
                 <button class="btn-add" id="addIncome">＋ 수입 추가</button>
             </div>
             <div class="card">
                 <div class="section-label">STEP 2</div>
                 <h2>💸 기타 수입 (성과급 · 부수입 등)</h2>
-                <p class="desc"><b>1회성(특정 날짜)</b> 또는 <b>매월 반복</b>으로 등록하세요. 성과급, 부수입, 용돈 등 월급 외 수입을 반영합니다.</p>
+                <p class="desc"><b>1회성(특정 날짜)</b> 또는 <b>매월 반복</b>으로 등록하세요. 담당자의 계좌만 표시됩니다.</p>
                 <div id="extraIncomeList"></div>
                 <button class="btn-add" id="addExtraIncome">＋ 기타 수입 추가</button>
             </div>
             <div class="card">
                 <div class="section-label">STEP 3</div>
                 <h2>🧾 매월 고정 지출 (생활비 등)</h2>
-                <p class="desc">항목별 <b>담당자 · 결제수단(카드/계좌)</b>을 매핑하면 캘린더에 실제 출금일로 반영됩니다. 카드 결제는 결제일에 합산 출금돼요.</p>
+                <p class="desc">항목별 <b>담당자 · 결제수단(카드/계좌)</b>을 매핑하세요. 담당자의 카드·계좌만 표시됩니다. 카드 결제는 결제일에 합산 출금돼요.</p>
                 <div id="expenseList"></div>
                 <button class="btn-add" id="addExpense">＋ 고정 지출 추가</button>
             </div>
             <div class="card">
                 <div class="section-label">STEP 4</div>
                 <h2>🧾 기타 지출 (카드 외 별도 지출)</h2>
-                <p class="desc">카드 고정지출을 제외한 <b>별도 지출</b>을 <b>1회성(특정 날짜)</b> 또는 <b>매월 반복</b>으로 등록하세요. (경조사비, 세금,
-                    여행 등)</p>
+                <p class="desc">카드 고정지출을 제외한 <b>별도 지출</b>을 <b>1회성</b> 또는 <b>매월</b>으로 등록하세요. 담당자의 계좌만 표시됩니다. (경조사비,
+                    세금, 여행 등)</p>
                 <div id="extraExpenseList"></div>
                 <button class="btn-add" id="addExtraExpense">＋ 기타 지출 추가</button>
             </div>
@@ -249,8 +251,8 @@
         <div class="tab-panel" id="tab-house">
             <div class="card">
                 <div class="section-label">STEP 1</div>
-                <h2>주택별 담당자 & 보유 예산</h2>
-                <p class="desc">각 주택을 누가 담당하는지 매핑하고, 그 시점의 잔여 예산을 계산합니다.</p>
+                <h2>주택별 담당자 · 예산 · 현재 자산가치</h2>
+                <p class="desc">각 주택의 담당자와 보유 예산을 지정하고, <b>현재 시세(자산가치)</b>를 입력하면 상단 총자산·순자산에 반영됩니다.</p>
                 <div class="grid2">
                     <div>
                         <label class="field"><span class="lbl">🏠 주택 A 이름</span><input type="text" id="houseA"
@@ -264,6 +266,8 @@
                             <label class="field"><span class="lbl">보유 예산 (원)</span><input type="number" id="budgetA"
                                     value="300000000" /></label>
                         </div>
+                        <label class="field"><span class="lbl">🏡 현재 주택 자산가치 (원)</span><input type="number"
+                                id="houseAValue" value="700000000" /></label>
                     </div>
                     <div>
                         <label class="field"><span class="lbl">🏠 주택 B 이름</span><input type="text" id="houseB"
@@ -277,8 +281,11 @@
                             <label class="field"><span class="lbl">보유 예산 (원)</span><input type="number" id="budgetB"
                                     value="250000000" /></label>
                         </div>
+                        <label class="field"><span class="lbl">🏡 현재 주택 자산가치 (원)</span><input type="number"
+                                id="houseBValue" value="620000000" /></label>
                     </div>
                 </div>
+                <div class="note-strip" id="houseAssetNote"></div>
             </div>
             <div class="card">
                 <div class="section-label">STEP 2</div>
@@ -327,7 +334,7 @@
             </div>
         </div>
 
-        <footer>참고용 자금 계획 도구이며 법률·세무 효력은 없습니다. 큰 거래는 전문가 상담을 권장합니다. · Renewal v4</footer>
+        <footer>참고용 자금 계획 도구이며 법률·세무 효력은 없습니다. 큰 거래는 전문가 상담을 권장합니다. · Renewal v6</footer>
     </div>
 
     <!-- 대출 등록/수정 모달 -->
