@@ -14,7 +14,7 @@
                 <div class="logo">🌊</div>
                 <div>
                     <h1>우리 둘의 자산 플래너</h1>
-                    <p class="sub">자산 · 계좌/카드 · 대출 · 수입/지출 · 상환 캘린더</p>
+                    <p class="sub">자산 · 계좌/카드 · 대출 · 월별 가계부 · 상환 캘린더</p>
                 </div>
             </div>
             <div class="top-actions">
@@ -47,10 +47,29 @@
                     <div class="s">대출·차용 잔액</div>
                 </div>
                 <div class="hero-cell">
-                    <div class="k">월 순현금흐름</div>
+                    <div class="k"><span id="flowMonthMini">이번 달</span> 순현금흐름</div>
                     <div class="v" id="heroFlow">-</div>
                     <div class="s">수입 − 지출 − 상환</div>
                 </div>
+            </div>
+        </div>
+
+        <!-- ===== 월별 가계부 관리 바 ===== -->
+        <div class="month-bar">
+            <div class="mb-left">
+                <span class="mb-icon">📒</span>
+                <div>
+                    <div class="mb-title" id="mbTitle">2026년 8월 가계부</div>
+                    <div class="mb-sub">월별로 정리하는 가계부 · 고정 수입/지출은 새 달 생성 시 자동으로 이어받아요</div>
+                </div>
+            </div>
+            <div class="mb-right">
+                <select id="monthSelect" title="가계부 이동"></select>
+                <span class="mb-div"></span>
+                <select id="newYear"></select>
+                <select id="newMonth"></select>
+                <button class="btn primary sm" id="createMonth">＋ 가계부 생성</button>
+                <button class="btn ghost sm" id="deleteMonth">현재 달 삭제</button>
             </div>
         </div>
 
@@ -86,7 +105,7 @@
                 </div>
                 <div class="kpi">
                     <div class="ic ic-p">📅</div>
-                    <div class="k">이번 달 상환</div>
+                    <div class="k"><span id="kMonthPayLabel">이번 달</span> 상환</div>
                     <div class="v" id="kMonthPay">-</div>
                     <div class="s">캘린더에서 확인</div>
                 </div>
@@ -104,7 +123,7 @@
                 </div>
             </div>
             <div class="card">
-                <h2>💵 월 현금흐름 구성</h2>
+                <h2>💵 <span id="flowMonthLabel2">이번 달</span> 현금흐름 구성</h2>
                 <p class="desc">수입 − 생활비 − 대출상환</p>
                 <div class="chart-box"><canvas id="flowChart"></canvas></div>
             </div>
@@ -154,8 +173,8 @@
             </div>
 
             <div class="card">
-                <h2>🧾 카드 세부내역 (가계부)</h2>
-                <p class="desc">신용카드 사용을 <b>사용일 기준</b>으로 기록하면, 결제일에 그 달 합계가 자동으로 출금됩니다.</p>
+                <h2>🧾 <span id="cardLedgerMonth">이번 달</span> 카드 세부내역 (가계부)</h2>
+                <p class="desc">신용카드 사용을 <b>사용일 기준</b>으로 기록하면, 결제일에 그 달 합계가 자동으로 출금됩니다. (현재 선택한 가계부 달의 내역)</p>
                 <div id="cardLedgers"></div>
             </div>
         </div>
@@ -174,40 +193,43 @@
             <div id="loanList"></div>
         </div>
 
-        <!-- ============ 수입 · 지출 ============ -->
+        <!-- ============ 수입 · 지출 (월별) ============ -->
         <div class="tab-panel" id="tab-flow">
+            <div class="row-between" style="margin-bottom:14px;">
+                <h2 style="margin:0;font-size:17px;">📒 <span id="flowMonthLabel">2026년 8월</span> 수입 · 지출</h2>
+                <span class="pill pill-muted">이 달의 내역만 표시됩니다</span>
+            </div>
             <div class="card">
                 <div class="section-label">STEP 1</div>
-                <h2>💰 매월 수입 (월급 등)</h2>
-                <p class="desc">담당자를 고르면 그 사람의 계좌만 나타납니다.</p>
+                <h2>💰 매월 고정 수입 (월급 등)</h2>
+                <p class="desc">담당자를 고르면 그 사람의 계좌만 나타납니다. <b>새 가계부 생성 시 지난달 고정 수입이 자동으로 복사</b>됩니다.</p>
                 <div id="incomeList"></div>
-                <button class="btn-add" id="addIncome">＋ 수입 추가</button>
+                <button class="btn-add" id="addIncome">＋ 고정 수입 추가</button>
             </div>
             <div class="card">
                 <div class="section-label">STEP 2</div>
                 <h2>💸 기타 수입 (성과급 · 부수입 등)</h2>
-                <p class="desc"><b>1회성(특정 날짜)</b> 또는 <b>매월 반복</b>으로 등록하세요. 담당자의 계좌만 표시됩니다.</p>
+                <p class="desc"><b>1회성(특정 날짜)</b> 또는 <b>매월 반복</b>으로 등록하세요. 이 달에만 발생하는 수입이에요.</p>
                 <div id="extraIncomeList"></div>
                 <button class="btn-add" id="addExtraIncome">＋ 기타 수입 추가</button>
             </div>
             <div class="card">
                 <div class="section-label">STEP 3</div>
                 <h2>🧾 매월 고정 지출 (생활비 등)</h2>
-                <p class="desc">항목별 <b>담당자 · 결제수단(카드/계좌)</b>을 매핑하세요. 담당자의 카드·계좌만 표시됩니다. 카드 결제는 결제일에 합산 출금돼요.</p>
+                <p class="desc">항목별 <b>담당자 · 결제수단(카드/계좌)</b>을 매핑하세요. <b>새 가계부 생성 시 지난달 고정 지출도 자동 복사</b>됩니다.</p>
                 <div id="expenseList"></div>
                 <button class="btn-add" id="addExpense">＋ 고정 지출 추가</button>
             </div>
             <div class="card">
                 <div class="section-label">STEP 4</div>
                 <h2>🧾 기타 지출 (카드 외 별도 지출)</h2>
-                <p class="desc">카드 고정지출을 제외한 <b>별도 지출</b>을 <b>1회성</b> 또는 <b>매월</b>으로 등록하세요. 담당자의 계좌만 표시됩니다. (경조사비,
-                    세금, 여행 등)</p>
+                <p class="desc">카드 고정지출을 제외한 <b>별도 지출</b>을 <b>1회성</b> 또는 <b>매월</b>으로 등록하세요. (경조사비, 세금, 여행 등)</p>
                 <div id="extraExpenseList"></div>
                 <button class="btn-add" id="addExtraExpense">＋ 기타 지출 추가</button>
             </div>
             <div class="grid2">
                 <div class="card">
-                    <h2>📊 지출 구성</h2>
+                    <h2>📊 <span id="flowMonthLabel3">이번 달</span> 지출 구성</h2>
                     <div class="chart-box"><canvas id="expenseChart"></canvas></div>
                 </div>
                 <div class="card">
@@ -334,7 +356,7 @@
             </div>
         </div>
 
-        <footer>참고용 자금 계획 도구이며 법률·세무 효력은 없습니다. 큰 거래는 전문가 상담을 권장합니다. · Renewal v6</footer>
+        <footer>참고용 자금 계획 도구이며 법률·세무 효력은 없습니다. 큰 거래는 전문가 상담을 권장합니다. · Renewal v7</footer>
     </div>
 
     <!-- 대출 등록/수정 모달 -->
