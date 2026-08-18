@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>우리 둘의 자산 플래너</title>
+    <title>소학행을 위한 자산 플래너</title>
 </head>
 
 <body>
@@ -13,11 +13,12 @@
             <div class="brand">
                 <div class="logo">🌊</div>
                 <div>
-                    <h1>우리 둘의 자산 플래너</h1>
+                    <h1>소학행을 위한 자산 플래너</h1>
                     <p class="sub">자산 · 계좌/카드 · 대출 · 월별 가계부 · 상환 캘린더</p>
                 </div>
             </div>
             <div class="top-actions">
+                <button class="btn" id="planToggle" title="Plan 모드 열기/닫기">🧭 Plan 모드</button>
                 <button class="btn icon" id="themeBtn" title="라이트/다크">🌙</button>
                 <button class="btn" id="loadBtn">☁️ 불러오기</button>
                 <button class="btn primary" id="saveBtn">💾 저장</button>
@@ -75,6 +76,7 @@
 
         <div class="tabs">
             <button class="tab-btn active" data-tab="home">홈</button>
+            <button class="tab-btn tab-plan" data-tab="plan" style="display:none;">🧭 Plan</button>
             <button class="tab-btn" data-tab="accounts">계좌 · 카드</button>
             <button class="tab-btn" data-tab="loans">대출 · 차용</button>
             <button class="tab-btn" data-tab="flow">수입 · 지출</button>
@@ -129,6 +131,44 @@
             </div>
         </div>
 
+        <!-- ============ Plan 모드 ============ -->
+        <div class="tab-panel" id="tab-plan">
+            <div class="card plan-hero">
+                <div class="section-label">PLAN MODE</div>
+                <h2>🧭 시뮬레이션 기준점 설정</h2>
+                <p class="desc">특정 <b>기준 날짜</b>와 그 날의 <b>계좌별 실제 잔고</b>를 입력하면, 이후 모든 +/− 는 <b>수입·지출 탭</b>의
+                    내역으로만 자동 계산됩니다. (가장 최근에 통장을 확인한 시점을 기준일로 잡으면 정확해요)</p>
+                <div class="grid2">
+                    <label class="field"><span class="lbl">📌 기준 날짜 (스냅샷 시점)</span><input type="date"
+                            id="planDate" /></label>
+                    <div class="plan-summary" id="planSummary"></div>
+                </div>
+            </div>
+
+            <div class="grid2">
+                <div class="card">
+                    <div class="owner-head">
+                        <div class="name"><span class="dot dot-a"></span><span class="nA">소희</span> 계좌 잔고</div>
+                        <div class="sum" style="color:var(--a)" id="planSumA">-</div>
+                    </div>
+                    <p class="desc">기준일 당시 각 계좌의 실제 잔고를 입력하세요.</p>
+                    <div id="planListA"></div>
+                </div>
+                <div class="card">
+                    <div class="owner-head">
+                        <div class="name"><span class="dot dot-b"></span><span class="nB">남자친구</span> 계좌 잔고</div>
+                        <div class="sum" style="color:var(--b)" id="planSumB">-</div>
+                    </div>
+                    <p class="desc">기준일 당시 각 계좌의 실제 잔고를 입력하세요.</p>
+                    <div id="planListB"></div>
+                </div>
+            </div>
+            <div class="card" style="background:var(--peri-soft);border:none;">
+                <p class="desc" style="margin:0;color:var(--ink);">💡 여기서 입력한 잔고는 <b>계좌 · 카드 탭의 계좌 잔액과 동일</b>하게
+                    연동됩니다. 앞으로의 통장 예상 잔액은 이 기준일 잔고에서 출발해 수입/지출/상환/카드결제를 반영해 계산돼요.</p>
+            </div>
+        </div>
+
         <!-- ============ 계좌 · 카드 ============ -->
         <div class="tab-panel" id="tab-accounts">
             <div class="card">
@@ -166,16 +206,10 @@
             <div class="card">
                 <h2>💳 카드 & 계좌 매핑</h2>
                 <p class="desc">각 카드가 어느 <b>결제 계좌</b>에서 빠져나가는지 연결하세요. 신용카드는 <b>카드별 결제일</b>에 연결 계좌에서 합산 출금됩니다. (체크카드는
-                    결제일 0으로 두면 즉시 출금)</p>
+                    결제일 0으로 두면 즉시 출금) · <b>카드 사용내역은 「수입·지출」 탭에서 관리합니다.</b></p>
                 <div class="cardhead" id="cardHead"></div>
                 <div id="cardList"></div>
                 <button class="btn-add" id="addCard">＋ 카드 추가</button>
-            </div>
-
-            <div class="card">
-                <h2>🧾 <span id="cardLedgerMonth">이번 달</span> 카드 세부내역 (가계부)</h2>
-                <p class="desc">신용카드 사용을 <b>사용일 기준</b>으로 기록하면, 결제일에 그 달 합계가 자동으로 출금됩니다. (현재 선택한 가계부 달의 내역)</p>
-                <div id="cardLedgers"></div>
             </div>
         </div>
 
@@ -189,7 +223,7 @@
                 </div>
             </div>
             <p class="desc" style="margin:-4px 0 14px;color:var(--sub);font-size:12.5px;">금리변동·거치기간·중도상환·원리금체증식을 반영해 월
-                상환액과 총이자를 계산합니다. 카드의 ✏️로 언제든 수정하세요.</p>
+                상환액과 총이자를 계산합니다. <b>상세보기</b>로 날짜별 원금·이자 상환 예정을 확인하세요.</p>
             <div id="loanList"></div>
         </div>
 
@@ -226,6 +260,14 @@
                 <p class="desc">카드 고정지출을 제외한 <b>별도 지출</b>을 <b>1회성</b> 또는 <b>매월</b>으로 등록하세요. (경조사비, 세금, 여행 등)</p>
                 <div id="extraExpenseList"></div>
                 <button class="btn-add" id="addExtraExpense">＋ 기타 지출 추가</button>
+            </div>
+            <!-- v8: 카드 세부내역(가계부)을 수입·지출 탭으로 이동 -->
+            <div class="card">
+                <div class="section-label">STEP 5</div>
+                <h2>💳 <span id="cardLedgerMonth">이번 달</span> 카드 세부내역 (가계부)</h2>
+                <p class="desc">신용카드 사용을 <b>사용일 기준</b>으로 기록하면, 카드별 <b>결제일</b>에 그 달 합계가 자동으로 출금됩니다. (현재 선택한 가계부 달의
+                    내역)</p>
+                <div id="cardLedgers"></div>
             </div>
             <div class="grid2">
                 <div class="card">
@@ -285,11 +327,11 @@
                                     <option value="B">상대</option>
                                     <option value="J">공동</option>
                                 </select></label>
-                            <label class="field"><span class="lbl">보유 예산 (원)</span><input type="number" id="budgetA"
-                                    value="300000000" /></label>
+                            <label class="field"><span class="lbl">보유 예산 (원)</span><input type="text"
+                                    inputmode="numeric" class="comma" id="budgetA" value="300000000" /></label>
                         </div>
-                        <label class="field"><span class="lbl">🏡 현재 주택 자산가치 (원)</span><input type="number"
-                                id="houseAValue" value="700000000" /></label>
+                        <label class="field"><span class="lbl">🏡 현재 주택 자산가치 (원)</span><input type="text"
+                                inputmode="numeric" class="comma" id="houseAValue" value="700000000" /></label>
                     </div>
                     <div>
                         <label class="field"><span class="lbl">🏠 주택 B 이름</span><input type="text" id="houseB"
@@ -300,11 +342,11 @@
                                     <option value="B" selected>상대</option>
                                     <option value="J">공동</option>
                                 </select></label>
-                            <label class="field"><span class="lbl">보유 예산 (원)</span><input type="number" id="budgetB"
-                                    value="250000000" /></label>
+                            <label class="field"><span class="lbl">보유 예산 (원)</span><input type="text"
+                                    inputmode="numeric" class="comma" id="budgetB" value="250000000" /></label>
                         </div>
-                        <label class="field"><span class="lbl">🏡 현재 주택 자산가치 (원)</span><input type="number"
-                                id="houseBValue" value="620000000" /></label>
+                        <label class="field"><span class="lbl">🏡 현재 주택 자산가치 (원)</span><input type="text"
+                                inputmode="numeric" class="comma" id="houseBValue" value="620000000" /></label>
                     </div>
                 </div>
                 <div class="note-strip" id="houseAssetNote"></div>
@@ -356,7 +398,7 @@
             </div>
         </div>
 
-        <footer>참고용 자금 계획 도구이며 법률·세무 효력은 없습니다. 큰 거래는 전문가 상담을 권장합니다. · Renewal v7</footer>
+        <footer>참고용 자금 계획 도구이며 법률·세무 효력은 없습니다. 큰 거래는 전문가 상담을 권장합니다. · Renewal v8</footer>
     </div>
 
     <!-- 대출 등록/수정 모달 -->
@@ -377,8 +419,8 @@
                     </select></label>
             </div>
             <div class="grid4">
-                <label class="field"><span class="lbl">대출 원금 (원)</span><input type="number" id="lPrincipal"
-                        value="300000000" /></label>
+                <label class="field"><span class="lbl">대출 원금 (원)</span><input type="text" inputmode="numeric"
+                        class="comma" id="lPrincipal" value="300000000" /></label>
                 <label class="field"><span class="lbl">연 금리 (%)</span><input type="number" id="lRate" value="4.2"
                         step="0.1" /></label>
                 <label class="field"><span class="lbl">대출 기간 (개월)</span><input type="number" id="lTerm"
@@ -402,7 +444,7 @@
                         type="number" id="lGrowth" value="1.5" step="0.1" /></label>
             </div>
             <label class="field" id="lCustomWrap" style="display:none;"><span class="lbl">매월 상환액 (원) — 직접
-                    입력</span><input type="number" id="lFixed" value="1000000" /></label>
+                    입력</span><input type="text" inputmode="numeric" class="comma" id="lFixed" value="1000000" /></label>
             <div id="customHint" class="desc" style="display:none;margin-top:-8px;"></div>
             <label class="field"><span class="lbl">금리 유형</span>
                 <select id="lRateType">
@@ -434,6 +476,28 @@
             <div style="display:flex;gap:10px;margin-top:8px;">
                 <button class="btn ghost" id="cancelLoan" style="flex:1;">취소</button>
                 <button class="btn primary" id="saveLoan" style="flex:2;">저장</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- v8: 대출 상세보기(상환 스케줄) 팝업 -->
+    <div class="modal-bg" id="schedModal">
+        <div class="modal">
+            <div class="row-between" style="margin-bottom:6px;">
+                <h3 id="schedTitle" style="margin:0;">📅 상환 스케줄</h3>
+                <button class="btn ghost sm" id="closeSched">닫기</button>
+            </div>
+            <div id="schedSummary" class="sched-summary"></div>
+            <div class="sched-filter">
+                <label style="font-size:12px;color:var(--sub);font-weight:700;">보기</label>
+                <select id="schedRange">
+                    <option value="12">앞으로 12개월</option>
+                    <option value="24">앞으로 24개월</option>
+                    <option value="all">전체 기간</option>
+                </select>
+            </div>
+            <div class="sched-table-wrap">
+                <table class="sched-table" id="schedTable"></table>
             </div>
         </div>
     </div>
