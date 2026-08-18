@@ -1,1245 +1,446 @@
-/* =========================================================
-   우리 둘의 자산 플래너 v6 — Summer Cool Tone
-========================================================= */
-:root {
-    --bg: #eef4fa;
-    --bg-tint: #e3ecf5;
-    --card: #ffffff;
-    --ink: #2c3a4a;
-    --sub: #7f8ea1;
-    --line: #e6edf4;
-    --line2: #dbe5ef;
-    --a: #3f7fd1;
-    --a-soft: #e8f1fb;
-    --b: #23b0be;
-    --b-soft: #e2f6f7;
-    --peri: #6f7fe0;
-    --peri-soft: #eceffc;
-    --aqua: #4fc4d6;
-    --aqua-soft: #e5f7fa;
-    --plus: #2bb59a;
-    --minus: #e078a0;
-    --plus-bg: #e6f7f2;
-    --minus-bg: #fbeef4;
-    --shadow: 0 8px 28px rgba(50, 90, 140, 0.08);
-    --shadow-sm: 0 2px 12px rgba(50, 90, 140, 0.06);
-    --radius: 18px;
-    --radius-sm: 13px;
-}
-
-html[data-theme="dark"] {
-    --bg: #121a22;
-    --bg-tint: #16202a;
-    --card: #1b2731;
-    --ink: #e6eef5;
-    --sub: #93a3b4;
-    --line: #263440;
-    --line2: #2d3d4a;
-    --a-soft: #1d2c3d;
-    --b-soft: #16302f;
-    --peri-soft: #222741;
-    --aqua-soft: #143035;
-    --plus-bg: #122c26;
-    --minus-bg: #2c1c26;
-    --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
-    --shadow-sm: 0 2px 14px rgba(0, 0, 0, 0.35);
-}
-
-* {
-    box-sizing: border-box;
-}
-
-body {
-    margin: 0;
-    font-family: "Pretendard", -apple-system, BlinkMacSystemFont, sans-serif;
-    color: var(--ink);
-    line-height: 1.55;
-    -webkit-font-smoothing: antialiased;
-    background:
-        radial-gradient(1100px 500px at 0% -5%, var(--a-soft), transparent 60%),
-        radial-gradient(900px 460px at 100% 0%, var(--aqua-soft), transparent 55%),
-        var(--bg);
-    transition: background .3s, color .3s;
-}
-
-.wrap {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 22px 18px 100px;
-}
-
-.topbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 14px;
-    margin-bottom: 22px;
-}
-
-.brand {
-    display: flex;
-    align-items: center;
-    gap: 13px;
-}
-
-.brand .logo {
-    width: 44px;
-    height: 44px;
-    border-radius: 13px;
-    display: grid;
-    place-items: center;
-    font-size: 20px;
-    background: linear-gradient(135deg, var(--a), var(--aqua));
-    color: #fff;
-    box-shadow: 0 6px 16px rgba(63, 127, 209, .3);
-}
-
-.brand h1 {
-    margin: 0;
-    font-size: 19px;
-    font-weight: 800;
-    letter-spacing: -.4px;
-}
-
-.brand .sub {
-    margin: 0;
-    font-size: 12.5px;
-    color: var(--sub);
-    font-weight: 500;
-}
-
-.top-actions {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-}
-
-.btn {
-    border: 1px solid var(--line2);
-    background: var(--card);
-    color: var(--ink);
-    height: 40px;
-    border-radius: 11px;
-    cursor: pointer;
-    font-size: 13.5px;
-    font-weight: 700;
-    font-family: inherit;
-    padding: 0 15px;
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    transition: .16s;
-}
-
-.btn:hover {
-    border-color: var(--a);
-    color: var(--a);
-}
-
-.btn.icon {
-    width: 40px;
-    padding: 0;
-    justify-content: center;
-    font-size: 16px;
-}
-
-.btn.primary {
-    background: var(--a);
-    border-color: var(--a);
-    color: #fff;
-}
-
-.btn.primary:hover {
-    filter: brightness(1.06);
-    color: #fff;
-}
-
-.btn.ghost {
-    background: transparent;
-}
-
-.btn.sm {
-    height: 32px;
-    padding: 0 11px;
-    font-size: 12.5px;
-    border-radius: 9px;
-}
-
-.hero {
-    border: 1px solid var(--line2);
-    background: linear-gradient(180deg, var(--a-soft), transparent 72%), var(--card);
-    border-radius: 22px;
-    padding: 24px 26px;
-    margin-bottom: 22px;
-    box-shadow: var(--shadow);
-}
-
-.hero .names {
-    display: flex;
-    align-items: center;
-    gap: 11px;
-    font-size: 21px;
-    font-weight: 800;
-    letter-spacing: -.4px;
-}
-
-.hero .names .heart {
-    color: var(--minus);
-    font-size: 15px;
-}
-
-.hero .meta {
-    color: var(--sub);
-    font-size: 12.5px;
-    margin-top: 4px;
-}
-
-.hero-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 16px;
-    margin-top: 20px;
-}
-
-.hero-cell {
-    border-left: 1px solid var(--line2);
-    padding-left: 16px;
-}
-
-.hero-cell:first-child {
-    border-left: none;
-    padding-left: 0;
-}
-
-.hero-cell .k {
-    font-size: 12px;
-    color: var(--sub);
-    font-weight: 600;
-}
-
-.hero-cell .v {
-    font-size: 23px;
-    font-weight: 800;
-    letter-spacing: -.6px;
-    margin-top: 3px;
-}
-
-.hero-cell .s {
-    font-size: 11.5px;
-    margin-top: 3px;
-    font-weight: 600;
-    color: var(--sub);
-}
-
-@media (max-width:820px) {
-    .hero-grid {
-        grid-template-columns: 1fr 1fr;
-        gap: 16px;
-    }
-
-    .hero-cell:nth-child(3) {
-        border-left: none;
-        padding-left: 0;
-    }
-}
-
-.tabs {
-    display: flex;
-    gap: 5px;
-    margin-bottom: 22px;
-    flex-wrap: wrap;
-    background: var(--bg-tint);
-    padding: 6px;
-    border-radius: 14px;
-    border: 1px solid var(--line);
-}
-
-.tab-btn {
-    border: none;
-    background: transparent;
-    color: var(--sub);
-    padding: 10px 15px;
-    border-radius: 10px;
-    cursor: pointer;
-    font-size: 13.5px;
-    font-weight: 700;
-    font-family: inherit;
-    transition: .16s;
-}
-
-.tab-btn:hover {
-    color: var(--ink);
-}
-
-.tab-btn.active {
-    background: var(--card);
-    color: var(--a);
-    box-shadow: var(--shadow-sm);
-}
-
-.tab-panel {
-    display: none;
-    animation: fade .3s ease;
-}
-
-.tab-panel.active {
-    display: block;
-}
-
-@keyframes fade {
-    from {
-        opacity: 0;
-        transform: translateY(6px);
-    }
-
-    to {
-        opacity: 1;
-        transform: none;
-    }
-}
-
-.card {
-    background: var(--card);
-    border: 1px solid var(--line2);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-sm);
-    padding: 24px;
-    margin-bottom: 20px;
-}
-
-.card h2 {
-    margin: 0 0 3px;
-    font-size: 17px;
-    font-weight: 800;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.card .desc {
-    color: var(--sub);
-    font-size: 12.5px;
-    margin: 0 0 16px;
-}
-
-.row-between {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    flex-wrap: wrap;
-}
-
-.grid2 {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-}
-
-.grid3 {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 16px;
-}
-
-.grid4 {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 14px;
-}
-
-@media (max-width:900px) {
-    .grid3 {
-        grid-template-columns: 1fr;
-    }
-
-    .grid4 {
-        grid-template-columns: 1fr 1fr;
-    }
-}
-
-@media (max-width:820px) {
-    .grid2 {
-        grid-template-columns: 1fr;
-    }
-}
-
-.section-label {
-    font-size: 11px;
-    font-weight: 800;
-    color: var(--a);
-    letter-spacing: .5px;
-    text-transform: uppercase;
-    margin-bottom: 8px;
-}
-
-.kpi {
-    border-radius: var(--radius-sm);
-    padding: 18px;
-    border: 1px solid var(--line2);
-    background: var(--card);
-}
-
-.kpi .ic {
-    width: 36px;
-    height: 36px;
-    border-radius: 10px;
-    display: grid;
-    place-items: center;
-    font-size: 17px;
-    margin-bottom: 11px;
-}
-
-.kpi .k {
-    font-size: 12px;
-    color: var(--sub);
-    font-weight: 600;
-}
-
-.kpi .v {
-    font-size: 21px;
-    font-weight: 800;
-    letter-spacing: -.5px;
-    margin-top: 2px;
-}
-
-.kpi .s {
-    font-size: 11.5px;
-    margin-top: 4px;
-    font-weight: 600;
-}
-
-.ic-a {
-    background: var(--a-soft);
-    color: var(--a);
-}
-
-.ic-b {
-    background: var(--b-soft);
-    color: var(--b);
-}
-
-.ic-g {
-    background: var(--plus-bg);
-    color: var(--plus);
-}
-
-.ic-m {
-    background: var(--minus-bg);
-    color: var(--minus);
-}
-
-.ic-p {
-    background: var(--peri-soft);
-    color: var(--peri);
-}
-
-label.field {
-    display: block;
-    margin-bottom: 14px;
-}
-
-label.field .lbl {
-    display: block;
-    font-size: 12px;
-    font-weight: 600;
-    margin-bottom: 6px;
-    color: var(--sub);
-}
-
-input[type=text],
-input[type=number],
-input[type=date],
-select {
-    width: 100%;
-    padding: 10px 12px;
-    border: 1px solid var(--line2);
-    border-radius: 11px;
-    font-size: 14.5px;
-    font-family: inherit;
-    background: var(--card);
-    color: var(--ink);
-    transition: .15s;
-}
-
-input:focus,
-select:focus {
-    outline: none;
-    border-color: var(--a);
-    box-shadow: 0 0 0 3px var(--a-soft);
-}
-
-.dot {
-    display: inline-block;
-    width: 9px;
-    height: 9px;
-    border-radius: 50%;
-    margin-right: 6px;
-    vertical-align: middle;
-}
-
-.dot-a {
-    background: var(--a);
-}
-
-.dot-b {
-    background: var(--b);
-}
-
-.pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 11.5px;
-    font-weight: 700;
-    padding: 3px 10px;
-    border-radius: 999px;
-}
-
-.pill-a {
-    background: var(--a-soft);
-    color: var(--a);
-}
-
-.pill-b {
-    background: var(--b-soft);
-    color: var(--b);
-}
-
-.pill-bank {
-    background: var(--minus-bg);
-    color: var(--minus);
-}
-
-.pill-family {
-    background: var(--peri-soft);
-    color: var(--peri);
-}
-
-.pill-muted {
-    background: var(--bg-tint);
-    color: var(--sub);
-}
-
-.item {
-    display: grid;
-    gap: 10px 12px;
-    align-items: center;
-    border: 1px solid var(--line2);
-    border-radius: 14px;
-    padding: 13px 15px;
-    margin-bottom: 10px;
-    background: var(--card);
-}
-
-.acc-item {
-    grid-template-columns: 38px 1.4fr 0.9fr 1.1fr 34px;
-}
-
-/* v6: 카드 아이템에 결제일 열 추가 (7열) */
-.card-item {
-    grid-template-columns: 38px 1.2fr 0.8fr 1.1fr 0.7fr 0.7fr 34px;
-}
-
-.cardhead {
-    display: grid;
-    grid-template-columns: 38px 1.2fr 0.8fr 1.1fr 0.7fr 0.7fr 34px;
-    gap: 12px;
-    padding: 2px 15px 6px;
-    font-size: 11px;
-    color: var(--sub);
-    font-weight: 700;
-}
-
-.item .aico {
-    width: 36px;
-    height: 36px;
-    border-radius: 10px;
-    display: grid;
-    place-items: center;
-    font-size: 16px;
-    background: var(--bg-tint);
-}
-
-.item .nm {
-    font-weight: 700;
-    font-size: 14px;
-}
-
-.item .meta {
-    font-size: 11.5px;
-    color: var(--sub);
-}
-
-.item input,
-.item select {
-    border: none;
-    background: transparent;
-    padding: 4px 2px;
-    font-size: 13.5px;
-}
-
-.item input.amt {
-    text-align: right;
-    font-weight: 800;
-}
-
-.item input.payday {
-    text-align: center;
-    font-weight: 700;
-}
-
-.item input:focus,
-.item select:focus {
-    box-shadow: none;
-    background: var(--bg-tint);
-    border-radius: 7px;
-}
-
-.btn-del {
-    border: none;
-    background: var(--minus-bg);
-    color: var(--minus);
-    border-radius: 9px;
-    height: 32px;
-    width: 32px;
-    cursor: pointer;
-    font-size: 15px;
-    font-weight: 700;
-}
-
-.btn-edit {
-    border: none;
-    background: var(--a-soft);
-    color: var(--a);
-    border-radius: 9px;
-    height: 32px;
-    width: 32px;
-    cursor: pointer;
-    font-size: 14px;
-}
-
-.btn-add {
-    border: 1.5px dashed var(--line2);
-    background: transparent;
-    color: var(--sub);
-    border-radius: 12px;
-    padding: 12px;
-    width: 100%;
-    cursor: pointer;
-    font-size: 13.5px;
-    font-weight: 600;
-    margin-top: 6px;
-}
-
-.btn-add:hover {
-    border-color: var(--a);
-    color: var(--a);
-}
-
-.owner-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin: 4px 0 12px;
-}
-
-.owner-head .name {
-    font-size: 15px;
-    font-weight: 800;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.owner-head .sum {
-    font-size: 14px;
-    font-weight: 800;
-}
-
-.loan {
-    border: 1px solid var(--line2);
-    border-radius: 16px;
-    padding: 18px;
-    margin-bottom: 14px;
-    background: var(--card);
-}
-
-.loan .top {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 10px;
-    margin-bottom: 12px;
-}
-
-.loan .title {
-    font-size: 15.5px;
-    font-weight: 800;
-}
-
-.loan .tags {
-    display: flex;
-    gap: 6px;
-    margin-top: 6px;
-    flex-wrap: wrap;
-}
-
-.loan .acts {
-    display: flex;
-    gap: 6px;
-}
-
-.loan-stats {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 10px;
-}
-
-.loan-stats .cell {
-    background: var(--bg-tint);
-    border-radius: 11px;
-    padding: 11px 12px;
-}
-
-.loan-stats .k {
-    font-size: 11px;
-    color: var(--sub);
-    font-weight: 600;
-}
-
-.loan-stats .v {
-    font-size: 15px;
-    font-weight: 800;
-    margin-top: 2px;
-    letter-spacing: -.3px;
-}
-
-@media (max-width:620px) {
-    .loan-stats {
-        grid-template-columns: 1fr 1fr;
-    }
-}
-
-.bar {
-    height: 8px;
-    border-radius: 999px;
-    background: var(--line);
-    overflow: hidden;
-    margin-top: 12px;
-}
-
-.bar > span {
-    display: block;
-    height: 100%;
-    border-radius: 999px;
-    background: linear-gradient(90deg, var(--a), var(--aqua));
-}
-
-.cal-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 14px;
-}
-
-.cal-title {
-    font-size: 16px;
-    font-weight: 800;
-}
-
-.cal-nav {
-    display: flex;
-    gap: 6px;
-}
-
-.cal-grid {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 6px;
-}
-
-.cal-dow {
-    text-align: center;
-    font-size: 11.5px;
-    font-weight: 700;
-    color: var(--sub);
-    padding-bottom: 4px;
-}
-
-.cal-cell {
-    min-height: 74px;
-    border: 1px solid var(--line);
-    border-radius: 10px;
-    padding: 6px 7px;
-    background: var(--card);
-    font-size: 11px;
-    cursor: pointer;
-    transition: .12s;
-}
-
-.cal-cell:hover {
-    border-color: var(--a);
-    box-shadow: var(--shadow-sm);
-}
-
-.cal-cell.empty {
-    background: transparent;
-    border: none;
-    cursor: default;
-}
-
-.cal-cell.today {
-    border-color: var(--a);
-    box-shadow: 0 0 0 2px var(--a-soft);
-}
-
-.cal-cell.selected {
-    border-color: var(--peri);
-    box-shadow: 0 0 0 2px var(--peri-soft);
-}
-
-.cal-cell .d {
-    font-weight: 700;
-    color: var(--sub);
-}
-
-.cal-cell .ev {
-    margin-top: 4px;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-
-.ev-tag {
-    font-size: 10px;
-    font-weight: 700;
-    padding: 2px 5px;
-    border-radius: 6px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.ev-plus {
-    background: var(--plus-bg);
-    color: var(--plus);
-}
-
-.ev-minus {
-    background: var(--minus-bg);
-    color: var(--minus);
-}
-
-.cal-net {
-    font-weight: 800;
-    font-size: 10.5px;
-    margin-top: 3px;
-}
-
-@media (max-width:640px) {
-    .cal-cell {
-        min-height: 52px;
-        font-size: 10px;
-    }
-
-    .cal-cell .ev {
-        display: none;
-    }
-}
-
-.day-detail {
-    border: 1px solid var(--line2);
-    border-radius: 16px;
-    padding: 20px;
-    background: linear-gradient(180deg, var(--peri-soft), transparent 60%), var(--card);
-    margin-top: 16px;
-}
-
-.day-detail .dh {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 14px;
-    gap: 10px;
-    flex-wrap: wrap;
-}
-
-.day-detail .dh .dt {
-    font-size: 16px;
-    font-weight: 800;
-}
-
-.dd-row {
-    display: grid;
-    grid-template-columns: 26px 1fr auto;
-    gap: 10px;
-    align-items: center;
-    padding: 10px 0;
-    border-bottom: 1px solid var(--line);
-}
-
-.dd-row .lbl {
-    font-weight: 600;
-    font-size: 13.5px;
-}
-
-.dd-row .sub {
-    font-size: 11.5px;
-    color: var(--sub);
-}
-
-.dd-row .val {
-    font-weight: 800;
-    font-size: 14.5px;
-}
-
-.dd-summary {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
-    margin-top: 14px;
-}
-
-.dd-summary .box {
-    background: var(--bg-tint);
-    border-radius: 11px;
-    padding: 12px;
-    text-align: center;
-}
-
-.dd-summary .k {
-    font-size: 11px;
-    color: var(--sub);
-    font-weight: 600;
-}
-
-.dd-summary .v {
-    font-size: 16px;
-    font-weight: 800;
-    margin-top: 3px;
-}
-
-.tl-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 11px 4px;
-    border-bottom: 1px solid var(--line);
-}
-
-.tl-row .date {
-    font-size: 12px;
-    font-weight: 700;
-    color: var(--sub);
-    width: 92px;
-    flex-shrink: 0;
-}
-
-.tl-row .label {
-    font-size: 13.5px;
-    font-weight: 600;
-    flex: 1;
-}
-
-.tl-row .val {
-    font-weight: 800;
-    font-size: 14px;
-}
-
-.val.plus {
-    color: var(--plus);
-}
-
-.val.minus {
-    color: var(--minus);
-}
-
-.chart-box {
-    position: relative;
-    height: 300px;
-    margin-top: 14px;
-}
-
-.btn-primary {
-    display: block;
-    width: 100%;
-    border: none;
-    cursor: pointer;
-    background: linear-gradient(135deg, var(--a), var(--aqua));
-    color: #fff;
-    font-size: 15px;
-    font-weight: 800;
-    padding: 15px;
-    border-radius: 13px;
-    margin-top: 4px;
-    box-shadow: 0 8px 20px rgba(63, 127, 209, .28);
-    transition: .15s;
-}
-
-.btn-primary:hover {
-    filter: brightness(1.05);
-}
-
-.fb-bar {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 12px;
-    color: var(--sub);
-    font-weight: 600;
-    margin-bottom: 18px;
-    padding: 9px 14px;
-    background: var(--card);
-    border: 1px solid var(--line2);
-    border-radius: 11px;
-}
-
-.fb-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--plus);
-    box-shadow: 0 0 0 3px var(--plus-bg);
-}
-
-footer {
-    text-align: center;
-    color: var(--sub);
-    font-size: 12px;
-    margin-top: 28px;
-}
-
-.modal-bg {
-    position: fixed;
-    inset: 0;
-    background: rgba(30, 45, 65, .45);
-    backdrop-filter: blur(3px);
-    display: none;
-    align-items: center;
-    justify-content: center;
-    z-index: 50;
-    padding: 20px;
-}
-
-.modal-bg.on {
-    display: flex;
-}
-
-.modal {
-    background: var(--card);
-    border-radius: 20px;
-    box-shadow: var(--shadow);
-    max-width: 640px;
-    width: 100%;
-    max-height: 88vh;
-    overflow-y: auto;
-    padding: 24px;
-}
-
-.modal h3 {
-    margin: 0 0 16px;
-    font-size: 18px;
-    font-weight: 800;
-}
-
-.subgrid {
-    border: 1px solid var(--line2);
-    border-radius: 12px;
-    padding: 14px;
-    margin-bottom: 12px;
-}
-
-.subgrid .sg-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr 34px;
-    gap: 8px;
-    align-items: center;
-    margin-bottom: 8px;
-}
-
-/* v6: 주택 자산 요약 스트립 */
-.note-strip {
-    margin-top: 6px;
-    padding: 12px 14px;
-    border-radius: 12px;
-    background: var(--plus-bg);
-    color: var(--ink);
-    font-size: 12.5px;
-    font-weight: 600;
-    display: flex;
-    gap: 16px;
-    flex-wrap: wrap;
-}
-
-.note-strip b {
-    color: var(--plus);
-}
-
-html,
-body {
-    max-width: 100%;
-    overflow-x: hidden;
-}
-
-@media (max-width:640px) {
-
-    .acc-item,
-    .card-item {
-        grid-template-columns: 34px 1fr 32px;
-        grid-auto-rows: auto;
-    }
-
-    .cardhead {
-        display: none;
-    }
-
-    .acc-item > :nth-child(3),
-    .acc-item > :nth-child(4),
-    .card-item > :nth-child(3),
-    .card-item > :nth-child(4),
-    .card-item > :nth-child(5),
-    .card-item > :nth-child(6) {
-        grid-column: 2 / 4;
-    }
-}
-
-/* ===== 카드 세부내역(가계부) · 잔액 표기 ===== */
-.card-ledger {
-    border: 1px solid var(--line2);
-    border-radius: 14px;
-    padding: 16px;
-    margin-bottom: 12px;
-    background: var(--card);
-}
-
-.card-ledger .cl-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    margin-bottom: 10px;
-    flex-wrap: wrap;
-}
-
-.card-ledger .cl-title {
-    font-weight: 800;
-    font-size: 14.5px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.card-ledger .cl-total {
-    font-weight: 800;
-    font-size: 14px;
-    color: var(--minus);
-}
-
-.txn-row {
-    display: grid;
-    grid-template-columns: 118px 1fr 0.7fr 120px 30px;
-    gap: 8px;
-    align-items: center;
-    margin-bottom: 7px;
-}
-
-.txn-row input,
-.txn-row select {
-    border: 1px solid var(--line);
-    background: var(--card);
-    padding: 8px 10px;
-    font-size: 13px;
-    border-radius: 9px;
-}
-
-.txn-row .amt {
-    text-align: right;
-    font-weight: 700;
-}
-
-.txn-head {
-    display: grid;
-    grid-template-columns: 118px 1fr 0.7fr 120px 30px;
-    gap: 8px;
-    font-size: 11px;
-    color: var(--sub);
-    font-weight: 700;
-    margin-bottom: 6px;
-    padding: 0 2px;
-}
-
-.bal-strip {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    margin-top: 14px;
-}
-
-.bal-box {
-    border-radius: 12px;
-    padding: 13px 15px;
-    border: 1px solid var(--line2);
-}
-
-.bal-box.a {
-    background: var(--a-soft);
-}
-
-.bal-box.b {
-    background: var(--b-soft);
-}
-
-.bal-box .who {
-    font-size: 12px;
-    color: var(--sub);
-    font-weight: 700;
-    display: flex;
-    align-items: center;
-    gap: 5px;
-}
-
-.bal-box .amt {
-    font-size: 19px;
-    font-weight: 800;
-    letter-spacing: -.5px;
-    margin-top: 3px;
-}
-
-.bal-box .delta {
-    font-size: 11.5px;
-    font-weight: 700;
-    margin-top: 2px;
-}
-
-.ev-info {
-    background: var(--bg-tint);
-    color: var(--sub);
-}
-
-.tag-note {
-    font-size: 10px;
-    font-weight: 700;
-    color: var(--peri);
-    background: var(--peri-soft);
-    padding: 1px 6px;
-    border-radius: 5px;
-    margin-left: 4px;
-}
-
-@media (max-width:640px) {
-
-    .txn-row,
-    .txn-head {
-        grid-template-columns: 100px 1fr 90px 26px;
-    }
-
-    .txn-row > :nth-child(4),
-    .txn-head > :nth-child(4) {
-        display: none;
-    }
-
-    .bal-strip {
-        grid-template-columns: 1fr;
-    }
-}
+<!DOCTYPE html>
+<html lang="ko" data-theme="light">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>우리 둘의 자산 플래너</title>
+</head>
+
+<body>
+    <div class="wrap">
+        <div class="topbar">
+            <div class="brand">
+                <div class="logo">🌊</div>
+                <div>
+                    <h1>우리 둘의 자산 플래너</h1>
+                    <p class="sub">자산 · 계좌/카드 · 대출 · 수입/지출 · 상환 캘린더</p>
+                </div>
+            </div>
+            <div class="top-actions">
+                <button class="btn icon" id="themeBtn" title="라이트/다크">🌙</button>
+                <button class="btn" id="loadBtn">☁️ 불러오기</button>
+                <button class="btn primary" id="saveBtn">💾 저장</button>
+            </div>
+        </div>
+
+        <div class="fb-bar"><span class="fb-dot" id="fbDot"></span><span id="fbStatus">연결 확인 중…</span></div>
+
+        <div class="hero">
+            <div class="names"><span class="nA">소희</span><span class="heart">❤</span><span
+                    class="nB">남자친구</span></div>
+            <div class="meta">순자산 = 총자산 − 총부채 · 매월 수입/지출/상환이 캘린더에 반영됩니다</div>
+            <div class="hero-grid">
+                <div class="hero-cell">
+                    <div class="k">두 사람 순자산</div>
+                    <div class="v" id="heroNet">-</div>
+                    <div class="s">총자산 − 총부채</div>
+                </div>
+                <div class="hero-cell">
+                    <div class="k">총자산</div>
+                    <div class="v" id="heroAsset" style="color:var(--plus)">-</div>
+                    <div class="s">예금·주식·청약·주택 등</div>
+                </div>
+                <div class="hero-cell">
+                    <div class="k">총부채</div>
+                    <div class="v" id="heroDebt" style="color:var(--minus)">-</div>
+                    <div class="s">대출·차용 잔액</div>
+                </div>
+                <div class="hero-cell">
+                    <div class="k">월 순현금흐름</div>
+                    <div class="v" id="heroFlow">-</div>
+                    <div class="s">수입 − 지출 − 상환</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="home">홈</button>
+            <button class="tab-btn" data-tab="accounts">계좌 · 카드</button>
+            <button class="tab-btn" data-tab="loans">대출 · 차용</button>
+            <button class="tab-btn" data-tab="flow">수입 · 지출</button>
+            <button class="tab-btn" data-tab="calendar">상환 캘린더</button>
+            <button class="tab-btn" data-tab="house">주택 자금</button>
+        </div>
+
+        <!-- ============ 홈 ============ -->
+        <div class="tab-panel active" id="tab-home">
+            <div class="grid4" style="margin-bottom:20px;">
+                <div class="kpi">
+                    <div class="ic ic-a">🙋‍♀️</div>
+                    <div class="k"><span class="nA">소희</span> 순자산</div>
+                    <div class="v" id="kNetA">-</div>
+                    <div class="s" id="kNetADesc">-</div>
+                </div>
+                <div class="kpi">
+                    <div class="ic ic-b">🙋‍♂️</div>
+                    <div class="k"><span class="nB">남자친구</span> 순자산</div>
+                    <div class="v" id="kNetB">-</div>
+                    <div class="s" id="kNetBDesc">-</div>
+                </div>
+                <div class="kpi">
+                    <div class="ic ic-m">💳</div>
+                    <div class="k">대출 잔액 / 건수</div>
+                    <div class="v" id="kLoan">-</div>
+                    <div class="s" id="kLoanNext">-</div>
+                </div>
+                <div class="kpi">
+                    <div class="ic ic-p">📅</div>
+                    <div class="k">이번 달 상환</div>
+                    <div class="v" id="kMonthPay">-</div>
+                    <div class="s">캘린더에서 확인</div>
+                </div>
+            </div>
+            <div class="grid2">
+                <div class="card">
+                    <h2>💠 자산 구성</h2>
+                    <p class="desc">두 사람 자산을 유형별로 (주택 포함)</p>
+                    <div class="chart-box"><canvas id="assetChart"></canvas></div>
+                </div>
+                <div class="card">
+                    <h2>⚖️ 자산 vs 부채</h2>
+                    <p class="desc">사람별 비교</p>
+                    <div class="chart-box"><canvas id="balanceChart"></canvas></div>
+                </div>
+            </div>
+            <div class="card">
+                <h2>💵 월 현금흐름 구성</h2>
+                <p class="desc">수입 − 생활비 − 대출상환</p>
+                <div class="chart-box"><canvas id="flowChart"></canvas></div>
+            </div>
+        </div>
+
+        <!-- ============ 계좌 · 카드 ============ -->
+        <div class="tab-panel" id="tab-accounts">
+            <div class="card">
+                <div class="section-label">STEP 1</div>
+                <h2>호칭</h2>
+                <div class="grid2">
+                    <label class="field"><span class="lbl"><span class="dot dot-a"></span>본인 호칭</span><input type="text"
+                            id="nameA" value="소희" /></label>
+                    <label class="field"><span class="lbl"><span class="dot dot-b"></span>상대 호칭</span><input type="text"
+                            id="nameB" value="남자친구" /></label>
+                </div>
+            </div>
+
+            <div class="grid2">
+                <div class="card">
+                    <div class="owner-head">
+                        <div class="name"><span class="dot dot-a"></span><span class="nA">소희</span> 계좌</div>
+                        <div class="sum" style="color:var(--a)" id="accSumA">-</div>
+                    </div>
+                    <p class="desc">예금·주식·청약·현금 등 잔액이 자산으로 집계됩니다.</p>
+                    <div id="accListA"></div>
+                    <button class="btn-add" data-add-acc="A">＋ 계좌 추가</button>
+                </div>
+                <div class="card">
+                    <div class="owner-head">
+                        <div class="name"><span class="dot dot-b"></span><span class="nB">남자친구</span> 계좌</div>
+                        <div class="sum" style="color:var(--b)" id="accSumB">-</div>
+                    </div>
+                    <p class="desc">예금·주식·청약·현금 등 잔액이 자산으로 집계됩니다.</p>
+                    <div id="accListB"></div>
+                    <button class="btn-add" data-add-acc="B">＋ 계좌 추가</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>💳 카드 & 계좌 매핑</h2>
+                <p class="desc">각 카드가 어느 <b>결제 계좌</b>에서 빠져나가는지 연결하세요. 신용카드는 <b>카드별 결제일</b>에 연결 계좌에서 합산 출금됩니다. (체크카드는
+                    결제일 0으로 두면 즉시 출금)</p>
+                <div class="cardhead" id="cardHead"></div>
+                <div id="cardList"></div>
+                <button class="btn-add" id="addCard">＋ 카드 추가</button>
+            </div>
+
+            <div class="card">
+                <h2>🧾 카드 세부내역 (가계부)</h2>
+                <p class="desc">신용카드 사용을 <b>사용일 기준</b>으로 기록하면, 결제일에 그 달 합계가 자동으로 출금됩니다.</p>
+                <div id="cardLedgers"></div>
+            </div>
+        </div>
+
+        <!-- ============ 대출 · 차용 ============ -->
+        <div class="tab-panel" id="tab-loans">
+            <div class="row-between" style="margin-bottom:12px;">
+                <h2 style="font-size:17px;margin:0;">🏦 대출 · 차용</h2>
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <span class="pill pill-bank" id="loanTotalPill">총 부채 -</span>
+                    <button class="btn primary sm" id="openAddLoan">＋ 대출 등록</button>
+                </div>
+            </div>
+            <p class="desc" style="margin:-4px 0 14px;color:var(--sub);font-size:12.5px;">금리변동·거치기간·중도상환·원리금체증식을 반영해 월
+                상환액과 총이자를 계산합니다. 카드의 ✏️로 언제든 수정하세요.</p>
+            <div id="loanList"></div>
+        </div>
+
+        <!-- ============ 수입 · 지출 ============ -->
+        <div class="tab-panel" id="tab-flow">
+            <div class="card">
+                <div class="section-label">STEP 1</div>
+                <h2>💰 매월 수입 (월급 등)</h2>
+                <p class="desc">담당자를 고르면 그 사람의 계좌만 나타납니다.</p>
+                <div id="incomeList"></div>
+                <button class="btn-add" id="addIncome">＋ 수입 추가</button>
+            </div>
+            <div class="card">
+                <div class="section-label">STEP 2</div>
+                <h2>💸 기타 수입 (성과급 · 부수입 등)</h2>
+                <p class="desc"><b>1회성(특정 날짜)</b> 또는 <b>매월 반복</b>으로 등록하세요. 담당자의 계좌만 표시됩니다.</p>
+                <div id="extraIncomeList"></div>
+                <button class="btn-add" id="addExtraIncome">＋ 기타 수입 추가</button>
+            </div>
+            <div class="card">
+                <div class="section-label">STEP 3</div>
+                <h2>🧾 매월 고정 지출 (생활비 등)</h2>
+                <p class="desc">항목별 <b>담당자 · 결제수단(카드/계좌)</b>을 매핑하세요. 담당자의 카드·계좌만 표시됩니다. 카드 결제는 결제일에 합산 출금돼요.</p>
+                <div id="expenseList"></div>
+                <button class="btn-add" id="addExpense">＋ 고정 지출 추가</button>
+            </div>
+            <div class="card">
+                <div class="section-label">STEP 4</div>
+                <h2>🧾 기타 지출 (카드 외 별도 지출)</h2>
+                <p class="desc">카드 고정지출을 제외한 <b>별도 지출</b>을 <b>1회성</b> 또는 <b>매월</b>으로 등록하세요. 담당자의 계좌만 표시됩니다. (경조사비,
+                    세금, 여행 등)</p>
+                <div id="extraExpenseList"></div>
+                <button class="btn-add" id="addExtraExpense">＋ 기타 지출 추가</button>
+            </div>
+            <div class="grid2">
+                <div class="card">
+                    <h2>📊 지출 구성</h2>
+                    <div class="chart-box"><canvas id="expenseChart"></canvas></div>
+                </div>
+                <div class="card">
+                    <h2>🙋 담당자별 월 부담</h2>
+                    <div class="chart-box"><canvas id="burdenChart"></canvas></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============ 상환 캘린더 ============ -->
+        <div class="tab-panel" id="tab-calendar">
+            <div class="card">
+                <div class="cal-head">
+                    <div class="cal-title" id="calTitle">2026년 10월</div>
+                    <div class="cal-nav">
+                        <button class="btn icon" id="calPrev">‹</button>
+                        <button class="btn" id="calToday">오늘</button>
+                        <button class="btn icon" id="calNext">›</button>
+                    </div>
+                </div>
+                <div class="row-between" style="margin-bottom:12px;">
+                    <div style="display:flex;gap:14px;font-size:12px;color:var(--sub);flex-wrap:wrap;">
+                        <span><span class="dot" style="background:var(--plus)"></span>유입(＋)</span>
+                        <span><span class="dot" style="background:var(--minus)"></span>지출(−)</span>
+                        <span style="color:var(--sub)">날짜를 클릭하면 상세 내역·잔액이 아래에 표시돼요</span>
+                    </div>
+                    <div style="font-size:13px;font-weight:800;">이번 달 순흐름 <span id="calMonthNet">-</span></div>
+                </div>
+                <div class="cal-grid" id="calDow"></div>
+                <div class="cal-grid" id="calBody" style="margin-top:6px;"></div>
+                <div class="day-detail" id="dayDetail" style="display:none;"></div>
+            </div>
+            <div class="card">
+                <h2>🗓️ 다가오는 현금 일정</h2>
+                <p class="desc">앞으로의 +/− 흐름 (상환·수입·지출·주택자금)</p>
+                <div id="upcomingList"></div>
+            </div>
+        </div>
+
+        <!-- ============ 주택 자금 ============ -->
+        <div class="tab-panel" id="tab-house">
+            <div class="card">
+                <div class="section-label">STEP 1</div>
+                <h2>주택별 담당자 · 예산 · 현재 자산가치</h2>
+                <p class="desc">각 주택의 담당자와 보유 예산을 지정하고, <b>현재 시세(자산가치)</b>를 입력하면 상단 총자산·순자산에 반영됩니다.</p>
+                <div class="grid2">
+                    <div>
+                        <label class="field"><span class="lbl">🏠 주택 A 이름</span><input type="text" id="houseA"
+                                value="벽적골8단지 (리모델링)" /></label>
+                        <div class="grid2">
+                            <label class="field"><span class="lbl">담당자</span><select id="houseAOwner">
+                                    <option value="A">본인</option>
+                                    <option value="B">상대</option>
+                                    <option value="J">공동</option>
+                                </select></label>
+                            <label class="field"><span class="lbl">보유 예산 (원)</span><input type="number" id="budgetA"
+                                    value="300000000" /></label>
+                        </div>
+                        <label class="field"><span class="lbl">🏡 현재 주택 자산가치 (원)</span><input type="number"
+                                id="houseAValue" value="700000000" /></label>
+                    </div>
+                    <div>
+                        <label class="field"><span class="lbl">🏠 주택 B 이름</span><input type="text" id="houseB"
+                                value="수원하늘채더퍼스트2단지" /></label>
+                        <div class="grid2">
+                            <label class="field"><span class="lbl">담당자</span><select id="houseBOwner">
+                                    <option value="A">본인</option>
+                                    <option value="B" selected>상대</option>
+                                    <option value="J">공동</option>
+                                </select></label>
+                            <label class="field"><span class="lbl">보유 예산 (원)</span><input type="number" id="budgetB"
+                                    value="250000000" /></label>
+                        </div>
+                        <label class="field"><span class="lbl">🏡 현재 주택 자산가치 (원)</span><input type="number"
+                                id="houseBValue" value="620000000" /></label>
+                    </div>
+                </div>
+                <div class="note-strip" id="houseAssetNote"></div>
+            </div>
+            <div class="card">
+                <div class="section-label">STEP 2</div>
+                <h2>주택별 자금 흐름</h2>
+                <p class="desc"><b style="color:var(--minus)">지불은 음수</b>, <b style="color:var(--plus)">유입은 양수</b>. 월급/저축
+                    유입도 항목으로 넣으면 시점별 잔여예산에 반영됩니다.</p>
+                <div class="grid2">
+                    <div class="card" style="background:var(--a-soft);border:none;">
+                        <h2 style="font-size:14.5px;"><span class="dot dot-a"></span><span id="hLabelA">주택 A</span></h2>
+                        <div id="cfListA" style="margin-top:12px;"></div>
+                        <button class="btn-add" id="addCfA">＋ 항목 추가</button>
+                    </div>
+                    <div class="card" style="background:var(--b-soft);border:none;">
+                        <h2 style="font-size:14.5px;"><span class="dot dot-b"></span><span id="hLabelB">주택 B</span></h2>
+                        <div id="cfListB" style="margin-top:12px;"></div>
+                        <button class="btn-add" id="addCfB">＋ 항목 추가</button>
+                    </div>
+                </div>
+            </div>
+            <button class="btn-primary" id="calcHouse">💡 주택 자금 시뮬레이션</button>
+            <div id="houseResults" style="display:none;">
+                <div class="grid2" style="margin-top:20px;">
+                    <div class="card">
+                        <h2>📌 <span class="nA">소희</span> · <span id="rHouseA">주택 A</span></h2>
+                        <div class="kpi" style="background:var(--a-soft);border:none;margin-bottom:10px;">
+                            <div class="k">최종 잔여 예산</div>
+                            <div class="v" id="rBalA">-</div>
+                            <div class="s" id="rBalADesc">-</div>
+                        </div>
+                        <table style="width:100%;border-collapse:collapse;font-size:12.5px;" id="ledgerA"></table>
+                    </div>
+                    <div class="card">
+                        <h2>📌 <span class="nB">남자친구</span> · <span id="rHouseB">주택 B</span></h2>
+                        <div class="kpi" style="background:var(--b-soft);border:none;margin-bottom:10px;">
+                            <div class="k">최종 잔여 예산</div>
+                            <div class="v" id="rBalB">-</div>
+                            <div class="s" id="rBalBDesc">-</div>
+                        </div>
+                        <table style="width:100%;border-collapse:collapse;font-size:12.5px;" id="ledgerB"></table>
+                    </div>
+                </div>
+                <div class="card">
+                    <h2>📅 날짜별 잔여 예산 흐름</h2>
+                    <div class="chart-box"><canvas id="houseFlowChart"></canvas></div>
+                </div>
+            </div>
+        </div>
+
+        <footer>참고용 자금 계획 도구이며 법률·세무 효력은 없습니다. 큰 거래는 전문가 상담을 권장합니다. · Renewal v6</footer>
+    </div>
+
+    <!-- 대출 등록/수정 모달 -->
+    <div class="modal-bg" id="loanModal">
+        <div class="modal">
+            <h3 id="loanModalTitle">🏦 대출 등록</h3>
+            <div class="grid3">
+                <label class="field"><span class="lbl">대출명</span><input type="text" id="lName"
+                        placeholder="예: 주택담보대출" /></label>
+                <label class="field"><span class="lbl">명의</span><select id="lOwner">
+                        <option value="A">본인</option>
+                        <option value="B">상대</option>
+                        <option value="J">공동</option>
+                    </select></label>
+                <label class="field"><span class="lbl">대출 방식</span><select id="lKind">
+                        <option value="bank">은행 대출</option>
+                        <option value="family">부모님 차용</option>
+                    </select></label>
+            </div>
+            <div class="grid4">
+                <label class="field"><span class="lbl">대출 원금 (원)</span><input type="number" id="lPrincipal"
+                        value="300000000" /></label>
+                <label class="field"><span class="lbl">연 금리 (%)</span><input type="number" id="lRate" value="4.2"
+                        step="0.1" /></label>
+                <label class="field"><span class="lbl">대출 기간 (개월)</span><input type="number" id="lTerm"
+                        value="360" /></label>
+                <label class="field"><span class="lbl">상환방식</span><select id="lRepay">
+                        <option value="eq">원리금균등</option>
+                        <option value="pr">원금균등</option>
+                        <option value="io">만기일시(이자만)</option>
+                        <option value="graduate">원리금체증식(자동)</option>
+                        <option value="custom">기타(직접 입력)</option>
+                    </select></label>
+            </div>
+            <div class="grid4">
+                <label class="field"><span class="lbl">첫 상환일</span><input type="date" id="lStart"
+                        value="2026-10-25" /></label>
+                <label class="field"><span class="lbl">매월 상환일 (일)</span><input type="number" id="lPayDay" value="25"
+                        min="1" max="31" /></label>
+                <label class="field"><span class="lbl">거치기간 (개월)</span><input type="number" id="lGrace" value="0"
+                        min="0" /></label>
+                <label class="field" id="lGrowthWrap" style="display:none;"><span class="lbl">연 체증률 (%)</span><input
+                        type="number" id="lGrowth" value="1.5" step="0.1" /></label>
+            </div>
+            <label class="field" id="lCustomWrap" style="display:none;"><span class="lbl">매월 상환액 (원) — 직접
+                    입력</span><input type="number" id="lFixed" value="1000000" /></label>
+            <div id="customHint" class="desc" style="display:none;margin-top:-8px;"></div>
+            <label class="field"><span class="lbl">금리 유형</span>
+                <select id="lRateType">
+                    <option value="fixed">고정금리</option>
+                    <option value="variable">변동금리</option>
+                </select>
+            </label>
+            <div class="subgrid" id="rateChangeWrap" style="display:none;">
+                <div class="row-between" style="margin-bottom:8px;">
+                    <b style="font-size:13px;">📈 금리 변동 일정</b>
+                    <button class="btn ghost sm" id="addRateChange">＋ 변동 추가</button>
+                </div>
+                <div id="rateChangeList"></div>
+                <div class="desc" style="margin:0;">몇 개월차부터 금리가 몇 %로 바뀌는지 등록하세요.</div>
+            </div>
+            <div class="subgrid">
+                <div class="row-between" style="margin-bottom:8px;">
+                    <b style="font-size:13px;">💸 중도상환 내역</b>
+                    <button class="btn ghost sm" id="addPrepay">＋ 중도상환 추가</button>
+                </div>
+                <div id="prepayList"></div>
+                <div class="desc" style="margin:0;">중도상환한 시점(개월차)과 금액을 등록하면 이후 이자·잔액이 재계산됩니다.</div>
+            </div>
+            <div class="subgrid" style="background:var(--bg-tint);border:none;">
+                <div style="font-size:12.5px;color:var(--sub);">예상 월 상환액 <b id="previewPay"
+                        style="color:var(--ink);font-size:14px;">-</b> · 총이자 <b id="previewInt"
+                        style="color:var(--ink);">-</b></div>
+            </div>
+            <div style="display:flex;gap:10px;margin-top:8px;">
+                <button class="btn ghost" id="cancelLoan" style="flex:1;">취소</button>
+                <button class="btn primary" id="saveLoan" style="flex:2;">저장</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 리소스 로더: CSS → 라이브러리 → firebase-config.js(선택) → app.js -->
+    <script>
+        (function () {
+            function addCss(href) { var l = document.createElement("link"); l.rel = "stylesheet"; l.href = href; document.head.appendChild(l); }
+            function addScript(src, optional) {
+                return new Promise(function (resolve) {
+                    var s = document.createElement("script"); s.src = src; s.async = false;
+                    s.onload = resolve;
+                    s.onerror = function () { if (optional) { console.warn("선택 리소스 로드 실패(무시): " + src); resolve(); } else { console.error("로드 실패: " + src); resolve(); } };
+                    document.head.appendChild(s);
+                });
+            }
+            addCss("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css");
+            addCss("styles.css");
+            var seq = [
+                ["https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js", false],
+                ["https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js", true],
+                ["https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js", true],
+                ["https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js", true],
+                ["firebase-config.js", true],
+                ["app.js", false]
+            ];
+            (function next(i) { if (i >= seq.length) return; addScript(seq[i][0], seq[i][1]).then(function () { next(i + 1); }); })(0);
+        })();
+    </script>
+</body>
+
+</html>
