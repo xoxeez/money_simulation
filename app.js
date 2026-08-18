@@ -1,13 +1,9 @@
 /* =========================================================
-   우리 둘의 자산 플래너 v5 — app.js
-   · 계좌/카드 + 카드 세부내역(가계부) → 결제일 합산 출금
-   · 대출: 원리금균등/원금균등/만기일시/원리금체증식(자동)/기타
-           + 금리변동 · 거치 · 중도상환 · 수정
-   · 수입: 매월 정기수입 + [NEW] 기타수입(1회성/매월)
-   · 지출: 매월 고정지출 + [NEW] 기타지출(1회성/매월)
-   · 캘린더: 날짜 클릭 상세 + 그 날짜 기준 각자 잔액
-   · 주택자금: 담당자 매핑 + 시점별 잔여예산 원장
-   · 저장: Firebase(있으면) / localStorage 폴백
+   우리 둘의 자산 플래너 v6 — app.js
+   [v6 변경점]
+   1) 수입/지출의 계좌·카드 목록을 '담당자'에 맞춰 필터링
+   2) 카드별 결제일(payDay) 직접 설정
+   3) 주택 자산가치(현재 시세)를 총자산/순자산에 반영
 ========================================================= */
 const $ = (id) => document.getElementById(id);
 const won = (v) => (Math.round(v)).toLocaleString("ko-KR") + "원";
@@ -73,7 +69,6 @@ let incomes = [
     { id: "in1", owner: "A", name: "급여", amt: 3500000, payDay: 25, acc: "ac1" },
     { id: "in2", owner: "B", name: "급여", amt: 4000000, payDay: 21, acc: "ac5" },
 ];
-// [NEW] 기타 수입 — freq: 'once'(date) | 'monthly'(day)
 let extraIncomes = [
     { id: "ei1", owner: "A", name: "성과급 (설)", amt: 5000000, freq: "once", date: "2026-09-20", day: 25, acc: "ac1" },
     { id: "ei2", owner: "B", name: "부수입 (프리랜스)", amt: 800000, freq: "monthly", date: TODAY, day: 10, acc: "ac5" },
@@ -82,7 +77,6 @@ let expenses = [
     { id: "ex1", name: "월세/관리비", amt: 900000, owner: "J", method: "acc", ref: "ac1", day: 5 },
     { id: "ex2", name: "공과금", amt: 200000, owner: "J", method: "acc", ref: "ac5", day: 15 },
 ];
-// [NEW] 기타 지출 — freq: 'once'(date) | 'monthly'(day), acc: 출금계좌
 let extraExpenses = [
     { id: "ee1", owner: "J", name: "경조사비 (지인 결혼)", amt: 300000, freq: "once", date: "2026-09-12", day: 1, acc: "ac1" },
     { id: "ee2", owner: "A", name: "부모님 용돈", amt: 500000, freq: "monthly", date: TODAY, day: 5, acc: "ac1" },
@@ -122,13 +116,11 @@ function solveGraduated(P, annualRate, n, grace, growth) {
     return hi;
 }
 function loanCalc(l) {
-    // 숫자 필드 안전 변환 (빈값·문자열·undefined → 0 등으로 강제)
     const P = +l.principal || 0, n = Math.max(0, Math.round(+l.term || 0)), grace = Math.max(0, Math.round(+l.grace || 0));
     const baseRate = +l.rate || 0, growth = (+l.growth || 0) / 100, fixedPay = +l.fixed || 0;
     const prepays = (l.prepayments || []).slice().map(p => ({ month: +p.month || 0, amount: +p.amount || 0 })).sort((a, b) => a.month - b.month);
     const rateChanges = (l.rateChanges || []).slice().map(rc => ({ month: +rc.month || 0, rate: +rc.rate || 0 })).sort((a, b) => a.month - b.month);
     function rateAt(i) { let r = baseRate; if (l.rateType === "variable") { rateChanges.forEach(rc => { if (i >= rc.month) r = rc.rate; }); } return r / 100 / 12; }
-    // 유효하지 않은 대출은 즉시 안전값 반환
     if (P <= 0 || n <= 0) return { firstPay: 0, totalInterest: 0, months: 0, sched: [], remain: P > 0 ? P : 0 };
     let gradBase = 0;
     if (l.repay === "graduate") gradBase = solveGraduated(P, baseRate, n, grace, growth) || 0;
@@ -142,7 +134,6 @@ function loanCalc(l) {
         else if (l.repay === "custom") { pay = fixedPay; principal = Math.min(Math.max(pay - interest, 0), bal); pay = principal + interest; }
         else if (l.repay === "graduate") { const yr = Math.floor((i - 1 - grace) / 12); pay = gradBase * Math.pow(1 + growth, yr); principal = Math.min(Math.max(pay - interest, 0), bal); pay = principal + interest; }
         else { const m = amort(bal, r, n - i + 1); principal = Math.min(m - interest, bal); pay = principal + interest; }
-        // NaN 방어: 비정상 값이면 이 회차 건너뜀
         if (!Number.isFinite(principal)) principal = 0;
         if (!Number.isFinite(interest)) interest = 0;
         if (!Number.isFinite(pay)) pay = 0;
@@ -152,10 +143,8 @@ function loanCalc(l) {
         if (i === grace + 1) firstPay = pay;
     }
     if (!firstPay && sched.length) firstPay = sched[0].pay;
-    // 최종 안전 보정
     if (!Number.isFinite(firstPay)) firstPay = 0;
     if (!Number.isFinite(totalInterest)) totalInterest = 0;
-    // 오늘 기준 잔여 원금: 아직 상환일이 도래하지 않은 회차는 미반영 (미래 시작 대출은 원금 전액)
     let remain = P;
     const startValid = l.start && !isNaN(new Date(l.start).getTime());
     if (startValid) {
@@ -164,15 +153,40 @@ function loanCalc(l) {
             const d = new Date(startDate); d.setMonth(startDate.getMonth() + i);
             if (d.toISOString().slice(0, 10) <= TODAY) remain = sched[i].bal; else break;
         }
-    } else if (sched.length) {
-        // 시작일이 없으면 만기 잔액(≈0)이 아니라 원금을 유지 (안전)
-        remain = P;
-    }
+    } else if (sched.length) { remain = P; }
     if (!Number.isFinite(remain)) remain = 0;
     return { firstPay, totalInterest, months: sched.length, sched, remain: remain > 0.5 ? remain : 0 };
 }
 const KIND_LABEL = { bank: "은행", family: "부모님 차용" };
 const REPAY_LABEL = { eq: "원리금균등", pr: "원금균등", io: "만기일시", graduate: "원리금체증식", custom: "기타(직접입력)" };
+
+/* ---------- [v6] 담당자 기반 필터 헬퍼 ---------- */
+// owner === 'J'(공동) 또는 미지정이면 전체를 보여줌
+function accountsForOwner(owner) { return (!owner || owner === "J") ? accounts : accounts.filter(a => a.owner === owner); }
+function cardsForOwner(owner) { return (!owner || owner === "J") ? cards : cards.filter(c => c.owner === owner); }
+function accOptions(sel, owner) {
+    const list = accountsForOwner(owner);
+    if (!list.length) return `<option value="">계좌 없음</option>`;
+    return list.map(a => `<option value="${a.id}" ${a.id === sel ? "selected" : ""}>${ownerName(a.owner)} · ${a.name}</option>`).join("");
+}
+// 담당자에 맞는 유효한 계좌 id로 보정 (없으면 첫 계좌)
+function validAccForOwner(id, owner) { const list = accountsForOwner(owner); return list.some(a => a.id === id) ? id : (list[0] ? list[0].id : ""); }
+// 지출용: 카드/계좌 결제수단 옵션 (담당자 필터)
+function methodOptions(sel, owner) {
+    const cs = cardsForOwner(owner), as = accountsForOwner(owner);
+    const cardOpts = cs.map(c => `<option value="card:${c.id}" ${sel === "card:" + c.id ? "selected" : ""}>💳 ${c.name}</option>`).join("");
+    const accOpts = as.map(a => `<option value="acc:${a.id}" ${sel === "acc:" + a.id ? "selected" : ""}>🏦 ${a.name}</option>`).join("");
+    return `${cs.length ? `<optgroup label="카드">${cardOpts}</optgroup>` : ""}${as.length ? `<optgroup label="계좌 직접">${accOpts}</optgroup>` : ""}`;
+}
+// 지출용: 담당자에 맞는 유효한 결제수단으로 보정
+function validMethodForOwner(method, ref, owner) {
+    if (method === "card") { const cs = cardsForOwner(owner); if (cs.some(c => c.id === ref)) return { method, ref }; }
+    else { const as = accountsForOwner(owner); if (as.some(a => a.id === ref)) return { method, ref }; }
+    const cs = cardsForOwner(owner), as = accountsForOwner(owner);
+    if (cs[0]) return { method: "card", ref: cs[0].id };
+    if (as[0]) return { method: "acc", ref: as[0].id };
+    return { method: "acc", ref: "" };
+}
 
 /* ---------- 계좌 ---------- */
 function accSum(o) { return accounts.filter(a => a.owner === o).reduce((s, a) => s + (+a.amt || 0), 0); }
@@ -199,29 +213,40 @@ function renderAccounts() {
         $("accSum" + a.owner).textContent = eok(accSum(a.owner)); refreshSummary();
     });
     $(id).addEventListener("change", e => { const t = e.target; if (t.dataset.k === "type") { accounts.find(x => x.id === t.dataset.id).type = t.value; renderAccounts(); } });
-    $(id).addEventListener("click", e => { if (e.target.dataset.del) { accounts = accounts.filter(x => x.id !== e.target.dataset.del); renderAccounts(); renderCards(); renderCardLedgers(); refreshSummary(); } });
+    $(id).addEventListener("click", e => { if (e.target.dataset.del) { accounts = accounts.filter(x => x.id !== e.target.dataset.del); renderAccounts(); renderCards(); renderCardLedgers(); renderIncome(); renderExtra("income"); renderExpenses(); renderExtra("expense"); refreshSummary(); } });
 });
-document.querySelectorAll("[data-add-acc]").forEach(b => b.addEventListener("click", () => { accounts.push({ id: uid(), owner: b.dataset.addAcc, type: "예금", name: "새 계좌", amt: 0 }); renderAccounts(); refreshSummary(); }));
+document.querySelectorAll("[data-add-acc]").forEach(b => b.addEventListener("click", () => { accounts.push({ id: uid(), owner: b.dataset.addAcc, type: "예금", name: "새 계좌", amt: 0 }); renderAccounts(); renderCards(); renderIncome(); renderExtra("income"); renderExpenses(); renderExtra("expense"); refreshSummary(); }));
 
-/* ---------- 카드 ---------- */
-function accOptions(sel) { return accounts.map(a => `<option value="${a.id}" ${a.id === sel ? "selected" : ""}>${ownerName(a.owner)} · ${a.name}</option>`).join(""); }
+/* ---------- 카드 (v6: 결제일 열 추가) ---------- */
 function renderCards() {
+    const head = $("cardHead"); if (head) head.innerHTML = `<div></div><div>카드명</div><div>담당</div><div>결제 계좌</div><div>종류</div><div>결제일</div><div></div>`;
     const box = $("cardList"); box.innerHTML = "";
     cards.forEach(c => {
         const row = document.createElement("div"); row.className = "item card-item";
         row.innerHTML = `<div class="aico">💳</div>
       <input type="text" value="${c.name}" data-id="${c.id}" data-k="name" class="nm"/>
       <select data-id="${c.id}" data-k="owner"><option value="A" ${c.owner === "A" ? "selected" : ""}>${nameOf.A}</option><option value="B" ${c.owner === "B" ? "selected" : ""}>${nameOf.B}</option></select>
-      <select data-id="${c.id}" data-k="acc">${accOptions(c.acc)}</select>
+      <select data-id="${c.id}" data-k="acc">${accOptions(c.acc, c.owner)}</select>
       <select data-id="${c.id}" data-k="kind"><option ${c.kind === "체크" ? "selected" : ""}>체크</option><option ${c.kind === "신용" ? "selected" : ""}>신용</option></select>
+      <input type="number" class="payday" data-id="${c.id}" data-k="payDay" value="${c.payDay || 0}" min="0" max="31" title="매월 결제일 (0=즉시/체크)"/>
       <button class="btn-del" data-del="${c.id}">×</button>`;
         box.appendChild(row);
     });
 }
-$("cardList").addEventListener("input", e => { const t = e.target, c = cards.find(x => x.id === t.dataset.id); if (!c) return; c[t.dataset.k] = t.value; renderCardLedgers(); });
-$("cardList").addEventListener("change", e => { const t = e.target, c = cards.find(x => x.id === t.dataset.id); if (!c) return; c[t.dataset.k] = t.value; if (t.dataset.k === "owner" || t.dataset.k === "kind") { renderCards(); renderCardLedgers(); } refreshSummary(); renderCalendar(); });
-$("cardList").addEventListener("click", e => { if (e.target.dataset.del) { cards = cards.filter(x => x.id !== e.target.dataset.del); renderCards(); renderCardLedgers(); renderExpenses(); } });
-$("addCard").addEventListener("click", () => { const a = accounts[0]; cards.push({ id: uid(), owner: "A", name: "새 카드", kind: "신용", acc: a ? a.id : "", payDay: 25 }); renderCards(); renderCardLedgers(); });
+$("cardList").addEventListener("input", e => {
+    const t = e.target, c = cards.find(x => x.id === t.dataset.id); if (!c) return;
+    if (t.dataset.k === "payDay") { c.payDay = Math.max(0, Math.min(31, +t.value || 0)); renderCardLedgers(); refreshSummary(); renderCalendar(); }
+    else { c[t.dataset.k] = t.value; renderCardLedgers(); }
+});
+$("cardList").addEventListener("change", e => {
+    const t = e.target, c = cards.find(x => x.id === t.dataset.id); if (!c) return;
+    c[t.dataset.k] = t.value;
+    // 담당자 변경 시: 결제 계좌를 담당자 계좌로 보정
+    if (t.dataset.k === "owner") { c.acc = validAccForOwner(c.acc, c.owner); renderCards(); }
+    renderCardLedgers(); renderExpenses(); refreshSummary(); renderCalendar();
+});
+$("cardList").addEventListener("click", e => { if (e.target.dataset.del) { cards = cards.filter(x => x.id !== e.target.dataset.del); renderCards(); renderCardLedgers(); renderExpenses(); refreshSummary(); renderCalendar(); } });
+$("addCard").addEventListener("click", () => { const a = accounts[0]; cards.push({ id: uid(), owner: "A", name: "새 카드", kind: "신용", acc: validAccForOwner(a ? a.id : "", "A"), payDay: 14 }); renderCards(); renderCardLedgers(); renderExpenses(); });
 
 /* ---------- 카드 세부내역 (가계부) ---------- */
 function txnsOfCard(cardId) { return cardTxns.filter(t => t.cardId === cardId); }
@@ -244,7 +269,7 @@ function renderCardLedgers() {
         <button class="btn-del" data-txdel="${t.id}">×</button></div>`;
         });
         wrap.innerHTML = `<div class="cl-head">
-        <div class="cl-title">💳 ${c.name} <span class="pill pill-muted">${ownerName(c.owner)}</span> <span class="pill pill-muted">결제일 ${c.payDay || "-"}일 · ${acc ? acc.name : "계좌미지정"}</span></div>
+        <div class="cl-title">💳 ${c.name} <span class="pill pill-muted">${ownerName(c.owner)}</span> <span class="pill pill-muted">결제일 ${c.payDay ? c.payDay + "일" : "즉시"} · ${acc ? acc.name : "계좌미지정"}</span></div>
         <div class="cl-total">이번달 합계 ${won(total)}</div>
       </div>${rows}
       <button class="btn-add" data-txadd="${c.id}" style="margin-top:8px;">＋ 사용내역 추가</button>`;
@@ -352,7 +377,7 @@ $("saveLoan").addEventListener("click", () => {
     closeLoanModal(); renderLoans(); refreshSummary(); renderCalendar(); renderUpcoming();
 });
 
-/* ---------- 정기 수입 ---------- */
+/* ---------- 정기 수입 (v6: 담당자 계좌만) ---------- */
 function renderIncome() {
     const box = $("incomeList"); box.innerHTML = "";
     box.insertAdjacentHTML("beforeend", `<div class="item" style="grid-template-columns:1.2fr 0.8fr 1fr 0.6fr 1.4fr 34px;background:transparent;border:none;padding:4px 15px;color:var(--sub);font-size:11.5px;font-weight:700;"><div>항목</div><div>담당</div><div>월 금액</div><div>입금일</div><div>입금 계좌</div><div></div></div>`);
@@ -362,18 +387,17 @@ function renderIncome() {
       <select data-id="${inc.id}" data-k="owner"><option value="A" ${inc.owner === "A" ? "selected" : ""}>${nameOf.A}</option><option value="B" ${inc.owner === "B" ? "selected" : ""}>${nameOf.B}</option></select>
       <input type="text" inputmode="numeric" class="amt" value="${fmtNum(inc.amt)}" data-id="${inc.id}" data-k="amt"/>
       <input type="number" value="${inc.payDay}" data-id="${inc.id}" data-k="payDay" min="1" max="31"/>
-      <select data-id="${inc.id}" data-k="acc">${accOptions(inc.acc)}</select>
+      <select data-id="${inc.id}" data-k="acc">${accOptions(inc.acc, inc.owner)}</select>
       <button class="btn-del" data-del="${inc.id}">×</button>`;
         box.appendChild(row);
     });
 }
 $("incomeList").addEventListener("input", e => { const t = e.target, inc = incomes.find(x => x.id === t.dataset.id); if (!inc) return; const k = t.dataset.k; if (k === "amt") { inc.amt = parseNum(t.value); t.value = fmtNum(t.value); } else if (k === "payDay") inc.payDay = +t.value || 1; else inc[k] = t.value; refreshSummary(); });
-$("incomeList").addEventListener("change", e => { const t = e.target, inc = incomes.find(x => x.id === t.dataset.id); if (!inc) return; inc[t.dataset.k] = t.value; if (t.dataset.k === "owner") renderIncome(); renderCalendar(); renderUpcoming(); });
+$("incomeList").addEventListener("change", e => { const t = e.target, inc = incomes.find(x => x.id === t.dataset.id); if (!inc) return; const k = t.dataset.k; inc[k] = t.value; if (k === "owner") { inc.acc = validAccForOwner(inc.acc, inc.owner); renderIncome(); } renderCalendar(); renderUpcoming(); });
 $("incomeList").addEventListener("click", e => { if (e.target.dataset.del) { incomes = incomes.filter(x => x.id !== e.target.dataset.del); renderIncome(); refreshSummary(); renderCalendar(); } });
-$("addIncome").addEventListener("click", () => { incomes.push({ id: uid(), owner: "A", name: "새 수입", amt: 0, payDay: 25, acc: accounts[0] ? accounts[0].id : "" }); renderIncome(); refreshSummary(); });
+$("addIncome").addEventListener("click", () => { incomes.push({ id: uid(), owner: "A", name: "새 수입", amt: 0, payDay: 25, acc: validAccForOwner("", "A") }); renderIncome(); refreshSummary(); });
 
-/* ---------- [NEW] 기타 수입 / 기타 지출 (공통 렌더) ---------- */
-// kind: 'income' | 'expense'
+/* ---------- [기타 수입/지출] (v6: 담당자 계좌만) ---------- */
 function renderExtra(kind) {
     const list = kind === "income" ? extraIncomes : extraExpenses;
     const boxId = kind === "income" ? "extraIncomeList" : "extraExpenseList";
@@ -389,7 +413,7 @@ function renderExtra(kind) {
       <input type="text" inputmode="numeric" class="amt" value="${fmtNum(it.amt)}" data-id="${it.id}" data-k="amt"/>
       <select data-id="${it.id}" data-k="freq"><option value="once" ${it.freq === "once" ? "selected" : ""}>1회성</option><option value="monthly" ${it.freq === "monthly" ? "selected" : ""}>매월</option></select>
       ${dateField}
-      <select data-id="${it.id}" data-k="acc">${accOptions(it.acc)}</select>
+      <select data-id="${it.id}" data-k="acc">${accOptions(it.acc, it.owner)}</select>
       <button class="btn-del" data-del="${it.id}">×</button>`;
         box.appendChild(row);
     });
@@ -407,6 +431,7 @@ function bindExtra(kind) {
     $(boxId).addEventListener("change", e => {
         const t = e.target, it = list().find(x => x.id === t.dataset.id); if (!it) return; const k = t.dataset.k;
         it[k] = k === "day" ? (+t.value || 1) : t.value;
+        if (k === "owner") it.acc = validAccForOwner(it.acc, it.owner);
         if (k === "freq" || k === "owner") renderExtra(kind);
         refreshSummary(); renderCalendar(); renderUpcoming();
     });
@@ -419,15 +444,10 @@ function bindExtra(kind) {
     });
 }
 bindExtra("income"); bindExtra("expense");
-$("addExtraIncome").addEventListener("click", () => { extraIncomes.push({ id: uid(), owner: "A", name: "새 기타수입", amt: 0, freq: "once", date: TODAY, day: 25, acc: accounts[0] ? accounts[0].id : "" }); renderExtra("income"); refreshSummary(); renderCalendar(); });
-$("addExtraExpense").addEventListener("click", () => { extraExpenses.push({ id: uid(), owner: "J", name: "새 기타지출", amt: 0, freq: "once", date: TODAY, day: 1, acc: accounts[0] ? accounts[0].id : "" }); renderExtra("expense"); refreshSummary(); renderCalendar(); });
+$("addExtraIncome").addEventListener("click", () => { extraIncomes.push({ id: uid(), owner: "A", name: "새 기타수입", amt: 0, freq: "once", date: TODAY, day: 25, acc: validAccForOwner("", "A") }); renderExtra("income"); refreshSummary(); renderCalendar(); });
+$("addExtraExpense").addEventListener("click", () => { extraExpenses.push({ id: uid(), owner: "J", name: "새 기타지출", amt: 0, freq: "once", date: TODAY, day: 1, acc: validAccForOwner("", "J") }); renderExtra("expense"); refreshSummary(); renderCalendar(); });
 
-/* ---------- 고정 지출 ---------- */
-function methodOptions(sel) {
-    const cardOpts = cards.map(c => `<option value="card:${c.id}" ${sel === "card:" + c.id ? "selected" : ""}>💳 ${c.name}</option>`).join("");
-    const accOpts = accounts.map(a => `<option value="acc:${a.id}" ${sel === "acc:" + a.id ? "selected" : ""}>🏦 ${a.name}</option>`).join("");
-    return `<optgroup label="카드">${cardOpts}</optgroup><optgroup label="계좌 직접">${accOpts}</optgroup>`;
-}
+/* ---------- 고정 지출 (v6: 담당자 카드/계좌만) ---------- */
 function renderExpenses() {
     const box = $("expenseList"); box.innerHTML = "";
     box.insertAdjacentHTML("beforeend", `<div class="item" style="grid-template-columns:1.3fr 0.7fr 1fr 0.5fr 1.5fr 34px;background:transparent;border:none;padding:4px 15px;color:var(--sub);font-size:11.5px;font-weight:700;"><div>항목</div><div>담당</div><div>월 금액</div><div>결제일</div><div>결제수단</div><div></div></div>`);
@@ -438,39 +458,37 @@ function renderExpenses() {
       <select data-id="${ex.id}" data-k="owner"><option value="A" ${ex.owner === "A" ? "selected" : ""}>${nameOf.A}</option><option value="B" ${ex.owner === "B" ? "selected" : ""}>${nameOf.B}</option><option value="J" ${ex.owner === "J" ? "selected" : ""}>공동</option></select>
       <input type="text" inputmode="numeric" class="amt" value="${fmtNum(ex.amt)}" data-id="${ex.id}" data-k="amt"/>
       <input type="number" value="${ex.day}" data-id="${ex.id}" data-k="day" min="1" max="31"/>
-      <select data-id="${ex.id}" data-k="pay">${methodOptions(sel)}</select>
+      <select data-id="${ex.id}" data-k="pay">${methodOptions(sel, ex.owner)}</select>
       <button class="btn-del" data-del="${ex.id}">×</button>`;
         box.appendChild(row);
     });
 }
 $("expenseList").addEventListener("input", e => { const t = e.target, ex = expenses.find(x => x.id === t.dataset.id); if (!ex) return; const k = t.dataset.k; if (k === "amt") { ex.amt = parseNum(t.value); t.value = fmtNum(t.value); } else if (k === "day") ex.day = +t.value || 1; else ex[k] = t.value; refreshSummary(); });
-$("expenseList").addEventListener("change", e => { const t = e.target, ex = expenses.find(x => x.id === t.dataset.id); if (!ex) return; const k = t.dataset.k; if (k === "pay") { const [m, r] = t.value.split(":"); ex.method = m; ex.ref = r; } else ex[k] = t.value; if (k === "owner") renderExpenses(); refreshSummary(); renderCalendar(); renderUpcoming(); });
+$("expenseList").addEventListener("change", e => {
+    const t = e.target, ex = expenses.find(x => x.id === t.dataset.id); if (!ex) return; const k = t.dataset.k;
+    if (k === "pay") { const [m, r] = t.value.split(":"); ex.method = m; ex.ref = r; }
+    else ex[k] = t.value;
+    if (k === "owner") { const v = validMethodForOwner(ex.method, ex.ref, ex.owner); ex.method = v.method; ex.ref = v.ref; renderExpenses(); }
+    refreshSummary(); renderCalendar(); renderUpcoming();
+});
 $("expenseList").addEventListener("click", e => { if (e.target.dataset.del) { expenses = expenses.filter(x => x.id !== e.target.dataset.del); renderExpenses(); refreshSummary(); renderCalendar(); } });
-$("addExpense").addEventListener("click", () => { expenses.push({ id: uid(), name: "새 지출", amt: 0, owner: "J", method: "acc", ref: accounts[0] ? accounts[0].id : "", day: 1 }); renderExpenses(); refreshSummary(); });
+$("addExpense").addEventListener("click", () => { const v = validMethodForOwner("acc", "", "J"); expenses.push({ id: uid(), name: "새 지출", amt: 0, owner: "J", method: v.method, ref: v.ref, day: 1 }); renderExpenses(); refreshSummary(); });
 
 /* ---------- 이벤트 빌드 ---------- */
 function ymd(d) { return d.toISOString().slice(0, 10); }
 function nthDayOfMonth(y, m, day) { const last = new Date(y, m + 1, 0).getDate(); return new Date(y, m, Math.min(day, last)); }
 function buildEvents() {
     const ev = [];
-    // 대출 상환
     loans.forEach(l => { const c = loanCalc(l); const start = new Date(l.start); c.sched.forEach((s, i) => { const d = new Date(start); d.setMonth(start.getMonth() + i); ev.push({ date: ymd(d), label: `${l.name} 상환`, sub: `${ownerName(l.owner)} · ${REPAY_LABEL[l.repay]}`, amt: -Math.round(s.pay), type: "loan", owner: l.owner, cash: true }); }); });
-    // 기타 수입/지출 1회성
     extraIncomes.filter(x => x.freq === "once").forEach(x => { const acc = accounts.find(a => a.id === x.acc); ev.push({ date: x.date, label: x.name, sub: `${ownerName(x.owner)} 기타수입 · ${acc ? acc.name : ""}`, amt: +x.amt, type: "extra-income", owner: x.owner, cash: true }); });
     extraExpenses.filter(x => x.freq === "once").forEach(x => { const acc = accounts.find(a => a.id === x.acc); ev.push({ date: x.date, label: x.name, sub: `${ownerName(x.owner)} 기타지출 · ${acc ? acc.name : ""}`, amt: -x.amt, type: "extra-expense", owner: x.owner, cash: true }); });
-    // 월 반복 (오늘 기준 -2 ~ +12개월)
     const base = new Date(TODAY); base.setDate(1);
     for (let m = -2; m <= 12; m++) {
         const dt = new Date(base.getFullYear(), base.getMonth() + m, 1), y = dt.getFullYear(), mo = dt.getMonth();
-        // 정기 수입
         incomes.forEach(inc => { const d = nthDayOfMonth(y, mo, inc.payDay); const acc = accounts.find(a => a.id === inc.acc); ev.push({ date: ymd(d), label: inc.name, sub: `${ownerName(inc.owner)} 수입 · ${acc ? acc.name : ""}`, amt: +inc.amt, type: "income", owner: inc.owner, cash: true }); });
-        // 기타 수입 매월
         extraIncomes.filter(x => x.freq === "monthly").forEach(x => { const d = nthDayOfMonth(y, mo, x.day); const acc = accounts.find(a => a.id === x.acc); ev.push({ date: ymd(d), label: x.name, sub: `${ownerName(x.owner)} 기타수입(매월) · ${acc ? acc.name : ""}`, amt: +x.amt, type: "extra-income", owner: x.owner, cash: true }); });
-        // 계좌 직접 고정지출
         expenses.filter(e => e.method === "acc").forEach(ex => { const acc = accounts.find(a => a.id === ex.ref); ev.push({ date: ymd(nthDayOfMonth(y, mo, ex.day)), label: ex.name, sub: `${ownerName(ex.owner)} 지출 · ${acc ? acc.name : "계좌"}`, amt: -ex.amt, type: "expense", owner: ex.owner, cash: true }); });
-        // 기타 지출 매월
         extraExpenses.filter(x => x.freq === "monthly").forEach(x => { const acc = accounts.find(a => a.id === x.acc); ev.push({ date: ymd(nthDayOfMonth(y, mo, x.day)), label: x.name, sub: `${ownerName(x.owner)} 기타지출(매월) · ${acc ? acc.name : ""}`, amt: -x.amt, type: "extra-expense", owner: x.owner, cash: true }); });
-        // 카드: 결제일 합산 출금 + 사용내역(정보)
         cards.forEach(c => {
             const acc = accounts.find(a => a.id === c.acc);
             const recur = expenses.filter(e => e.method === "card" && e.ref === c.id);
@@ -479,10 +497,9 @@ function buildEvents() {
             const monthTx = cardTxns.filter(t => t.cardId === c.id && t.date.slice(0, 7) === ymd(dt).slice(0, 7));
             monthTx.forEach(t => { items.push({ label: t.item, amt: t.amt, owner: t.owner, sub: "카드사용" }); ev.push({ date: t.date, label: `${t.item}`, sub: `${ownerName(t.owner)} · ${c.name} 사용(비현금)`, amt: -t.amt, type: "carduse", owner: t.owner, cash: false, cardName: c.name }); });
             const total = items.reduce((s, x) => s + x.amt, 0);
-            if (total > 0) { const payDay = c.kind === "신용" && c.payDay > 0 ? c.payDay : (recur[0] ? recur[0].day : 1); ev.push({ date: ymd(nthDayOfMonth(y, mo, payDay)), label: `${c.name} 결제`, sub: `${acc ? acc.name : "계좌"}에서 합산 출금 · ${items.length}건`, amt: -total, type: "cardpay", owner: c.owner, cash: true, items: items }); }
+            if (total > 0) { const payDay = c.kind === "신용" && +c.payDay > 0 ? +c.payDay : (recur[0] ? recur[0].day : 1); ev.push({ date: ymd(nthDayOfMonth(y, mo, payDay)), label: `${c.name} 결제`, sub: `${acc ? acc.name : "계좌"}에서 합산 출금 · ${items.length}건`, amt: -total, type: "cardpay", owner: c.owner, cash: true, items: items }); }
         });
     }
-    // 주택 자금
     [...cfA.map(e => ({ ...e, h: $("houseA").value, o: $("houseAOwner").value })), ...cfB.map(e => ({ ...e, h: $("houseB").value, o: $("houseBOwner").value }))].forEach(e => { ev.push({ date: e.date, label: `${e.h} · ${e.label}`, sub: `${ownerName(e.o)} 주택자금`, amt: e.amt, type: "house", owner: e.o, cash: true }); });
     return ev.sort((a, b) => a.date.localeCompare(b.date));
 }
@@ -580,6 +597,25 @@ $("addCfA").addEventListener("click", () => { cfA.push({ date: TODAY, label: "�
 $("addCfB").addEventListener("click", () => { cfB.push({ date: TODAY, label: "새 항목", amt: 0 }); cfB.sort((a, b) => a.date.localeCompare(b.date)); renderCf(cfB, "cfListB"); });
 $("houseA").addEventListener("input", () => { $("hLabelA").textContent = $("houseA").value; });
 $("houseB").addEventListener("input", () => { $("hLabelB").textContent = $("houseB").value; });
+// [v6] 주택 자산가치/담당자 변경 → 총자산·순자산 갱신
+["houseAValue", "houseBValue"].forEach(id => $(id).addEventListener("input", () => { refreshSummary(); renderHouseAssetNote(); }));
+["houseAOwner", "houseBOwner"].forEach(id => $(id).addEventListener("change", () => { refreshSummary(); renderHouseAssetNote(); renderCalendar(); }));
+
+/* ---------- [v6] 주택 자산 헬퍼 ---------- */
+function houseValueTotal() { return parseNum($("houseAValue").value) + parseNum($("houseBValue").value); }
+function houseAssetOf(owner) {
+    const av = parseNum($("houseAValue").value), bv = parseNum($("houseBValue").value);
+    const ao = $("houseAOwner").value, bo = $("houseBOwner").value; let s = 0;
+    s += ao === owner ? av : (ao === "J" ? av / 2 : 0);
+    s += bo === owner ? bv : (bo === "J" ? bv / 2 : 0);
+    return s;
+}
+function assetOf(owner) { return accSum(owner) + houseAssetOf(owner); }
+function renderHouseAssetNote() {
+    const el = $("houseAssetNote"); if (!el) return;
+    const av = parseNum($("houseAValue").value), bv = parseNum($("houseBValue").value);
+    el.innerHTML = `🏡 주택 자산가치 합계 <b>${eok(av + bv)}</b> · ${$("houseA").value} <b>${eok(av)}</b> (${ownerName($("houseAOwner").value)}) · ${$("houseB").value} <b>${eok(bv)}</b> (${ownerName($("houseBOwner").value)}) — 상단 총자산에 포함됩니다.`;
+}
 
 let houseFlowChart;
 function calcHouse() {
@@ -607,7 +643,6 @@ $("calcHouse").addEventListener("click", calcHouse);
 /* ---------- 요약/차트 ---------- */
 let assetChart, balanceChart, flowChartHome, expenseChart, burdenChart;
 function debtOf(o) { return loans.filter(l => l.owner === o).reduce((s, l) => s + fin(loanCalc(l).remain), 0) + loans.filter(l => l.owner === "J").reduce((s, l) => s + fin(loanCalc(l).remain) / 2, 0); }
-// 매월 반복 수입/지출 합계 (기타 매월 포함, 이번달 카드사용 포함)
 function monthlyIncomeTotal() { return incomes.reduce((s, i) => s + (+i.amt || 0), 0) + extraIncomes.filter(x => x.freq === "monthly").reduce((s, x) => s + (+x.amt || 0), 0); }
 function monthlyExpenseTotal() {
     let s = expenses.reduce((a, e) => a + (+e.amt || 0), 0);
@@ -617,7 +652,9 @@ function monthlyExpenseTotal() {
     return s;
 }
 function refreshSummary() {
-    const totalAsset = accounts.reduce((s, a) => s + (+a.amt || 0), 0);
+    const accountsTotal = accounts.reduce((s, a) => s + (+a.amt || 0), 0);
+    const houseTotal = houseValueTotal();
+    const totalAsset = accountsTotal + houseTotal;   // [v6] 주택 포함
     const debtRemain = totalDebtRemain();
     $("heroNet").textContent = eok(totalAsset - debtRemain);
     $("heroAsset").textContent = eok(totalAsset);
@@ -628,23 +665,26 @@ function refreshSummary() {
     const flow = incTot - expTot - payTot;
     $("heroFlow").textContent = (flow >= 0 ? "＋" : "－") + eok(Math.abs(flow));
     $("heroFlow").style.color = flow >= 0 ? "var(--plus)" : "var(--minus)";
-    const netA = accSum("A") - debtOf("A"), netB = accSum("B") - debtOf("B");
-    $("kNetA").textContent = eok(netA); $("kNetADesc").textContent = `자산 ${eok(accSum("A"))} · 부채 ${eok(debtOf("A"))}`;
-    $("kNetB").textContent = eok(netB); $("kNetBDesc").textContent = `자산 ${eok(accSum("B"))} · 부채 ${eok(debtOf("B"))}`;
+    const netA = assetOf("A") - debtOf("A"), netB = assetOf("B") - debtOf("B");   // [v6] 주택 포함
+    $("kNetA").textContent = eok(netA); $("kNetADesc").textContent = `자산 ${eok(assetOf("A"))} · 부채 ${eok(debtOf("A"))}`;
+    $("kNetB").textContent = eok(netB); $("kNetBDesc").textContent = `자산 ${eok(assetOf("B"))} · 부채 ${eok(debtOf("B"))}`;
     $("kLoan").textContent = eok(debtRemain) + ` / ${loans.length}건`;
     const up = buildEvents().filter(e => e.type === "loan" && e.date >= TODAY)[0];
     $("kLoanNext").textContent = up ? `다음 ${up.date}` : "예정 없음";
     const ym = TODAY.slice(0, 7);
     $("kMonthPay").textContent = eok(buildEvents().filter(e => e.type === "loan" && e.date.slice(0, 7) === ym).reduce((s, e) => s + Math.abs(e.amt), 0));
+    renderHouseAssetNote();
     drawHome();
 }
 function drawHome() {
     if (!window.Chart) return; chartFont();
-    const types = {}; accounts.forEach(a => types[a.type] = (types[a.type] || 0) + (+a.amt || 0)); const tl = Object.keys(types);
+    const types = {}; accounts.forEach(a => types[a.type] = (types[a.type] || 0) + (+a.amt || 0));
+    const hv = houseValueTotal(); if (hv > 0) types["주택"] = (types["주택"] || 0) + hv;   // [v6] 주택 슬라이스
+    const tl = Object.keys(types);
     if (assetChart) assetChart.destroy();
-    assetChart = new Chart($("assetChart"), { type: "doughnut", data: { labels: tl.map(t => (ACC_ICON[t] || "") + " " + t), datasets: [{ data: tl.map(t => types[t]), backgroundColor: [COL.a, COL.b, COL.peri, COL.aqua, COL.plus, COL.gold, "#9db8d4"], borderWidth: 2, borderColor: cardc() }] }, options: { plugins: { legend: { position: "bottom" }, tooltip: { callbacks: { label: c => c.label + ": " + eok(c.parsed) } } }, cutout: "60%", maintainAspectRatio: false } });
+    assetChart = new Chart($("assetChart"), { type: "doughnut", data: { labels: tl.map(t => t === "주택" ? "🏡 주택(보유)" : ((ACC_ICON[t] || "") + " " + t)), datasets: [{ data: tl.map(t => types[t]), backgroundColor: [COL.a, COL.b, COL.peri, COL.aqua, COL.plus, COL.gold, "#9db8d4", "#c9b6e8"], borderWidth: 2, borderColor: cardc() }] }, options: { plugins: { legend: { position: "bottom" }, tooltip: { callbacks: { label: c => c.label + ": " + eok(c.parsed) } } }, cutout: "60%", maintainAspectRatio: false } });
     if (balanceChart) balanceChart.destroy();
-    balanceChart = new Chart($("balanceChart"), { type: "bar", data: { labels: [nameOf.A, nameOf.B], datasets: [{ label: "자산", data: [accSum("A"), accSum("B")], backgroundColor: COL.plus, borderRadius: 6 }, { label: "부채", data: [debtOf("A"), debtOf("B")], backgroundColor: COL.minus, borderRadius: 6 }] }, options: { plugins: { legend: { position: "bottom" }, tooltip: { callbacks: { label: c => c.dataset.label + ": " + eok(c.parsed.y) } } }, scales: { y: { ticks: { callback: v => eok(v) }, grid: { color: gridc() } }, x: { grid: { display: false } } }, maintainAspectRatio: false } });
+    balanceChart = new Chart($("balanceChart"), { type: "bar", data: { labels: [nameOf.A, nameOf.B], datasets: [{ label: "자산", data: [assetOf("A"), assetOf("B")], backgroundColor: COL.plus, borderRadius: 6 }, { label: "부채", data: [debtOf("A"), debtOf("B")], backgroundColor: COL.minus, borderRadius: 6 }] }, options: { plugins: { legend: { position: "bottom" }, tooltip: { callbacks: { label: c => c.dataset.label + ": " + eok(c.parsed.y) } } }, scales: { y: { ticks: { callback: v => eok(v) }, grid: { color: gridc() } }, x: { grid: { display: false } } }, maintainAspectRatio: false } });
     const incTot = monthlyIncomeTotal(), expTot = monthlyExpenseTotal(), payTot = monthlyPayTotal();
     if (flowChartHome) flowChartHome.destroy();
     flowChartHome = new Chart($("flowChart"), { type: "bar", data: { labels: ["월 현금흐름"], datasets: [{ label: "수입", data: [incTot], backgroundColor: COL.plus, borderRadius: 6 }, { label: "생활비", data: [-expTot], backgroundColor: COL.minus, borderRadius: 6 }, { label: "대출상환", data: [-payTot], backgroundColor: COL.peri, borderRadius: 6 }] }, options: { indexAxis: "y", plugins: { legend: { position: "bottom" }, tooltip: { callbacks: { label: c => c.dataset.label + ": " + won(Math.abs(c.parsed.x)) } } }, scales: { x: { ticks: { callback: v => eok(v) }, grid: { color: gridc() } }, y: { grid: { display: false } } }, maintainAspectRatio: false } });
@@ -687,7 +727,7 @@ $("themeBtn").addEventListener("click", () => {
 });
 
 /* ---------- 데이터 수집/적용 ---------- */
-function collect() { return { nameA: $("nameA").value, nameB: $("nameB").value, accounts, cards, cardTxns, loans, incomes, extraIncomes, expenses, extraExpenses, cfA, cfB, houseA: $("houseA").value, houseB: $("houseB").value, budgetA: parseNum($("budgetA").value), budgetB: parseNum($("budgetB").value), houseAOwner: $("houseAOwner").value, houseBOwner: $("houseBOwner").value, updatedAt: new Date().toISOString() }; }
+function collect() { return { nameA: $("nameA").value, nameB: $("nameB").value, accounts, cards, cardTxns, loans, incomes, extraIncomes, expenses, extraExpenses, cfA, cfB, houseA: $("houseA").value, houseB: $("houseB").value, budgetA: parseNum($("budgetA").value), budgetB: parseNum($("budgetB").value), houseAValue: parseNum($("houseAValue").value), houseBValue: parseNum($("houseBValue").value), houseAOwner: $("houseAOwner").value, houseBOwner: $("houseBOwner").value, updatedAt: new Date().toISOString() }; }
 function applyData(d) {
     if (!d) return;
     if (d.nameA) $("nameA").value = d.nameA; if (d.nameB) $("nameB").value = d.nameB;
@@ -697,6 +737,7 @@ function applyData(d) {
     if (Array.isArray(d.cfA)) cfA = d.cfA; if (Array.isArray(d.cfB)) cfB = d.cfB;
     if (d.houseA) $("houseA").value = d.houseA; if (d.houseB) $("houseB").value = d.houseB;
     if (d.budgetA != null) $("budgetA").value = d.budgetA; if (d.budgetB != null) $("budgetB").value = d.budgetB;
+    if (d.houseAValue != null) $("houseAValue").value = d.houseAValue; if (d.houseBValue != null) $("houseBValue").value = d.houseBValue;
     if (d.houseAOwner) $("houseAOwner").value = d.houseAOwner; if (d.houseBOwner) $("houseBOwner").value = d.houseBOwner;
     bootRender();
 }
@@ -713,13 +754,13 @@ function initFirebase() {
     } catch (e) { setStatus("Firebase 오류: " + e.message, "err"); }
 }
 async function saveData() {
-    const data = collect(); localStorage.setItem("coupleV5", JSON.stringify(data));
+    const data = collect(); localStorage.setItem("coupleV6", JSON.stringify(data));
     if (!db) { setStatus("로컬에 저장 완료 · " + new Date().toLocaleString("ko-KR"), "ok"); return; }
     try { await db.collection(typeof DOC_PATH !== "undefined" ? DOC_PATH[0] : "coupleFund").doc(typeof DOC_PATH !== "undefined" ? DOC_PATH[1] : "main").set(data); setStatus("클라우드 저장 완료 · " + new Date().toLocaleString("ko-KR"), "ok"); }
     catch (e) { setStatus("클라우드 저장 실패: " + e.message, "err"); }
 }
 async function loadFromCloud(silent) {
-    if (!db) { const s = localStorage.getItem("coupleV5"); if (s) { applyData(JSON.parse(s)); if (!silent) setStatus("로컬 데이터 불러옴", "ok"); } else if (!silent) setStatus("저장된 데이터 없음", "ok"); return; }
+    if (!db) { const s = localStorage.getItem("coupleV6"); if (s) { applyData(JSON.parse(s)); if (!silent) setStatus("로컬 데이터 불러옴", "ok"); } else if (!silent) setStatus("저장된 데이터 없음", "ok"); return; }
     try { const snap = await db.collection(typeof DOC_PATH !== "undefined" ? DOC_PATH[0] : "coupleFund").doc(typeof DOC_PATH !== "undefined" ? DOC_PATH[1] : "main").get(); if (snap.exists) { applyData(snap.data()); setStatus("클라우드 불러오기 완료 · " + new Date().toLocaleString("ko-KR"), "ok"); } else if (!silent) setStatus("클라우드에 데이터 없음", "ok"); }
     catch (e) { if (!silent) setStatus("불러오기 실패: " + e.message, "err"); }
 }
@@ -736,6 +777,6 @@ function bootRender() {
 }
 (function boot() {
     bootRender();
-    const s = localStorage.getItem("coupleV5"); if (s) { try { applyData(JSON.parse(s)); } catch (e) { } }
+    const s = localStorage.getItem("coupleV6"); if (s) { try { applyData(JSON.parse(s)); } catch (e) { } }
     initFirebase();
 })();
