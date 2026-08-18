@@ -698,7 +698,7 @@ function eventsForMonth(y, mo) {
             const recur = L.expenses.filter(e => e.method === "card" && e.ref === c.id);
             const items = [];
             recur.forEach(ex => items.push({ label: ex.name, amt: num(ex.amt), owner: ex.owner, sub: "고정지출" }));
-            const monthTx = L.cardTxns.filter(t => t.cardId === c.id && t.date.slice(0, 7) === key);
+            const monthTx = L.cardTxns.filter(t => t.cardId === c.id);
             monthTx.forEach(t => { items.push({ label: t.item, amt: num(t.amt), owner: t.owner, sub: "카드사용" }); ev.push({ date: t.date, label: `${t.item}`, sub: `${ownerName(t.owner)} · ${c.name} 사용(비현금)`, amt: -num(t.amt), type: "carduse", owner: t.owner, cash: false, cardName: c.name }); });
             const total = items.reduce((s, x) => s + x.amt, 0);
             if (total > 0) { const payDay = c.kind === "신용" && +c.payDay > 0 ? +c.payDay : (recur[0] ? +recur[0].day || 1 : 1); ev.push({ date: ymd(nthDayOfMonth(y, mo, payDay)), label: `${c.name} 결제`, sub: `${acc ? acc.name : "계좌"}에서 합산 출금 · ${items.length}건`, amt: -total, type: "cardpay", owner: c.owner, cash: true, items: items }); }
