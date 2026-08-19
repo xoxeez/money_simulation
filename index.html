@@ -55,25 +55,6 @@
             </div>
         </div>
 
-        <!-- ===== 월별 가계부 관리 바 ===== -->
-        <div class="month-bar">
-            <div class="mb-left">
-                <span class="mb-icon">📒</span>
-                <div>
-                    <div class="mb-title" id="mbTitle">2026년 8월 가계부</div>
-                    <div class="mb-sub">월별로 정리하는 가계부 · 고정 수입/지출은 새 달 생성 시 자동으로 이어받아요</div>
-                </div>
-            </div>
-            <div class="mb-right">
-                <select id="monthSelect" title="가계부 이동"></select>
-                <span class="mb-div"></span>
-                <select id="newYear"></select>
-                <select id="newMonth"></select>
-                <button class="btn primary sm" id="createMonth">＋ 가계부 생성</button>
-                <button class="btn ghost sm" id="deleteMonth">현재 달 삭제</button>
-            </div>
-        </div>
-
         <div class="tabs">
             <button class="tab-btn active" data-tab="home">홈</button>
             <button class="tab-btn tab-plan" data-tab="plan" style="display:none;">🧭 Plan</button>
@@ -229,6 +210,30 @@
 
         <!-- ============ 수입 · 지출 (월별) ============ -->
         <div class="tab-panel" id="tab-flow">
+            <!-- ===== 월별 가계부 관리(수입·지출 탭 전용) ===== -->
+            <div class="ledger-manager">
+                <div class="lm-current">
+                    <span class="lm-icon">📒</span>
+                    <div class="lm-info">
+                        <div class="lm-label">지금 보고 있는 가계부</div>
+                        <select id="monthSelect" title="다른 달 가계부로 이동"></select>
+                    </div>
+                </div>
+                <div class="lm-actions">
+                    <button class="btn ghost sm" id="deleteMonth">🗑️ 이 달 삭제</button>
+                    <button class="btn primary sm" id="openCreateMonth">＋ 새 가계부 만들기</button>
+                </div>
+            </div>
+            <div class="lm-create" id="createPanel" style="display:none;">
+                <div class="lm-create-head">🆕 새 가계부 만들기</div>
+                <div class="lm-create-body">
+                    <select id="newYear"></select>
+                    <select id="newMonth"></select>
+                    <button class="btn primary sm" id="createMonth">이 달로 생성</button>
+                    <button class="btn ghost sm" id="cancelCreate">취소</button>
+                </div>
+                <div class="lm-create-hint">💡 고정 수입·고정 지출은 <b>직전 가계부</b>에서 자동으로 이어받아요. (이미 있는 달은 새로 만들지 않고 그 달로 이동합니다)</div>
+            </div>
             <div class="row-between" style="margin-bottom:14px;">
                 <h2 style="margin:0;font-size:17px;">📒 <span id="flowMonthLabel">2026년 8월</span> 수입 · 지출</h2>
                 <span class="pill pill-muted">이 달의 내역만 표시됩니다</span>
