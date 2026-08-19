@@ -391,7 +391,6 @@ body {
     flex-wrap: wrap;
 }
 
-/* '새 가계부 만들기' 슬라이드 패널 */
 .lm-create {
     border: 1px solid var(--peri);
     background: var(--peri-soft);
@@ -458,9 +457,152 @@ body {
         display: grid;
         grid-template-columns: 1fr 1fr;
     }
+}
 
-    .lm-create .lm-create-body .btn {
-        grid-column: span 1;
+/* ===== [v9] 월별 통장 잔고 & 월 마감 ===== */
+#monthCloseCard {
+    background: linear-gradient(180deg, var(--b-soft), transparent 60%), var(--card);
+}
+
+.mc-head,
+.mc-row {
+    display: grid;
+    grid-template-columns: 1.7fr 1fr 1fr 1.1fr;
+    gap: 10px;
+    align-items: center;
+    text-align: right;
+}
+
+.mc-head {
+    font-size: 11px;
+    color: var(--sub);
+    font-weight: 700;
+    padding: 4px 12px 8px;
+}
+
+.mc-head div:first-child {
+    text-align: left;
+}
+
+.mc-row {
+    padding: 11px 12px;
+    border: 1px solid var(--line2);
+    border-radius: 12px;
+    margin-bottom: 8px;
+    background: var(--card);
+}
+
+.mc-row .mc-name {
+    text-align: left;
+    font-weight: 700;
+    font-size: 13.5px;
+}
+
+.mc-row .mc-start {
+    color: var(--sub);
+    font-weight: 600;
+    font-size: 13px;
+}
+
+.mc-row .mc-delta {
+    font-weight: 800;
+    font-size: 13.5px;
+}
+
+.mc-row .mc-delta.plus {
+    color: var(--plus);
+}
+
+.mc-row .mc-delta.minus {
+    color: var(--minus);
+}
+
+.mc-row .mc-end {
+    font-weight: 800;
+    font-size: 14.5px;
+    letter-spacing: -.3px;
+}
+
+.mc-row.mc-total {
+    background: var(--bg-tint);
+    margin-top: 4px;
+}
+
+.mc-row.mc-total .mc-name {
+    font-weight: 800;
+}
+
+.mc-owner {
+    font-size: 12.5px;
+    font-weight: 800;
+    color: var(--ink);
+    margin: 12px 2px 8px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.mc-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 18px;
+    flex-wrap: wrap;
+}
+
+.mc-actions #closeMonthBtn {
+    flex: 1;
+    min-width: 220px;
+    background: linear-gradient(135deg, var(--plus), var(--b));
+    border: none;
+    color: #fff;
+    height: 50px;
+    font-size: 15.5px;
+    font-weight: 800;
+    font-family: inherit;
+    border-radius: 14px;
+    box-shadow: 0 8px 22px rgba(43, 181, 154, .32);
+    cursor: pointer;
+    transition: .15s;
+}
+
+.mc-actions #closeMonthBtn:hover {
+    filter: brightness(1.06);
+    transform: translateY(-1px);
+}
+
+.mc-actions #undoCloseBtn {
+    height: 50px;
+}
+
+.mc-hint {
+    font-size: 12px;
+    color: var(--sub);
+    font-weight: 600;
+    margin-top: 12px;
+    line-height: 1.55;
+    padding: 12px 14px;
+    background: var(--bg-tint);
+    border-radius: 11px;
+}
+
+.mc-hint b {
+    color: var(--ink);
+}
+
+@media (max-width:640px) {
+
+    .mc-head,
+    .mc-row {
+        grid-template-columns: 1.4fr 1fr 1fr;
+    }
+
+    .mc-head div:nth-child(2),
+    .mc-row .mc-start {
+        display: none;
+    }
+
+    .mc-actions #closeMonthBtn {
+        min-width: 100%;
     }
 }
 
