@@ -131,6 +131,9 @@ function numifyAll() {
     loans.forEach(l => { l.principal = num(l.principal); l.fixed = num(l.fixed); });
     cfA.forEach(e => e.amt = num(e.amt)); cfB.forEach(e => e.amt = num(e.amt));
     Object.keys(ledgers).forEach(k => numifyLedger(ledgers[k]));
+    /* [v9 FIX] 카드의 결제계좌 매핑을 실제 존재하는 계좌 ID로 정규화
+       (select가 첫 옵션을 보여줘도 데이터는 무효값이라 '계좌미지정'으로 뜨던 문제 해결) */
+    cards.forEach(c => { c.acc = validAccForOwner(c.acc, c.owner); });
 }
 let ledgers = { [REAL_MONTH]: sampleLedger() };
 let months = [REAL_MONTH];
@@ -195,7 +198,6 @@ function toggleCreatePanel(open) {
     const show = (open === undefined) ? (p.style.display === "none") : open;
     p.style.display = show ? "block" : "none";
     const btn = $("openCreateMonth"); if (btn) btn.classList.toggle("on", show);
-    /* 패널을 열 때는 '현재 보는 달의 다음 달'을 기본값으로 제안해 혼동을 줄임 */
     if (show) {
         const [cy, cm] = currentMonth.split("-").map(Number);
         let ny2 = cy, nm2 = cm + 1; if (nm2 > 12) { nm2 = 1; ny2++; }
@@ -220,6 +222,8 @@ function initMonthControls() {
     });
     if ($("deleteMonth")) $("deleteMonth").addEventListener("click", deleteMonth);
     if ($("monthSelect")) $("monthSelect").addEventListener("change", e => switchMonth(e.target.value));
+    if ($("closeMonthBtn")) $("closeMonthBtn").addEventListener("click", closeMonth);
+    if ($("undoCloseBtn")) $("undoCloseBtn").addEventListener("click", undoCloseMonth);
 }
 
 /* ---------- 대출 엔진 ---------- */
@@ -429,6 +433,7 @@ function renderCardLedgers() {
     const credit = cards.filter(c => c.kind === "신용");
     if (!credit.length) { box.innerHTML = `<div style="color:var(--sub);font-size:13px;">신용카드를 추가하면 세부내역을 기록할 수 있어요.</div>`; return; }
     credit.forEach(c => {
+        c.acc = validAccForOwner(c.acc, c.owner);   /* [v9 FIX] 무효 매핑을 유효 계좌로 보정 */
         const acc = accounts.find(a => a.id === c.acc);
         const list = txnsOfCard(c.id);
         const total = list.reduce((s, t) => s + num(t.amt), 0);
@@ -818,6 +823,118 @@ function renderUpcoming() {
     events.forEach(e => { const row = document.createElement("div"); row.className = "tl-row"; row.innerHTML = `<div class="date">${e.date}</div><div class="label">${e.label} <span style="color:var(--sub);font-size:11.5px;">${e.sub || ""}</span></div><div class="val ${e.amt >= 0 ? "plus" : "minus"}">${e.amt >= 0 ? "＋" : "－"}${won(Math.abs(e.amt))}</div>`; box.appendChild(row); });
 }
 
+/* ---------- [v9] 월별 통장 잔고 계산 & 월 마감 ---------- */
+/* 특정 달의 계좌별 증감액: 수입(＋) · 지출(－) · 카드결제는 연결 계좌에서(－) */
+function computeAccountDeltas(monthKey) {
+    const L = ledgers[monthKey];
+    const delta = {}; accounts.forEach(a => delta[a.id] = 0);
+    const add = (accId, amt) => { if (accId != null && delta[accId] !== undefined) delta[accId] += amt; };
+    if (!L) return delta;
+    const inMonth = (d) => !!d && d.slice(0, 7) === monthKey;
+    (L.incomes || []).forEach(i => add(i.acc, num(i.amt)));
+    (L.extraIncomes || []).forEach(x => { if (x.freq === "monthly" || inMonth(x.date)) add(x.acc, num(x.amt)); });
+    (L.expenses || []).filter(e => e.method === "acc").forEach(e => add(e.ref, -num(e.amt)));
+    (L.extraExpenses || []).forEach(x => { if (x.freq === "monthly" || inMonth(x.date)) add(x.acc, -num(x.amt)); });
+    /* 카드: 고정지출(method=card) + 카드 세부내역 합계를 연결 계좌에서 출금 */
+    cards.forEach(c => {
+        const recur = (L.expenses || []).filter(e => e.method === "card" && e.ref === c.id).reduce((s, e) => s + num(e.amt), 0);
+        const txn = (L.cardTxns || []).filter(t => t.cardId === c.id).reduce((s, t) => s + num(t.amt), 0);
+        const total = recur + txn;
+        if (total > 0) add(validAccForOwner(c.acc, c.owner), -total);
+    });
+    return delta;
+}
+/* 마감된 달은 '마감 시점 시작 잔고', 진행 중인 달은 '현재 계좌 잔고'를 기준으로 */
+function accountBaseFor(monthKey) {
+    const L = ledgers[monthKey];
+    if (L && L.closed && L.startBalances) return { ...L.startBalances };
+    const base = {}; accounts.forEach(a => base[a.id] = num(a.amt)); return base;
+}
+function renderMonthClose() {
+    const box = $("mcBalanceList"); if (!box) return;
+    const L = ledgers[currentMonth]; const closed = !!(L && L.closed);
+    const base = accountBaseFor(currentMonth);
+    const deltas = computeAccountDeltas(currentMonth);
+    let html = `<div class="mc-head"><div>계좌</div><div>기준 잔고</div><div>이 달 증감</div><div>예상 잔고</div></div>`;
+    let tStart = 0, tEnd = 0;
+    ["A", "B"].forEach(o => {
+        const list = accounts.filter(a => a.owner === o);
+        if (!list.length) return;
+        html += `<div class="mc-owner"><span class="dot dot-${o.toLowerCase()}"></span>${ownerName(o)}</div>`;
+        list.forEach(a => {
+            const start = base[a.id] != null ? base[a.id] : num(a.amt);
+            const d = deltas[a.id] || 0; const end = start + d;
+            tStart += start; tEnd += end;
+            html += `<div class="mc-row">
+        <div class="mc-name">${ACC_ICON[a.type] || "💠"} ${a.name}</div>
+        <div class="mc-start">${won(start)}</div>
+        <div class="mc-delta ${d >= 0 ? "plus" : "minus"}">${d === 0 ? "―" : (d > 0 ? "＋" : "－") + won(Math.abs(d))}</div>
+        <div class="mc-end">${won(end)}</div>
+      </div>`;
+        });
+    });
+    const dTot = tEnd - tStart;
+    html += `<div class="mc-row mc-total"><div class="mc-name">합계</div><div class="mc-start">${won(tStart)}</div><div class="mc-delta ${dTot >= 0 ? "plus" : "minus"}">${dTot === 0 ? "―" : (dTot > 0 ? "＋" : "－") + won(Math.abs(dTot))}</div><div class="mc-end">${won(tEnd)}</div></div>`;
+    box.innerHTML = html;
+    const st = $("mcStatus"); if (st) { st.textContent = closed ? "마감 완료 ✓" : "진행 중"; st.className = "pill " + (closed ? "pill-a" : "pill-muted"); }
+    if ($("closeMonthBtn")) $("closeMonthBtn").style.display = closed ? "none" : "";
+    if ($("undoCloseBtn")) $("undoCloseBtn").style.display = closed ? "" : "none";
+    if ($("mcMonthLabel")) $("mcMonthLabel").textContent = (currentMonth === REAL_MONTH ? "이번 달" : monthLabel(currentMonth));
+    if ($("mcHint")) $("mcHint").innerHTML = closed
+        ? `✅ <b>${monthLabel(currentMonth)}</b> 마감 완료! 예상 잔고가 각 통장의 새 잔고로 확정되어 다음 달로 이어졌어요. 되돌리려면 <b>마감 취소</b>를 눌러주세요.`
+        : `💡 <b>월 마감 완료!</b>를 누르면 위 <b>예상 잔고</b>가 각 통장의 새 잔고로 확정되고, 다음 달 가계부가 자동으로 만들어져요. (대출 상환은 통장이 지정돼 있지 않아 이 계산에는 제외됩니다)`;
+}
+function closeMonth() {
+    const L = ledgers[currentMonth]; if (!L) return;
+    if (L.closed) { setStatus("이미 마감된 달이에요.", "ok"); return; }
+    if (!confirm(monthLabel(currentMonth) + " 가계부를 마감할까요?\n예상 잔고가 각 통장의 새 잔고로 확정되고, 다음 달 가계부가 만들어져요.")) return;
+    const start = {}; accounts.forEach(a => start[a.id] = num(a.amt));
+    const deltas = computeAccountDeltas(currentMonth);
+    L.startBalances = start; L.closed = true; L.closedAt = new Date().toISOString();
+    accounts.forEach(a => a.amt = num(a.amt) + (deltas[a.id] || 0));
+    fireConfetti();
+    const [y, m] = currentMonth.split("-").map(Number); let ny = y, nm = m + 1; if (nm > 12) { nm = 1; ny++; }
+    createMonth(ny, nm);   /* 다음 달 생성 + 이동 (내부에서 재렌더) */
+    renderAccounts(); renderPlan(); refreshSummary();
+    try { saveData(); } catch (e) { }
+}
+function undoCloseMonth() {
+    const L = ledgers[currentMonth]; if (!L || !L.closed) return;
+    if (!confirm(monthLabel(currentMonth) + " 마감을 취소할까요?\n통장 잔고가 마감 전 상태로 되돌아가요.")) return;
+    if (L.startBalances) accounts.forEach(a => { if (L.startBalances[a.id] !== undefined) a.amt = num(L.startBalances[a.id]); });
+    L.closed = false; delete L.startBalances; delete L.closedAt;
+    renderAccounts(); renderPlan(); refreshSummary(); renderMonthClose();
+    try { saveData(); } catch (e) { }
+}
+/* 콘페티 효과 — 외부 라이브러리 없이 캔버스로 구현 */
+function fireConfetti() {
+    const canvas = document.createElement("canvas");
+    canvas.style.cssText = "position:fixed;inset:0;pointer-events:none;z-index:9999;";
+    document.body.appendChild(canvas);
+    const ctx = canvas.getContext("2d");
+    let W = canvas.width = window.innerWidth, H = canvas.height = window.innerHeight;
+    const colors = ["#3f7fd1", "#23b0be", "#6f7fe0", "#4fc4d6", "#2bb59a", "#e078a0", "#e0b64f"];
+    const parts = [];
+    for (let i = 0; i < 180; i++) parts.push({
+        x: W / 2 + (Math.random() - 0.5) * W * 0.4, y: H * 0.25 + (Math.random() - 0.5) * 60,
+        vx: (Math.random() - 0.5) * 9, vy: Math.random() * -7 - 4, g: 0.16 + Math.random() * 0.12,
+        size: 6 + Math.random() * 7, color: colors[i % colors.length], rot: Math.random() * Math.PI,
+        vr: (Math.random() - 0.5) * 0.35, shape: Math.random() < 0.5 ? "rect" : "circle"
+    });
+    let t = 0;
+    (function frame() {
+        t++; ctx.clearRect(0, 0, W, H);
+        parts.forEach(p => {
+            p.vy += p.g; p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+            ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.fillStyle = p.color; ctx.globalAlpha = Math.max(0, 1 - t / 150);
+            if (p.shape === "rect") ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
+            else { ctx.beginPath(); ctx.arc(0, 0, p.size / 2, 0, Math.PI * 2); ctx.fill(); }
+            ctx.restore();
+        });
+        if (t < 150) requestAnimationFrame(frame); else canvas.remove();
+    })();
+}
+
 /* ---------- 주택 자금 ---------- */
 function renderCf(list, boxId) {
     const box = $(boxId); box.innerHTML = "";
@@ -916,6 +1033,7 @@ function refreshSummary() {
     const monthPay = loanRepayEvents().filter(e => e.date.slice(0, 7) === currentMonth).reduce((s, e) => s + Math.abs(e.amt), 0);
     $("kMonthPay").textContent = eok(monthPay);
     renderHouseAssetNote(); renderPlanSummary();
+    renderMonthClose();   /* [v9] 통장별 예상 잔고 실시간 갱신 */
     drawHome();
 }
 function drawHome() {
