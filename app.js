@@ -153,7 +153,7 @@ function cloneArr(arr) { return (arr || []).map(o => ({ ...o, id: uid() })); }
 function renderMonthBar() {
     months.sort();
     const sel = $("monthSelect");
-    if (sel) sel.innerHTML = months.map(k => `<option value="${k}" ${k === currentMonth ? "selected" : ""}>${monthLabel(k)} 가계부</option>`).join("");
+    if (sel) sel.innerHTML = months.map(k => `<option value="${k}" ${k === currentMonth ? "selected" : ""}>${monthLabel(k)} 가계부${k === REAL_MONTH ? " (이번 달)" : ""}</option>`).join("");
     const lab = monthLabel(currentMonth);
     if ($("mbTitle")) $("mbTitle").textContent = lab + " 가계부";
     ["flowMonthLabel"].forEach(id => { if ($(id)) $(id).textContent = lab; });
@@ -189,11 +189,35 @@ function deleteMonth() {
     const [y, m] = currentMonth.split("-"); calYear = +y; calMonth = +m - 1;
     renderMonthBar(); rerenderMonthViews();
 }
+/* [v9] '새 가계부 만들기' 패널 열고/닫기 */
+function toggleCreatePanel(open) {
+    const p = $("createPanel"); if (!p) return;
+    const show = (open === undefined) ? (p.style.display === "none") : open;
+    p.style.display = show ? "block" : "none";
+    const btn = $("openCreateMonth"); if (btn) btn.classList.toggle("on", show);
+    /* 패널을 열 때는 '현재 보는 달의 다음 달'을 기본값으로 제안해 혼동을 줄임 */
+    if (show) {
+        const [cy, cm] = currentMonth.split("-").map(Number);
+        let ny2 = cy, nm2 = cm + 1; if (nm2 > 12) { nm2 = 1; ny2++; }
+        if ($("newYear")) $("newYear").value = String(ny2);
+        if ($("newMonth")) $("newMonth").value = String(nm2);
+        if (p.scrollIntoView) p.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+}
 function initMonthControls() {
     const ny = $("newYear"), nm = $("newMonth"); const nowY = +REAL_MONTH.slice(0, 4), nowM = +REAL_MONTH.slice(5, 7);
     if (ny) { ny.innerHTML = ""; for (let y = nowY - 2; y <= nowY + 3; y++) ny.insertAdjacentHTML("beforeend", `<option value="${y}" ${y === nowY ? "selected" : ""}>${y}년</option>`); }
     if (nm) { nm.innerHTML = ""; for (let m = 1; m <= 12; m++) nm.insertAdjacentHTML("beforeend", `<option value="${m}" ${m === nowM ? "selected" : ""}>${m}월</option>`); }
-    if ($("createMonth")) $("createMonth").addEventListener("click", () => createMonth(+$("newYear").value, +$("newMonth").value));
+    if ($("openCreateMonth")) $("openCreateMonth").addEventListener("click", () => toggleCreatePanel());
+    if ($("cancelCreate")) $("cancelCreate").addEventListener("click", () => toggleCreatePanel(false));
+    if ($("createMonth")) $("createMonth").addEventListener("click", () => {
+        const y = +$("newYear").value, m = +$("newMonth").value;
+        const key = `${y}-${String(m).padStart(2, "0")}`;
+        const exists = !!ledgers[key];
+        createMonth(y, m);
+        toggleCreatePanel(false);
+        if (exists) setStatus(`${monthLabel(key)} 가계부는 이미 있어서 그 달로 이동했어요.`, "ok");
+    });
     if ($("deleteMonth")) $("deleteMonth").addEventListener("click", deleteMonth);
     if ($("monthSelect")) $("monthSelect").addEventListener("change", e => switchMonth(e.target.value));
 }
