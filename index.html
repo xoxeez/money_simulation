@@ -290,7 +290,7 @@
                     <h2 style="margin:0;">🏦 <span id="mcMonthLabel">이번 달</span> 통장별 예상 잔고</h2>
                     <span class="pill pill-muted" id="mcStatus">진행 중</span>
                 </div>
-                <p class="desc">현재(기준) 잔고에서 이 달의 <b>수입(＋)·지출(－)</b>을 반영하고, <b>카드는 연결된 결제 계좌</b>에서 합산 출금한 결과예요. 입력을 바꾸면 아래 잔고가 실시간으로 다시 계산됩니다.</p>
+                <p class="desc">현재(기준) 잔고에서 이 달의 <b>수입(＋)·지출(－)</b>을 반영하고, <b>카드는 연결된 결제 계좌</b>에서, <b>대출 상환은 지정한 출금 계좌</b>에서 빠져나간 결과예요. 입력을 바꾸면 아래 잔고가 실시간으로 다시 계산됩니다.</p>
                 <div id="mcBalanceList"></div>
                 <div class="mc-actions">
                     <button id="closeMonthBtn">🎉 월 마감 완료!</button>
@@ -462,6 +462,9 @@
                 <label class="field" id="lGrowthWrap" style="display:none;"><span class="lbl">연 체증률 (%)</span><input
                         type="number" id="lGrowth" value="1.5" step="0.1" /></label>
             </div>
+            <label class="field"><span class="lbl">💸 상환 출금 계좌 <span
+                        style="color:var(--sub);font-weight:500;">(이 통장에서 매월 상환액이 빠져나가요)</span></span><select
+                    id="lWithdrawAcc"></select></label>
             <label class="field" id="lCustomWrap" style="display:none;"><span class="lbl">매월 상환액 (원) — 직접
                     입력</span><input type="text" inputmode="numeric" class="comma" id="lFixed" value="1000000" /></label>
             <div id="customHint" class="desc" style="display:none;margin-top:-8px;"></div>
