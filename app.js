@@ -69,9 +69,9 @@ let cards = [
     { id: "cd3", owner: "B", name: "신한 신용카드", kind: "신용", acc: "ac5", payDay: 25 },
 ];
 let loans = [
-    { id: "ln1", name: "주택담보대출", owner: "A", kind: "bank", principal: 300000000, rate: 4.2, term: 360, repay: "eq", start: "2026-10-25", payDay: 25, fixed: 0, grace: 0, growth: 0, rateType: "fixed", rateChanges: [], prepayments: [] },
-    { id: "ln2", name: "보금자리론", owner: "B", kind: "bank", principal: 200000000, rate: 4.0, term: 360, repay: "graduate", start: "2026-09-15", payDay: 15, fixed: 0, grace: 0, growth: 1.5, rateType: "fixed", rateChanges: [], prepayments: [] },
-    { id: "ln3", name: "부모님 차용금", owner: "A", kind: "family", principal: 80000000, rate: 0, term: 40, repay: "custom", start: "2026-11-10", payDay: 10, fixed: 2000000, grace: 0, growth: 0, rateType: "fixed", rateChanges: [], prepayments: [] },
+    { id: "ln1", name: "주택담보대출", owner: "A", kind: "bank", principal: 300000000, rate: 4.2, term: 360, repay: "eq", start: "2026-10-25", payDay: 25, fixed: 0, grace: 0, growth: 0, rateType: "fixed", rateChanges: [], prepayments: [], acc: "ac1" },
+    { id: "ln2", name: "보금자리론", owner: "B", kind: "bank", principal: 200000000, rate: 4.0, term: 360, repay: "graduate", start: "2026-09-15", payDay: 15, fixed: 0, grace: 0, growth: 1.5, rateType: "fixed", rateChanges: [], prepayments: [], acc: "ac5" },
+    { id: "ln3", name: "부모님 차용금", owner: "A", kind: "family", principal: 80000000, rate: 0, term: 40, repay: "custom", start: "2026-11-10", payDay: 10, fixed: 2000000, grace: 0, growth: 0, rateType: "fixed", rateChanges: [], prepayments: [], acc: "ac1" },
 ];
 let cfA = [
     { date: "2026-03-10", label: "계약금", amt: -100000000 },
@@ -134,6 +134,8 @@ function numifyAll() {
     /* [v9 FIX] 카드의 결제계좌 매핑을 실제 존재하는 계좌 ID로 정규화
        (select가 첫 옵션을 보여줘도 데이터는 무효값이라 '계좌미지정'으로 뜨던 문제 해결) */
     cards.forEach(c => { c.acc = validAccForOwner(c.acc, c.owner); });
+    /* [v9] 대출 상환 출금 계좌도 유효 계좌로 정규화 (명의 기준) */
+    loans.forEach(l => { l.acc = validAccForOwner(l.acc, l.owner); });
 }
 let ledgers = { [REAL_MONTH]: sampleLedger() };
 let months = [REAL_MONTH];
@@ -485,6 +487,8 @@ function renderLoans() {
         if (l.rateType === "variable") tags.push(`<span class="pill pill-muted">변동금리</span>`);
         if (l.grace > 0) tags.push(`<span class="pill pill-muted">거치 ${l.grace}개월</span>`);
         if (l.prepayments && l.prepayments.length) tags.push(`<span class="pill" style="background:var(--plus-bg);color:var(--plus)">중도상환 ${l.prepayments.length}회</span>`);
+        const wAcc = accounts.find(a => a.id === validAccForOwner(l.acc, l.owner));
+        if (wAcc) tags.push(`<span class="pill pill-muted">💸 ${wAcc.name}</span>`);
         const div = document.createElement("div"); div.className = "loan";
         div.innerHTML = `<div class="top">
         <div><div class="title">${l.name}</div><div class="tags">${tags.join("")}</div></div>
@@ -557,17 +561,23 @@ function updateModalPreview() {
     } else $("customHint").style.display = "none";
 }
 function collectModalLoan() {
-    return { id: editingLoanId || "preview", name: $("lName").value || "새 대출", owner: $("lOwner").value, kind: $("lKind").value, principal: parseNum($("lPrincipal").value), rate: +$("lRate").value || 0, term: +$("lTerm").value || 12, repay: $("lRepay").value, start: $("lStart").value || TODAY, payDay: +$("lPayDay").value || 25, fixed: parseNum($("lFixed").value), grace: +$("lGrace").value || 0, growth: +$("lGrowth").value || 0, rateType: $("lRateType").value, rateChanges: modalRateChanges.slice(), prepayments: modalPrepays.slice() };
+    return { id: editingLoanId || "preview", name: $("lName").value || "새 대출", owner: $("lOwner").value, kind: $("lKind").value, principal: parseNum($("lPrincipal").value), rate: +$("lRate").value || 0, term: +$("lTerm").value || 12, repay: $("lRepay").value, start: $("lStart").value || TODAY, payDay: +$("lPayDay").value || 25, fixed: parseNum($("lFixed").value), grace: +$("lGrace").value || 0, growth: +$("lGrowth").value || 0, rateType: $("lRateType").value, rateChanges: modalRateChanges.slice(), prepayments: modalPrepays.slice(), acc: ($("lWithdrawAcc") ? $("lWithdrawAcc").value : "") };
+}
+/* [v9] 대출 모달의 '상환 출금 계좌' 옵션을 명의(owner) 기준으로 채움 */
+function fillWithdrawAccOptions(owner, selected) {
+    const el = $("lWithdrawAcc"); if (!el) return;
+    el.innerHTML = accOptions(validAccForOwner(selected, owner), owner);
 }
 function syncRepayFields() { const rp = $("lRepay").value; $("lCustomWrap").style.display = rp === "custom" ? "block" : "none"; $("lGrowthWrap").style.display = rp === "graduate" ? "block" : "none"; }
 function openLoanModal(id) {
     editingLoanId = id || null;
-    const l = id ? loans.find(x => x.id === id) : { name: "", owner: "A", kind: "bank", principal: 300000000, rate: 4.2, term: 360, repay: "eq", start: TODAY, payDay: 25, fixed: 1000000, grace: 0, growth: 1.5, rateType: "fixed", rateChanges: [], prepayments: [] };
+    const l = id ? loans.find(x => x.id === id) : { name: "", owner: "A", kind: "bank", principal: 300000000, rate: 4.2, term: 360, repay: "eq", start: TODAY, payDay: 25, fixed: 1000000, grace: 0, growth: 1.5, rateType: "fixed", rateChanges: [], prepayments: [], acc: "" };
     $("loanModalTitle").textContent = id ? "✏️ 대출 수정" : "🏦 대출 등록";
     $("lName").value = l.name; $("lOwner").value = l.owner; $("lKind").value = l.kind;
     $("lPrincipal").value = fmtNum(l.principal); $("lRate").value = l.rate; $("lTerm").value = l.term; $("lRepay").value = l.repay;
     $("lStart").value = l.start; $("lPayDay").value = l.payDay; $("lGrace").value = l.grace || 0; $("lFixed").value = fmtNum(l.fixed || 0);
     $("lGrowth").value = l.growth || 1.5; $("lRateType").value = l.rateType || "fixed";
+    fillWithdrawAccOptions(l.owner, l.acc);   /* [v9] 상환 출금 계좌 옵션 채우기 */
     syncRepayFields(); $("rateChangeWrap").style.display = l.rateType === "variable" ? "block" : "none";
     modalRateChanges = (l.rateChanges || []).map(x => ({ ...x })); modalPrepays = (l.prepayments || []).map(x => ({ ...x }));
     renderRateChanges(); renderPrepays(); updateModalPreview();
@@ -579,6 +589,8 @@ $("cancelLoan").addEventListener("click", closeLoanModal);
 $("loanModal").addEventListener("click", e => { if (e.target.id === "loanModal") closeLoanModal(); });
 ["lName", "lOwner", "lKind", "lPrincipal", "lRate", "lTerm", "lStart", "lPayDay", "lGrace", "lFixed", "lGrowth"].forEach(id => $(id).addEventListener("input", updateModalPreview));
 $("lRepay").addEventListener("change", () => { syncRepayFields(); updateModalPreview(); });
+/* [v9] 명의를 바꾸면 상환 출금 계좌 옵션을 그 사람 계좌로 다시 채움 */
+$("lOwner").addEventListener("change", () => { fillWithdrawAccOptions($("lOwner").value, $("lWithdrawAcc") ? $("lWithdrawAcc").value : ""); updateModalPreview(); });
 $("lRateType").addEventListener("change", () => { $("rateChangeWrap").style.display = $("lRateType").value === "variable" ? "block" : "none"; updateModalPreview(); });
 $("lKind").addEventListener("change", () => { if ($("lKind").value === "family") { $("lRate").value = 0; $("lRepay").value = "custom"; syncRepayFields(); } updateModalPreview(); });
 $("addRateChange").addEventListener("click", () => { modalRateChanges.push({ month: 60, rate: 5 }); renderRateChanges(); updateModalPreview(); });
@@ -824,7 +836,13 @@ function renderUpcoming() {
 }
 
 /* ---------- [v9] 월별 통장 잔고 계산 & 월 마감 ---------- */
-/* 특정 달의 계좌별 증감액: 수입(＋) · 지출(－) · 카드결제는 연결 계좌에서(－) */
+/* 특정 달, 특정 대출의 상환 합계 (그 달에 실제 상환일이 있는 회차) */
+function loanRepayInMonth(l, monthKey) {
+    const c = loanCalc(l); const start = new Date(l.start); let sum = 0;
+    c.sched.forEach((s, i) => { const d = new Date(start); d.setMonth(start.getMonth() + i); if (ymd(d).slice(0, 7) === monthKey) sum += Math.round(s.pay); });
+    return sum;
+}
+/* 특정 달의 계좌별 증감액: 수입(＋) · 지출(－) · 카드결제(연결계좌 －) · 대출상환(지정계좌 －) */
 function computeAccountDeltas(monthKey) {
     const L = ledgers[monthKey];
     const delta = {}; accounts.forEach(a => delta[a.id] = 0);
@@ -842,6 +860,8 @@ function computeAccountDeltas(monthKey) {
         const total = recur + txn;
         if (total > 0) add(validAccForOwner(c.acc, c.owner), -total);
     });
+    /* [v9] 대출 상환: 그 달 상환액을 지정한 출금 계좌에서 차감 */
+    loans.forEach(l => { const pay = loanRepayInMonth(l, monthKey); if (pay > 0) add(validAccForOwner(l.acc, l.owner), -pay); });
     return delta;
 }
 /* 마감된 달은 '마감 시점 시작 잔고', 진행 중인 달은 '현재 계좌 잔고'를 기준으로 */
@@ -882,7 +902,7 @@ function renderMonthClose() {
     if ($("mcMonthLabel")) $("mcMonthLabel").textContent = (currentMonth === REAL_MONTH ? "이번 달" : monthLabel(currentMonth));
     if ($("mcHint")) $("mcHint").innerHTML = closed
         ? `✅ <b>${monthLabel(currentMonth)}</b> 마감 완료! 예상 잔고가 각 통장의 새 잔고로 확정되어 다음 달로 이어졌어요. 되돌리려면 <b>마감 취소</b>를 눌러주세요.`
-        : `💡 <b>월 마감 완료!</b>를 누르면 위 <b>예상 잔고</b>가 각 통장의 새 잔고로 확정되고, 다음 달 가계부가 자동으로 만들어져요. (대출 상환은 통장이 지정돼 있지 않아 이 계산에는 제외됩니다)`;
+        : `💡 <b>월 마감 완료!</b>를 누르면 위 <b>예상 잔고</b>가 각 통장의 새 잔고로 확정되고, 다음 달 가계부가 자동으로 만들어져요. (대출 상환은 각 대출에 지정한 <b>출금 계좌</b>에서 빠져나가요)`;
 }
 function closeMonth() {
     const L = ledgers[currentMonth]; if (!L) return;
