@@ -715,6 +715,7 @@ label.field .lbl {
 input[type=text],
 input[type=number],
 input[type=date],
+input[type=month],
 select {
     width: 100%;
     padding: 10px 12px;
@@ -1350,6 +1351,22 @@ footer {
     gap: 8px;
     align-items: center;
     margin-bottom: 8px;
+}
+
+/* [v9.2] 기타(직접입력) 상환 스케줄 편집 행 */
+.subgrid .sg-row.cr-row {
+    grid-template-columns: 1.1fr 1fr 1fr 34px;
+}
+
+.cr-head {
+    display: grid;
+    grid-template-columns: 1.1fr 1fr 1fr 34px;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--sub);
+    font-weight: 700;
+    margin-bottom: 6px;
+    padding: 0 2px;
 }
 
 .note-strip {
