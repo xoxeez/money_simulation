@@ -14,7 +14,7 @@
                 <div class="logo">🌊</div>
                 <div>
                     <h1>소학행을 위한 자산 플래너</h1>
-                    <p class="sub">자산 · 계좌/카드 · 대출 · 월별 가계부 · 상환 캘린더</p>
+                    <p class="sub">자산 · 계좌/카드 · 대출 · 월별 가계부 · 상환 캘린더 · 성장/목표</p>
                 </div>
             </div>
             <div class="top-actions">
@@ -60,6 +60,7 @@
             <button class="tab-btn" data-tab="flow">수입 · 지출</button>
             <button class="tab-btn" data-tab="calendar">상환 캘린더</button>
             <button class="tab-btn" data-tab="house">주택 자금</button>
+            <button class="tab-btn" data-tab="growth">📈 성장 · 목표</button>
         </div>
         <!-- ============ 홈 ============ -->
         <div class="tab-panel active" id="tab-home">
@@ -408,7 +409,41 @@
                 </div>
             </div>
         </div>
-        <footer>참고용 자금 계획 도구이며 법률·세무 효력은 없습니다. 큰 거래는 전문가 상담을 권장합니다. · Renewal v8</footer>
+        <!-- ============ [v10] 성장 · 목표 ============ -->
+        <div class="tab-panel" id="tab-growth">
+            <!-- 재무 건강 대시보드 -->
+            <div class="card">
+                <div class="row-between" style="margin-bottom:6px;">
+                    <h2 style="margin:0;">💪 재무 건강 대시보드</h2>
+                    <span class="pill pill-muted" id="ghMonthLabel">이번 달 기준</span>
+                </div>
+                <p class="desc">지금 보고 있는 <b>가계부 월</b>의 수입·지출·상환을 기준으로 계산돼요. 게이지 색이 초록이면 건강, 노랑은 주의, 분홍은 개선이 필요해요.</p>
+                <div class="gauge-grid" id="healthGrid"></div>
+            </div>
+            <!-- 공동 목표 -->
+            <div class="card">
+                <div class="row-between" style="margin-bottom:6px;">
+                    <h2 style="margin:0;">🎯 공동 목표</h2>
+                    <button class="btn primary sm" id="addGoal">＋ 목표 추가</button>
+                </div>
+                <p class="desc">결혼자금·전세보증금·내집마련 같은 <b>함께 모으는 목표</b>를 등록하세요. 목표일을 넣으면 <b>매월 필요 저축액</b>까지 계산되고, 안 넣으면 진행률만 표시돼요. 계좌를 연동하면 잔고가 자동 반영됩니다.</p>
+                <div id="goalList"></div>
+            </div>
+            <!-- 순자산 추이 -->
+            <div class="card">
+                <h2>📈 월별 순자산 추이</h2>
+                <p class="desc">합산 + 개인별 순자산이 매달 어떻게 자라는지 보여줘요.</p>
+                <div class="chart-box"><canvas id="nwTrendChart"></canvas></div>
+                <div class="bd-note" id="nwTrendNote"></div>
+            </div>
+            <!-- 자산·부채 추이 -->
+            <div class="card">
+                <h2>⚖️ 월별 자산 · 부채 추이</h2>
+                <p class="desc">총자산과 총부채의 규모 변화를 나란히 보여줘요.</p>
+                <div class="chart-box"><canvas id="adTrendChart"></canvas></div>
+            </div>
+        </div>
+        <footer>참고용 자금 계획 도구이며 법률·세무 효력은 없습니다. 큰 거래는 전문가 상담을 권장합니다. · Renewal v10</footer>
     </div>
     <!-- 대출 등록/수정 모달 -->
     <div class="modal-bg" id="loanModal">
@@ -517,6 +552,34 @@
             </div>
             <div class="sched-table-wrap">
                 <table class="sched-table" id="schedTable"></table>
+            </div>
+        </div>
+    </div>
+    <!-- [v10] 공동 목표 등록/수정 모달 -->
+    <div class="modal-bg" id="goalModal">
+        <div class="modal">
+            <h3 id="goalModalTitle">🎯 목표 추가</h3>
+            <div class="grid2">
+                <label class="field"><span class="lbl">목표 이름</span><input type="text" id="gName"
+                        placeholder="예: 결혼자금 · 전세보증금" /></label>
+                <label class="field"><span class="lbl">목표 금액 (원)</span><input type="text" inputmode="numeric"
+                        class="comma" id="gTarget" value="" /></label>
+            </div>
+            <div class="grid2">
+                <label class="field"><span class="lbl">🗓️ 목표일 <span style="color:var(--sub);font-weight:500;">(선택 · 비우면 진행률만)</span></span><input
+                        type="date" id="gDate" /></label>
+                <label class="field"><span class="lbl">💰 현재 모은 금액 (원) <span
+                            style="color:var(--sub);font-weight:500;">(아래 계좌 연동 시 무시)</span></span><input type="text"
+                        inputmode="numeric" class="comma" id="gSaved" value="" /></label>
+            </div>
+            <div class="subgrid" style="background:var(--peri-soft);border-color:var(--peri);">
+                <div class="lbl" style="margin-bottom:8px;color:var(--ink);font-weight:700;">🔗 연동 계좌 <span
+                        style="color:var(--sub);font-weight:500;">(체크하면 그 계좌들의 잔고 합이 '현재 모은 금액'이 돼요)</span></div>
+                <div id="gAccList" class="gacc-list"></div>
+            </div>
+            <div style="display:flex;gap:10px;margin-top:8px;">
+                <button class="btn ghost" id="cancelGoal" style="flex:1;">취소</button>
+                <button class="btn primary" id="saveGoal" style="flex:2;">저장</button>
             </div>
         </div>
     </div>
