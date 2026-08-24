@@ -450,16 +450,15 @@
             <label class="field"><span class="lbl">💸 상환 출금 계좌 <span
                         style="color:var(--sub);font-weight:500;">(이 통장에서 매월 상환액이 빠져나가요)</span></span><select
                     id="lWithdrawAcc"></select></label>
-            <!-- [v9.1] 기타(직접 입력): 상환일 + 원금/이자 직접 입력 -->
+            <!-- [v9.2] 기타(직접 입력): 상환 월(YYYY-MM)·원금·이자를 회차별로 직접 입력 -->
             <div class="subgrid" id="lCustomWrap" style="display:none;background:var(--peri-soft);border-color:var(--peri);">
-                <b style="font-size:13px;">✍️ 기타(직접 입력) · 매월 상환 내역</b>
-                <div class="desc" style="margin:4px 0 12px;">매월 <b>상환일</b>은 위의 「매월 상환일」을 사용합니다. 아래에 <b>원금</b>과 <b>이자</b> 상환액을 직접 입력하세요.</div>
-                <div class="grid2">
-                    <label class="field" style="margin-bottom:0;"><span class="lbl">매월 원금 상환액 (원)</span><input type="text"
-                            inputmode="numeric" class="comma" id="lFixedPrincipal" value="" /></label>
-                    <label class="field" style="margin-bottom:0;"><span class="lbl">매월 이자 상환액 (원)</span><input type="text"
-                            inputmode="numeric" class="comma" id="lFixedInterest" value="" /></label>
+                <div class="row-between" style="margin-bottom:8px;">
+                    <b style="font-size:13px;">✍️ 기타(직접 입력) · 상환 스케줄</b>
+                    <button class="btn ghost sm" id="addCustomRepay">＋ 회차 추가</button>
                 </div>
+                <div class="desc" style="margin:0 0 10px;">상환 월(YYYY-MM)과 그 달의 <b>원금·이자</b>를 직접 입력하세요. 매월 금액이 다르거나 특정 달에 몰아서 상환하는 경우에 적합해요. (실제 상환일은 위 「매월 상환일」을 사용)</div>
+                <div class="cr-head"><div>상환 월</div><div>원금 (원)</div><div>이자 (원)</div><div></div></div>
+                <div id="customRepayList"></div>
             </div>
             <div id="customHint" class="desc" style="display:none;margin-top:-8px;"></div>
             <label class="field"><span class="lbl">금리 유형</span>
