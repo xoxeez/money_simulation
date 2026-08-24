@@ -24,9 +24,7 @@
                 <button class="btn primary" id="saveBtn">💾 저장</button>
             </div>
         </div>
-
         <div class="fb-bar"><span class="fb-dot" id="fbDot"></span><span id="fbStatus">연결 확인 중…</span></div>
-
         <div class="hero">
             <div class="names"><span class="nA">소희</span><span class="heart">❤</span><span
                     class="nB">남자친구</span></div>
@@ -54,7 +52,6 @@
                 </div>
             </div>
         </div>
-
         <div class="tabs">
             <button class="tab-btn active" data-tab="home">홈</button>
             <button class="tab-btn tab-plan" data-tab="plan" style="display:none;">🧭 Plan</button>
@@ -64,7 +61,6 @@
             <button class="tab-btn" data-tab="calendar">상환 캘린더</button>
             <button class="tab-btn" data-tab="house">주택 자금</button>
         </div>
-
         <!-- ============ 홈 ============ -->
         <div class="tab-panel active" id="tab-home">
             <div class="grid4" style="margin-bottom:20px;">
@@ -111,7 +107,6 @@
                 <div class="chart-box"><canvas id="flowChart"></canvas></div>
             </div>
         </div>
-
         <!-- ============ Plan 모드 ============ -->
         <div class="tab-panel" id="tab-plan">
             <div class="card plan-hero">
@@ -125,7 +120,6 @@
                     <div class="plan-summary" id="planSummary"></div>
                 </div>
             </div>
-
             <div class="grid2">
                 <div class="card">
                     <div class="owner-head">
@@ -149,7 +143,6 @@
                     연동됩니다. 앞으로의 통장 예상 잔액은 이 기준일 잔고에서 출발해 수입/지출/상환/카드결제를 반영해 계산돼요.</p>
             </div>
         </div>
-
         <!-- ============ 계좌 · 카드 ============ -->
         <div class="tab-panel" id="tab-accounts">
             <div class="card">
@@ -162,7 +155,6 @@
                             id="nameB" value="남자친구" /></label>
                 </div>
             </div>
-
             <div class="grid2">
                 <div class="card">
                     <div class="owner-head">
@@ -183,7 +175,6 @@
                     <button class="btn-add" data-add-acc="B">＋ 계좌 추가</button>
                 </div>
             </div>
-
             <div class="card">
                 <h2>💳 카드 & 계좌 매핑</h2>
                 <p class="desc">각 카드가 어느 <b>결제 계좌</b>에서 빠져나가는지 연결하세요. 신용카드는 <b>카드별 결제일</b>에 연결 계좌에서 합산 출금됩니다. (체크카드는
@@ -193,7 +184,6 @@
                 <button class="btn-add" id="addCard">＋ 카드 추가</button>
             </div>
         </div>
-
         <!-- ============ 대출 · 차용 ============ -->
         <div class="tab-panel" id="tab-loans">
             <div class="row-between" style="margin-bottom:12px;">
@@ -207,7 +197,6 @@
                 상환액과 총이자를 계산합니다. <b>상세보기</b>로 날짜별 원금·이자 상환 예정을 확인하세요.</p>
             <div id="loanList"></div>
         </div>
-
         <!-- ============ 수입 · 지출 (월별) ============ -->
         <div class="tab-panel" id="tab-flow">
             <!-- ===== 월별 가계부 관리(수입·지출 탭 전용) ===== -->
@@ -299,7 +288,6 @@
                 <div class="mc-hint" id="mcHint"></div>
             </div>
         </div>
-
         <!-- ============ 상환 캘린더 ============ -->
         <div class="tab-panel" id="tab-calendar">
             <div class="card">
@@ -329,7 +317,6 @@
                 <div id="upcomingList"></div>
             </div>
         </div>
-
         <!-- ============ 주택 자금 ============ -->
         <div class="tab-panel" id="tab-house">
             <div class="card">
@@ -339,7 +326,7 @@
                 <div class="grid2">
                     <div>
                         <label class="field"><span class="lbl">🏠 주택 A 이름</span><input type="text" id="houseA"
-                                value="벽적골8단지 (리모델링)" /></label>
+                                value="" placeholder="예: 첫 번째 집" /></label>
                         <div class="grid2">
                             <label class="field"><span class="lbl">담당자</span><select id="houseAOwner">
                                     <option value="A">본인</option>
@@ -347,14 +334,14 @@
                                     <option value="J">공동</option>
                                 </select></label>
                             <label class="field"><span class="lbl">보유 예산 (원)</span><input type="text"
-                                    inputmode="numeric" class="comma" id="budgetA" value="300000000" /></label>
+                                    inputmode="numeric" class="comma" id="budgetA" value="" /></label>
                         </div>
                         <label class="field"><span class="lbl">🏡 현재 주택 자산가치 (원)</span><input type="text"
-                                inputmode="numeric" class="comma" id="houseAValue" value="700000000" /></label>
+                                inputmode="numeric" class="comma" id="houseAValue" value="" /></label>
                     </div>
                     <div>
                         <label class="field"><span class="lbl">🏠 주택 B 이름</span><input type="text" id="houseB"
-                                value="수원하늘채더퍼스트2단지" /></label>
+                                value="" placeholder="예: 두 번째 집" /></label>
                         <div class="grid2">
                             <label class="field"><span class="lbl">담당자</span><select id="houseBOwner">
                                     <option value="A">본인</option>
@@ -362,10 +349,10 @@
                                     <option value="J">공동</option>
                                 </select></label>
                             <label class="field"><span class="lbl">보유 예산 (원)</span><input type="text"
-                                    inputmode="numeric" class="comma" id="budgetB" value="250000000" /></label>
+                                    inputmode="numeric" class="comma" id="budgetB" value="" /></label>
                         </div>
                         <label class="field"><span class="lbl">🏡 현재 주택 자산가치 (원)</span><input type="text"
-                                inputmode="numeric" class="comma" id="houseBValue" value="620000000" /></label>
+                                inputmode="numeric" class="comma" id="houseBValue" value="" /></label>
                     </div>
                 </div>
                 <div class="note-strip" id="houseAssetNote"></div>
@@ -416,10 +403,8 @@
                 </div>
             </div>
         </div>
-
         <footer>참고용 자금 계획 도구이며 법률·세무 효력은 없습니다. 큰 거래는 전문가 상담을 권장합니다. · Renewal v8</footer>
     </div>
-
     <!-- 대출 등록/수정 모달 -->
     <div class="modal-bg" id="loanModal">
         <div class="modal">
@@ -439,7 +424,7 @@
             </div>
             <div class="grid4">
                 <label class="field"><span class="lbl">대출 원금 (원)</span><input type="text" inputmode="numeric"
-                        class="comma" id="lPrincipal" value="300000000" /></label>
+                        class="comma" id="lPrincipal" value="" /></label>
                 <label class="field"><span class="lbl">연 금리 (%)</span><input type="number" id="lRate" value="4.2"
                         step="0.1" /></label>
                 <label class="field"><span class="lbl">대출 기간 (개월)</span><input type="number" id="lTerm"
@@ -465,8 +450,17 @@
             <label class="field"><span class="lbl">💸 상환 출금 계좌 <span
                         style="color:var(--sub);font-weight:500;">(이 통장에서 매월 상환액이 빠져나가요)</span></span><select
                     id="lWithdrawAcc"></select></label>
-            <label class="field" id="lCustomWrap" style="display:none;"><span class="lbl">매월 상환액 (원) — 직접
-                    입력</span><input type="text" inputmode="numeric" class="comma" id="lFixed" value="1000000" /></label>
+            <!-- [v9.1] 기타(직접 입력): 상환일 + 원금/이자 직접 입력 -->
+            <div class="subgrid" id="lCustomWrap" style="display:none;background:var(--peri-soft);border-color:var(--peri);">
+                <b style="font-size:13px;">✍️ 기타(직접 입력) · 매월 상환 내역</b>
+                <div class="desc" style="margin:4px 0 12px;">매월 <b>상환일</b>은 위의 「매월 상환일」을 사용합니다. 아래에 <b>원금</b>과 <b>이자</b> 상환액을 직접 입력하세요.</div>
+                <div class="grid2">
+                    <label class="field" style="margin-bottom:0;"><span class="lbl">매월 원금 상환액 (원)</span><input type="text"
+                            inputmode="numeric" class="comma" id="lFixedPrincipal" value="" /></label>
+                    <label class="field" style="margin-bottom:0;"><span class="lbl">매월 이자 상환액 (원)</span><input type="text"
+                            inputmode="numeric" class="comma" id="lFixedInterest" value="" /></label>
+                </div>
+            </div>
             <div id="customHint" class="desc" style="display:none;margin-top:-8px;"></div>
             <label class="field"><span class="lbl">금리 유형</span>
                 <select id="lRateType">
@@ -501,7 +495,6 @@
             </div>
         </div>
     </div>
-
     <!-- v8: 대출 상세보기(상환 스케줄) 팝업 -->
     <div class="modal-bg" id="schedModal">
         <div class="modal">
@@ -523,7 +516,6 @@
             </div>
         </div>
     </div>
-
     <!-- 리소스 로더: CSS → 라이브러리 → firebase-config.js(선택) → app.js -->
     <script>
         (function () {
