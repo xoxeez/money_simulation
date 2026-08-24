@@ -1,11 +1,10 @@
 /* =========================================================
-   소학행을 위한 자산 플래너 v10 — app.js
-   [v10 신규] 성장 · 목표 탭
-   · 재무 건강 대시보드(저축률/비상금/DSR/순자산 게이지) — 현재 가계부 월 기준
-   · 공동 목표 관리(목표일 있으면 게이지+매월 저축액, 없으면 게이지만)
-   · 월별 순자산 추이 + 자산·부채 추이 (월 마감 스냅샷 기반, 합산+개인별)
-   [v9.5] 차트 월 연동 · 대출 회차 월 자동+1
-   [v9.4] 담당자별 부담 막대 2개 · [v9.2] 삭제 id · [v9.1] 샘플 제거
+   소학행을 위한 자산 플래너 v10.1 — app.js
+   [v10.1 수정]
+   · 재무 건강 게이지 텍스트 세로 중앙정렬 (CSS)
+   · 월 저축 = 수입 − (고정비+기타지출+카드) − 대출 상환(월 예상) 전액 반영
+   · DSR = 월 수입 대비 '월 예상 대출 상환액(firstPay 합)' 비율로 안정화
+   [v10] 성장·목표 탭 · [v9.5] 차트 월연동/회차 자동+1 · [v9.4] 부담 2막대
 ========================================================= */
 const $ = (id) => document.getElementById(id);
 const won = (v) => (Math.round(fin(+v))).toLocaleString("ko-KR") + "원";
@@ -66,7 +65,7 @@ let cards = [];
 let loans = [];
 let cfA = [];
 let cfB = [];
-let goals = [];   /* [v10] 공동 목표 */
+let goals = [];
 /* ---------- 월별 가계부(ledger) ---------- */
 function blankLedger() { return { incomes: [], expenses: [], extraIncomes: [], extraExpenses: [], cardTxns: [] }; }
 function numifyLedger(L) {
@@ -118,7 +117,7 @@ function rerenderMonthViews() {
     renderIncome(); renderExtra("income"); renderExpenses(); renderExtra("expense"); renderCardLedgers();
     refreshSummary(); renderCalendar(); renderUpcoming();
     drawFlowCharts();
-    drawGrowthCharts();   /* [v10] 성장·목표 차트도 현재 가계부 월 기준으로 갱신 */
+    drawGrowthCharts();
 }
 function switchMonth(key) {
     if (!ledgers[key]) return;
@@ -893,7 +892,7 @@ function closeMonth() {
     const deltas = computeAccountDeltas(currentMonth);
     L.startBalances = start; L.closed = true; L.closedAt = new Date().toISOString();
     accounts.forEach(a => a.amt = num(a.amt) + (deltas[a.id] || 0));
-    L.snapshot = captureNetWorth();   /* [v10] 마감 시점(월말) 순자산 스냅샷 저장 → 추이 그래프에 누적 */
+    L.snapshot = captureNetWorth();
     fireConfetti();
     const [y, m] = currentMonth.split("-").map(Number); let ny = y, nm = m + 1; if (nm > 12) { nm = 1; ny++; }
     createMonth(ny, nm);
@@ -1003,7 +1002,8 @@ function monthExpenseTotal() {
     s += cardTxns.reduce((a, t) => a + num(t.amt), 0);
     return s;
 }
-function monthLoanRepayTotal() { return loans.reduce((s, l) => s + loanPayInMonth(l, currentMonth), 0); }
+/* [v10.1] 월 예상 대출 상환액 = 각 대출의 월 상환액(firstPay) 합 → DSR/저축 계산에 사용 */
+function monthLoanRepayTotal() { return monthlyPayTotal(); }
 function monthNetFlow() {
     const [y, mo] = currentMonth.split("-");
     return eventsForMonth(+y, +mo - 1).filter(e => e.cash).reduce((s, e) => s + num(e.amt), 0);
@@ -1029,7 +1029,7 @@ function refreshSummary() {
     $("kMonthPay").textContent = eok(monthPay);
     renderHouseAssetNote(); renderPlanSummary();
     renderMonthClose();
-    renderGrowthMetrics();   /* [v10] 게이지·목표 갱신 (가벼운 DOM) */
+    renderGrowthMetrics();
     drawHome();
 }
 function drawHome() {
@@ -1054,7 +1054,7 @@ function monthlyExpenseItems() {
     return items.filter(it => it.amt !== 0);
 }
 function monthlyLoanItems() {
-    return loans.map(l => ({ name: `${l.name} 상환`, amt: loanPayInMonth(l, currentMonth), owner: l.owner || "J", kind: "대출상환" })).filter(it => it.amt > 0);
+    return loans.map(l => ({ name: `${l.name} 상환`, amt: fin(loanCalc(l).firstPay), owner: l.owner || "J", kind: "대출상환" })).filter(it => it.amt > 0);
 }
 let burdenData = { A: { living: [], loan: [] }, B: { living: [], loan: [] } };
 function splitToOwner(store, owner, name, amt, kind) {
@@ -1160,6 +1160,7 @@ function monthsUntil(dateStr) {
     const ty = +dateStr.slice(0, 4), tm = +dateStr.slice(5, 7);
     return (ty - fy) * 12 + (tm - fm);
 }
+/* [v10.1] 월 저축 = 수입 − 모든 지출(고정+기타+카드) − 대출 상환(월 예상) */
 function monthSavings() { return monthIncomeTotal() - monthExpenseTotal() - monthLoanRepayTotal(); }
 /* --- 재무 건강 게이지 --- */
 function gaugeHtml(pct, color, val, cap, desc) {
@@ -1173,13 +1174,15 @@ function gaugeHtml(pct, color, val, cap, desc) {
 }
 function renderHealth() {
     const box = $("healthGrid"); if (!box) return;
-    const inc = monthIncomeTotal(), exp = monthExpenseTotal(), pay = monthLoanRepayTotal();
-    const sav = inc - exp - pay;
+    const inc = monthIncomeTotal();
+    const exp = monthExpenseTotal();        /* 고정+기타+카드 지출 전액 */
+    const pay = monthLoanRepayTotal();      /* 월 예상 대출 상환액 */
+    const sav = inc - exp - pay;            /* [v10.1] 월 저축 = 수입 − 모든 지출 − 상환 */
     const savRate = inc > 0 ? sav / inc : 0;
     const liquid = accounts.filter(a => a.type === "예금" || a.type === "현금").reduce((s, a) => s + num(a.amt), 0);
     const outflow = exp + pay;
     const emMonths = outflow > 0 ? liquid / outflow : 0;
-    const dsr = inc > 0 ? pay / inc : 0;
+    const dsr = inc > 0 ? pay / inc : 0;    /* [v10.1] DSR = 월 상환 ÷ 월 수입 */
     const totalAsset = accounts.reduce((s, a) => s + num(a.amt), 0) + houseValueTotal();
     const totalDebt = totalDebtRemain();
     const net = totalAsset - totalDebt;
@@ -1392,7 +1395,7 @@ function bootRender() {
     const [cy, cm] = currentMonth.split("-"); calYear = +cy; calMonth = +cm - 1;
     refreshSummary(); renderCalendar(); renderUpcoming();
     drawFlowCharts();
-    drawGrowthCharts();   /* [v10] 초기 로드 시 성장·목표 렌더 */
+    drawGrowthCharts();
 }
 (function boot() {
     attachAllComma();
