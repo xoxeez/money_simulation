@@ -266,11 +266,16 @@
             <div class="grid2">
                 <div class="card">
                     <h2>📊 <span id="flowMonthLabel3">이번 달</span> 지출 구성</h2>
+                    <p class="desc">조각을 클릭하면 항목명·금액·담당이 아래에 표시돼요.</p>
                     <div class="chart-box"><canvas id="expenseChart"></canvas></div>
+                    <div class="bd-panel" id="expenseDetail" style="display:none;"></div>
                 </div>
                 <div class="card">
                     <h2>🙋 담당자별 월 부담</h2>
+                    <p class="desc"><b>생활비 부담</b>과 <b>대출 상환 포함 부담</b>을 막대 2개로 나눠 보여줘요 (공동 항목은 반씩 나눔). 막대를 클릭하면 세부내역이 보여요.</p>
                     <div class="chart-box"><canvas id="burdenChart"></canvas></div>
+                    <div class="bd-note" id="burdenTotalNote"></div>
+                    <div class="bd-panel" id="burdenDetail" style="display:none;"></div>
                 </div>
             </div>
             <!-- v9: 월별 통장 잔고 계산 + 월 마감 -->
