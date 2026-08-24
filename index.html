@@ -3,8 +3,17 @@
 
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>소학행을 위한 자산 플래너</title>
+    <!-- ===== PWA (홈 화면 설치 · 오프라인) ===== -->
+    <link rel="manifest" href="manifest.json" />
+    <meta name="theme-color" content="#3f7fd1" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="자산플래너" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png" />
 </head>
 
 <body>
@@ -610,6 +619,22 @@
             ];
             (function next(i) { if (i >= seq.length) return; addScript(seq[i][0], seq[i][1]).then(function () { next(i + 1); }); })(0);
         })();
+    </script>
+    <!-- ===== PWA 서비스워커 등록 (https 환경에서 동작) ===== -->
+    <script>
+        if ("serviceWorker" in navigator) {
+            window.addEventListener("load", function () {
+                navigator.serviceWorker.register("sw.js")
+                    .then(function (reg) { console.log("✅ PWA 서비스워커 등록됨:", reg.scope); })
+                    .catch(function (err) { console.warn("서비스워커 등록 실패(무시 가능):", err); });
+            });
+        }
+        /* 안드로이드 설치 배너: 필요 시 커스텀 설치 버튼에 연결할 수 있게 이벤트 보관 */
+        window.addEventListener("beforeinstallprompt", function (e) {
+            e.preventDefault();
+            window.deferredInstallPrompt = e;
+            console.log("💡 이 앱은 홈 화면에 설치할 수 있어요. (주소창의 설치 아이콘 또는 메뉴 → 앱 설치)");
+        });
     </script>
 </body>
 
