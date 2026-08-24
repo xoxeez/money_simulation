@@ -162,7 +162,7 @@
                         <div class="name"><span class="dot dot-a"></span><span class="nA">소희</span> 계좌</div>
                         <div class="sum" style="color:var(--a)" id="accSumA">-</div>
                     </div>
-                    <p class="desc">예금·주식·청약·현금 등 잔액이 자산으로 집계됩니다.</p>
+                    <p class="desc">예금·주식·청약·현금 등 잔액이 자산으로 집계됩니다. (주식·연금은 「수입·지출」 탭에서 원금·손익 관리)</p>
                     <div id="accListA"></div>
                     <button class="btn-add" data-add-acc="A">＋ 계좌 추가</button>
                 </div>
@@ -171,7 +171,7 @@
                         <div class="name"><span class="dot dot-b"></span><span class="nB">남자친구</span> 계좌</div>
                         <div class="sum" style="color:var(--b)" id="accSumB">-</div>
                     </div>
-                    <p class="desc">예금·주식·청약·현금 등 잔액이 자산으로 집계됩니다.</p>
+                    <p class="desc">예금·주식·청약·현금 등 잔액이 자산으로 집계됩니다. (주식·연금은 「수입·지출」 탭에서 원금·손익 관리)</p>
                     <div id="accListB"></div>
                     <button class="btn-add" data-add-acc="B">＋ 계좌 추가</button>
                 </div>
@@ -245,7 +245,7 @@
             <div class="card">
                 <div class="section-label">STEP 3</div>
                 <h2>🧾 매월 고정 지출 (생활비 등)</h2>
-                <p class="desc">항목별 <b>담당자 · 결제수단(카드/계좌)</b>을 매핑하세요. <b>새 가계부 생성 시 지난달 고정 지출도 자동 복사</b>됩니다.</p>
+                <p class="desc">항목별 <b>카테고리 · 담당자 · 결제수단(카드/계좌)</b>을 매핑하세요. 카테고리는 아래 <b>지출 구성</b> 도넛에 반영돼요. <b>새 가계부 생성 시 지난달 고정 지출도 자동 복사</b>됩니다.</p>
                 <div id="expenseList"></div>
                 <button class="btn-add" id="addExpense">＋ 고정 지출 추가</button>
             </div>
@@ -256,18 +256,24 @@
                 <div id="extraExpenseList"></div>
                 <button class="btn-add" id="addExtraExpense">＋ 기타 지출 추가</button>
             </div>
-            <!-- v8: 카드 세부내역(가계부)을 수입·지출 탭으로 이동 -->
+            <!-- 카드 세부내역 -->
             <div class="card">
                 <div class="section-label">STEP 5</div>
                 <h2>💳 <span id="cardLedgerMonth">이번 달</span> 카드 세부내역 (가계부)</h2>
-                <p class="desc">신용카드 사용을 <b>사용일 기준</b>으로 기록하면, 카드별 <b>결제일</b>에 그 달 합계가 자동으로 출금됩니다. (현재 선택한 가계부 달의
-                    내역)</p>
+                <p class="desc">신용카드 사용을 <b>사용일·카테고리 기준</b>으로 기록하면, 카드별 <b>결제일</b>에 그 달 합계가 자동으로 출금됩니다. <b>고정지출로 걸린 금액은 별도 입력 없이도 상단 합계에 자동 포함</b>돼요.</p>
                 <div id="cardLedgers"></div>
+            </div>
+            <!-- [v11] 증권·투자 계좌 관리 -->
+            <div class="card">
+                <div class="section-label">STEP 6</div>
+                <h2>📈 <span id="investMonthLabel">이번 달</span> 증권·투자 계좌 관리</h2>
+                <p class="desc">계좌 유형이 <b>주식·연금</b>인 계좌의 <b>투자원금·현재 평가액</b>을 입력하면 <b>평가손익</b>이 자동 계산돼요. 평가액이 곧 자산 잔액이며, <b>월 마감 시 이 값으로 순자산에 반영·스냅샷</b>됩니다.</p>
+                <div id="investList"></div>
             </div>
             <div class="grid2">
                 <div class="card">
-                    <h2>📊 <span id="flowMonthLabel3">이번 달</span> 지출 구성</h2>
-                    <p class="desc">조각을 클릭하면 항목명·금액·담당이 아래에 표시돼요.</p>
+                    <h2>📊 <span id="flowMonthLabel3">이번 달</span> 지출 구성 <span class="pill pill-muted">카테고리별</span></h2>
+                    <p class="desc">카테고리 조각을 클릭하면 그 카테고리의 <b>항목·금액·담당</b>이 아래에 표시돼요.</p>
                     <div class="chart-box"><canvas id="expenseChart"></canvas></div>
                     <div class="bd-panel" id="expenseDetail" style="display:none;"></div>
                 </div>
@@ -279,7 +285,7 @@
                     <div class="bd-panel" id="burdenDetail" style="display:none;"></div>
                 </div>
             </div>
-            <!-- v9: 월별 통장 잔고 계산 + 월 마감 -->
+            <!-- 월별 통장 잔고 계산 + 월 마감 -->
             <div class="card" id="monthCloseCard">
                 <div class="row-between" style="margin-bottom:6px;">
                     <h2 style="margin:0;">🏦 <span id="mcMonthLabel">이번 달</span> 통장별 예상 잔고</h2>
@@ -305,10 +311,12 @@
                         <button class="btn icon" id="calNext">›</button>
                     </div>
                 </div>
+                <div class="cal-neg-warn" id="calNegWarn" style="display:none;"></div>
                 <div class="row-between" style="margin-bottom:12px;">
                     <div style="display:flex;gap:14px;font-size:12px;color:var(--sub);flex-wrap:wrap;">
                         <span><span class="dot" style="background:var(--plus)"></span>유입(＋)</span>
                         <span><span class="dot" style="background:var(--minus)"></span>지출(−)</span>
+                        <span><span class="dot" style="background:var(--gold)"></span>⚠️ 마이너스 예상일</span>
                         <span style="color:var(--sub)">날짜를 클릭하면 상세 내역·잔액이 아래에 표시돼요</span>
                     </div>
                     <div style="font-size:13px;font-weight:800;">이번 달 순흐름 <span id="calMonthNet">-</span></div>
@@ -409,9 +417,8 @@
                 </div>
             </div>
         </div>
-        <!-- ============ [v10] 성장 · 목표 ============ -->
+        <!-- ============ 성장 · 목표 ============ -->
         <div class="tab-panel" id="tab-growth">
-            <!-- 재무 건강 대시보드 -->
             <div class="card">
                 <div class="row-between" style="margin-bottom:6px;">
                     <h2 style="margin:0;">💪 재무 건강 대시보드</h2>
@@ -420,7 +427,6 @@
                 <p class="desc">지금 보고 있는 <b>가계부 월</b>의 수입·지출·상환을 기준으로 계산돼요. 게이지 색이 초록이면 건강, 노랑은 주의, 분홍은 개선이 필요해요.</p>
                 <div class="gauge-grid" id="healthGrid"></div>
             </div>
-            <!-- 공동 목표 -->
             <div class="card">
                 <div class="row-between" style="margin-bottom:6px;">
                     <h2 style="margin:0;">🎯 공동 목표</h2>
@@ -429,21 +435,19 @@
                 <p class="desc">결혼자금·전세보증금·내집마련 같은 <b>함께 모으는 목표</b>를 등록하세요. 목표일을 넣으면 <b>매월 필요 저축액</b>까지 계산되고, 안 넣으면 진행률만 표시돼요. 계좌를 연동하면 잔고가 자동 반영됩니다.</p>
                 <div id="goalList"></div>
             </div>
-            <!-- 순자산 추이 -->
             <div class="card">
                 <h2>📈 월별 순자산 추이</h2>
                 <p class="desc">합산 + 개인별 순자산이 매달 어떻게 자라는지 보여줘요.</p>
                 <div class="chart-box"><canvas id="nwTrendChart"></canvas></div>
                 <div class="bd-note" id="nwTrendNote"></div>
             </div>
-            <!-- 자산·부채 추이 -->
             <div class="card">
                 <h2>⚖️ 월별 자산 · 부채 추이</h2>
                 <p class="desc">총자산과 총부채의 규모 변화를 나란히 보여줘요.</p>
                 <div class="chart-box"><canvas id="adTrendChart"></canvas></div>
             </div>
         </div>
-        <footer>참고용 자금 계획 도구이며 법률·세무 효력은 없습니다. 큰 거래는 전문가 상담을 권장합니다. · Renewal v10</footer>
+        <footer>참고용 자금 계획 도구이며 법률·세무 효력은 없습니다. 큰 거래는 전문가 상담을 권장합니다. · Renewal v11</footer>
     </div>
     <!-- 대출 등록/수정 모달 -->
     <div class="modal-bg" id="loanModal">
@@ -490,7 +494,6 @@
             <label class="field"><span class="lbl">💸 상환 출금 계좌 <span
                         style="color:var(--sub);font-weight:500;">(이 통장에서 매월 상환액이 빠져나가요)</span></span><select
                     id="lWithdrawAcc"></select></label>
-            <!-- [v9.2] 기타(직접 입력): 상환 월(YYYY-MM)·원금·이자를 회차별로 직접 입력 -->
             <div class="subgrid" id="lCustomWrap" style="display:none;background:var(--peri-soft);border-color:var(--peri);">
                 <div class="row-between" style="margin-bottom:8px;">
                     <b style="font-size:13px;">✍️ 기타(직접 입력) · 상환 스케줄</b>
@@ -534,7 +537,7 @@
             </div>
         </div>
     </div>
-    <!-- v8: 대출 상세보기(상환 스케줄) 팝업 -->
+    <!-- 대출 상세보기(상환 스케줄) 팝업 -->
     <div class="modal-bg" id="schedModal">
         <div class="modal">
             <div class="row-between" style="margin-bottom:6px;">
@@ -555,7 +558,7 @@
             </div>
         </div>
     </div>
-    <!-- [v10] 공동 목표 등록/수정 모달 -->
+    <!-- 공동 목표 등록/수정 모달 -->
     <div class="modal-bg" id="goalModal">
         <div class="modal">
             <h3 id="goalModalTitle">🎯 목표 추가</h3>
