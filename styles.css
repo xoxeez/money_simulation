@@ -1826,7 +1826,7 @@ body {
 
 .txn-row {
     display: grid;
-    grid-template-columns: 118px 1fr 0.7fr 120px 30px;
+    grid-template-columns: 108px 1fr 0.85fr 0.7fr 110px 28px;
     gap: 8px;
     align-items: center;
     margin-bottom: 7px;
@@ -1848,13 +1848,160 @@ body {
 
 .txn-head {
     display: grid;
-    grid-template-columns: 118px 1fr 0.7fr 120px 30px;
+    grid-template-columns: 108px 1fr 0.85fr 0.7fr 110px 28px;
     gap: 8px;
     font-size: 11px;
     color: var(--sub);
     font-weight: 700;
     margin-bottom: 6px;
     padding: 0 2px;
+}
+
+/* [v11] 카드 고정비 포함 표기 */
+.cl-fixed {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--peri);
+    background: var(--peri-soft);
+    padding: 1px 7px;
+    border-radius: 6px;
+    margin-left: 4px;
+}
+
+/* [v11] 지출 카테고리 셀렉트 */
+.cat-sel {
+    font-size: 12.5px !important;
+}
+
+/* [v11] 증권·투자 계좌 관리 */
+.inv-head,
+.inv-row {
+    display: grid;
+    grid-template-columns: 1.6fr 1fr 1fr 1.1fr;
+    gap: 10px;
+    align-items: center;
+}
+
+.inv-head {
+    font-size: 11px;
+    color: var(--sub);
+    font-weight: 700;
+    padding: 4px 12px 8px;
+    text-align: right;
+}
+
+.inv-head div:first-child {
+    text-align: left;
+}
+
+.inv-row {
+    padding: 11px 12px;
+    border: 1px solid var(--line2);
+    border-radius: 12px;
+    margin-bottom: 8px;
+    background: var(--card);
+}
+
+.inv-row .inv-name {
+    font-weight: 700;
+    font-size: 13.5px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.inv-row input.amt {
+    border: 1px solid var(--line);
+    background: var(--bg-tint);
+    border-radius: 9px;
+    padding: 8px 10px;
+    text-align: right;
+    font-weight: 800;
+    font-size: 13.5px;
+    color: var(--ink);
+}
+
+.inv-row .inv-cell {
+    text-align: right;
+    color: var(--sub);
+    font-weight: 700;
+    font-size: 13px;
+}
+
+.inv-row .inv-pl {
+    text-align: right;
+    font-weight: 800;
+    font-size: 13.5px;
+    letter-spacing: -.3px;
+}
+
+.inv-row .inv-pl.plus {
+    color: var(--plus);
+}
+
+.inv-row .inv-pl.minus {
+    color: var(--minus);
+}
+
+.inv-row .inv-rate {
+    display: block;
+    font-size: 11px;
+    font-weight: 700;
+    opacity: .85;
+}
+
+.inv-row.inv-total {
+    background: var(--bg-tint);
+    margin-top: 4px;
+}
+
+.inv-row.inv-total .inv-name {
+    font-weight: 800;
+}
+
+/* [v11] 캘린더 마이너스 예상일 */
+.cal-cell.neg-day {
+    background: linear-gradient(180deg, var(--minus-bg), var(--card) 70%);
+    border-color: var(--minus);
+}
+
+.cal-warn {
+    margin-top: 3px;
+    font-size: 9.5px;
+    font-weight: 800;
+    color: var(--minus);
+    background: var(--minus-bg);
+    border-radius: 6px;
+    padding: 1px 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cal-neg-warn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--ink);
+    background: var(--minus-bg);
+    border: 1px solid var(--minus);
+    border-radius: 11px;
+    padding: 10px 14px;
+    margin-bottom: 12px;
+    line-height: 1.5;
+}
+
+.neg-note {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: var(--minus-bg);
+    border: 1px solid var(--minus);
+    color: var(--ink);
+    font-size: 12.5px;
+    font-weight: 600;
 }
 
 .bal-strip {
@@ -2130,6 +2277,33 @@ body {
         position: absolute;
         top: 8px;
         right: 8px;
+    }
+
+    /* [v11] 증권·투자 계좌: 2열 스택 */
+    .inv-head {
+        display: none;
+    }
+
+    .inv-row {
+        grid-template-columns: 1fr 1fr;
+        row-gap: 8px;
+    }
+
+    .inv-row .inv-name {
+        grid-column: 1 / -1;
+    }
+
+    .inv-row .inv-pl {
+        grid-column: 1 / -1;
+        text-align: left;
+        background: var(--bg-tint);
+        border-radius: 9px;
+        padding: 7px 10px;
+    }
+
+    .inv-row .inv-rate {
+        display: inline;
+        margin-left: 8px;
     }
 
     /* 월 마감 표: 4열 → 3열 (기준잔고 숨김) */
