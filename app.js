@@ -1,9 +1,11 @@
 /* =========================================================
-   소학행을 위한 자산 플래너 v9.4 — app.js
-   [v9.4 변경]
-   · 담당자별 월 부담을 막대 2개로 분리: ①생활비 부담 ②대출 상환 포함 부담
-   · 각 막대 클릭 시 세부 항목(항목명+금액) 표시 (대출 포함 여부 구분)
-   [v9.3] 부담=지출 합계 일치 · 차트 클릭 세부내역
+   소학행을 위한 자산 플래너 v9.5 — app.js
+   [v9.5 변경]
+   · 지출/부담 차트가 '지금 보고 있는 가계부(currentMonth)'에 따라 갱신
+     → 월 전환 시 drawFlowCharts() 자동 재호출
+   · 기타(직접 입력) 대출: 회차 추가 시 마지막 회차의 다음 달(YYYY-MM +1)
+     로 자동 설정 (수작업 최소화)
+   [v9.4] 담당자별 부담 막대 2개(생활비/대출포함) · 클릭 세부내역
    [v9.2] 삭제 버그(id 자동부여) · 대출 기타(직접입력) 회차 스케줄
    [v9.1] 샘플 데이터 제거 · 카드 결제일 자동 · 대출 출금계좌
 ========================================================= */
@@ -33,6 +35,12 @@ const num = (v) => { if (typeof v === "number") return Number.isFinite(v) ? v : 
 const TODAY = ymd(new Date());
 const REAL_MONTH = TODAY.slice(0, 7);
 const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-3);
+/* [v9.5] YYYY-MM 다음 달 */
+function nextYm(ym) {
+    if (!/^\d{4}-\d{2}$/.test(ym || "")) return REAL_MONTH;
+    let y = +ym.slice(0, 4), m = +ym.slice(5, 7) + 1; if (m > 12) { m = 1; y++; }
+    return `${y}-${String(m).padStart(2, "0")}`;
+}
 function ensureIds(arr) {
     if (!Array.isArray(arr)) return arr;
     const seen = new Set();
@@ -110,6 +118,7 @@ function renderMonthBar() {
 function rerenderMonthViews() {
     renderIncome(); renderExtra("income"); renderExpenses(); renderExtra("expense"); renderCardLedgers();
     refreshSummary(); renderCalendar(); renderUpcoming();
+    drawFlowCharts();   /* [v9.5] 지출·부담 차트를 현재 가계부 월 기준으로 갱신 */
 }
 function switchMonth(key) {
     if (!ledgers[key]) return;
@@ -256,7 +265,6 @@ function loanSchedWithDates(l) {
     const start = new Date(l.start);
     return c.sched.map((s, i) => { const d = new Date(start); d.setMonth(start.getMonth() + i); return { ...s, date: d.toISOString().slice(0, 10) }; });
 }
-/* [v9.4] 특정 달에 실제 상환하는 대출 금액 */
 function loanPayInMonth(l, monthKey) {
     let sum = 0;
     loanSchedWithDates(l).forEach(s => { if (s.date.slice(0, 7) === monthKey) sum += Math.round(s.pay); });
@@ -571,7 +579,14 @@ $("lRateType").addEventListener("change", () => { $("rateChangeWrap").style.disp
 $("lKind").addEventListener("change", () => { if ($("lKind").value === "family") { $("lRate").value = 0; $("lRepay").value = "custom"; syncRepayFields(); } updateModalPreview(); });
 $("addRateChange").addEventListener("click", () => { modalRateChanges.push({ month: 60, rate: 5 }); renderRateChanges(); updateModalPreview(); });
 $("addPrepay").addEventListener("click", () => { modalPrepays.push({ month: 12, amount: 10000000 }); renderPrepays(); updateModalPreview(); });
-$("addCustomRepay").addEventListener("click", () => { const base = ($("lStart").value || TODAY).slice(0, 7); modalCustomRepays.push({ ym: base, principal: 0, interest: 0 }); renderCustomRepays(); updateModalPreview(); });
+/* [v9.5] 회차 추가 시 마지막 회차의 '다음 달'로 자동 설정 */
+$("addCustomRepay").addEventListener("click", () => {
+    let ym;
+    if (modalCustomRepays.length) { const lastYm = modalCustomRepays[modalCustomRepays.length - 1].ym; ym = nextYm(lastYm); }
+    else { ym = ($("lStart").value || TODAY).slice(0, 7); }
+    modalCustomRepays.push({ ym, principal: 0, interest: 0 });
+    renderCustomRepays(); updateModalPreview();
+});
 $("customRepayList").addEventListener("input", e => { const t = e.target; if (t.dataset.cr === undefined) return; const k = t.dataset.k; if (k === "ym") { modalCustomRepays[+t.dataset.cr].ym = t.value; } else { modalCustomRepays[+t.dataset.cr][k] = parseNum(t.value); t.value = fmtNum(t.value); } updateModalPreview(); });
 $("customRepayList").addEventListener("click", e => { if (e.target.dataset.crdel !== undefined) { modalCustomRepays.splice(+e.target.dataset.crdel, 1); renderCustomRepays(); updateModalPreview(); } });
 $("rateChangeList").addEventListener("input", e => { const t = e.target; if (t.dataset.rc === undefined) return; modalRateChanges[+t.dataset.rc][t.dataset.k] = +t.value || 0; updateModalPreview(); });
@@ -1028,7 +1043,7 @@ function drawHome() {
     if (flowChartHome) flowChartHome.destroy();
     flowChartHome = new Chart($("flowChart"), { type: "bar", data: { labels: ["월 현금흐름"], datasets: [{ label: "수입", data: [incTot], backgroundColor: COL.plus, borderRadius: 6 }, { label: "생활비", data: [-expTot], backgroundColor: COL.minus, borderRadius: 6 }, { label: "대출상환", data: [-payTot], backgroundColor: COL.peri, borderRadius: 6 }] }, options: { indexAxis: "y", plugins: { legend: { position: "bottom" }, tooltip: { callbacks: { label: c => c.dataset.label + ": " + won(Math.abs(c.parsed.x)) } } }, scales: { x: { ticks: { callback: v => eok(v) }, grid: { color: gridc() } }, y: { grid: { display: false } } }, maintainAspectRatio: false } });
 }
-/* [v9.3] 지출(생활비) 항목 집합 — owner 포함, 대출 제외 */
+/* [v9.3] 지출(생활비) 항목 — 현재 가계부 월(currentMonth) 기준. bindMonth로 연결된 expenses/cardTxns 사용 */
 function monthlyExpenseItems() {
     const items = [];
     expenses.forEach(e => items.push({ name: e.name, amt: num(e.amt), owner: e.owner || "J", kind: e.method === "card" ? "카드고정" : "계좌지출" }));
@@ -1036,11 +1051,10 @@ function monthlyExpenseItems() {
     cardTxns.forEach(t => items.push({ name: t.item, amt: num(t.amt), owner: t.owner || "J", kind: "카드사용" }));
     return items.filter(it => it.amt !== 0);
 }
-/* [v9.4] 이번 달 대출 상환 항목(담당자별) */
+/* [v9.4] 이번(선택) 달 대출 상환 항목(담당자별) — currentMonth 기준 */
 function monthlyLoanItems() {
     return loans.map(l => ({ name: `${l.name} 상환`, amt: loanPayInMonth(l, currentMonth), owner: l.owner || "J", kind: "대출상환" })).filter(it => it.amt > 0);
 }
-/* [v9.4] 담당자별 부담: 생활비 / 대출포함 각각 breakdown 저장 */
 let burdenData = { A: { living: [], loan: [] }, B: { living: [], loan: [] } };
 function splitToOwner(store, owner, name, amt, kind) {
     if (owner === "J") { store.A.push({ name, amt: amt / 2, joint: true, kind }); store.B.push({ name, amt: amt / 2, joint: true, kind }); }
@@ -1051,7 +1065,6 @@ function drawFlowCharts() {
     const items = monthlyExpenseItems();
     const loanItems = monthlyLoanItems();
     const totalExp = items.reduce((s, x) => s + x.amt, 0);
-    /* --- 지출 구성 도넛 --- */
     if (expenseChart) expenseChart.destroy();
     expenseChart = new Chart($("expenseChart"), {
         type: "doughnut",
@@ -1062,7 +1075,6 @@ function drawFlowCharts() {
             onClick: (evt, els) => { if (els.length) showItemDetail(items[els[0].index]); }
         }
     });
-    /* --- 담당자별 부담: 생활비 / 대출포함 2개 막대 --- */
     const living = { A: 0, B: 0 };
     const loanShare = { A: 0, B: 0 };
     const liveStore = { A: [], B: [] }, loanStore = { A: [], B: [] };
@@ -1084,21 +1096,22 @@ function drawFlowCharts() {
             ]
         },
         options: {
-            plugins: { legend: { position: "bottom" }, tooltip: { callbacks: { label: c => `${c.dataset.label}: ${won(c.parsed.y)}` + (c.datasetIndex === 1 ? " (클릭 시 세부)" : " (클릭 시 세부)") } } },
+            plugins: { legend: { position: "bottom" }, tooltip: { callbacks: { label: c => `${c.dataset.label}: ${won(c.parsed.y)} (클릭 시 세부)` } } },
             scales: { y: { ticks: { callback: v => eok(v) }, grid: { color: gridc() } }, x: { grid: { display: false } } },
             maintainAspectRatio: false,
             onClick: (evt, els) => { if (els.length) { const owner = els[0].index === 0 ? "A" : "B"; const withLoan = els[0].datasetIndex === 1; showBurdenDetail(owner, withLoan); } }
         }
     });
+    const mlab = currentMonth === REAL_MONTH ? "이번 달" : monthLabel(currentMonth);
     if ($("burdenTotalNote")) $("burdenTotalNote").innerHTML =
-        `<div>🏠 <b>생활비 부담</b> · ${nameOf.A} ${won(living.A)} + ${nameOf.B} ${won(living.B)} = <b>${won(living.A + living.B)}</b> (지출 합계 ${won(totalExp)} 일치)</div>
+        `<div style="font-weight:800;color:var(--peri);margin-bottom:4px;">📅 ${mlab} 기준</div>
+     <div>🏠 <b>생활비 부담</b> · ${nameOf.A} ${won(living.A)} + ${nameOf.B} ${won(living.B)} = <b>${won(living.A + living.B)}</b> (지출 합계 ${won(totalExp)} 일치)</div>
      <div style="margin-top:4px;">🏦 <b>대출 상환 포함</b> · ${nameOf.A} ${won(totalIncl.A)} + ${nameOf.B} ${won(totalIncl.B)} = <b>${won(totalIncl.A + totalIncl.B)}</b></div>
      <div style="margin-top:4px;color:var(--sub);">막대(생활비/대출포함)를 클릭하면 세부내역이 보여요.</div>`;
     if ($("burdenDetail")) { $("burdenDetail").style.display = "none"; $("burdenDetail").innerHTML = ""; }
     if ($("expenseDetail")) { $("expenseDetail").style.display = "none"; $("expenseDetail").innerHTML = ""; }
 }
 function withAlpha(hex, a) { const n = parseInt(hex.slice(1), 16); const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255; return `rgba(${r},${g},${b},${a})`; }
-/* [v9.4] 담당자 막대 클릭 → 생활비 or 대출포함 세부내역 */
 function showBurdenDetail(owner, withLoan) {
     const box = $("burdenDetail"); if (!box) return;
     const living = burdenData[owner].living || [];
@@ -1208,6 +1221,7 @@ function bootRender() {
     $("hLabelA").textContent = $("houseA").value; $("hLabelB").textContent = $("houseB").value;
     const [cy, cm] = currentMonth.split("-"); calYear = +cy; calMonth = +cm - 1;
     refreshSummary(); renderCalendar(); renderUpcoming();
+    drawFlowCharts();   /* [v9.5] 초기 로드시에도 지출·부담 차트 렌더 */
 }
 (function boot() {
     attachAllComma();
