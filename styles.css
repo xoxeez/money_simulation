@@ -1,5 +1,5 @@
 /* =========================================================
-   소학행을 위한 자산 플래너 v8 — Summer Cool Tone
+   소학행을 위한 자산 플래너 v10.1 — Summer Cool Tone
 ========================================================= */
 :root {
     --bg: #eef4fa;
@@ -649,26 +649,33 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
     text-align: center;
     gap: 10px;
+    min-height: 210px;
 }
 
 .gauge-ring {
     width: 118px;
     height: 118px;
     border-radius: 50%;
-    display: grid;
-    place-items: center;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     transition: background .3s;
 }
 
+/* [v10.1] 링 내부 텍스트를 완전 세로/가로 중앙정렬 */
 .gauge-inner {
     width: 88px;
     height: 88px;
     border-radius: 50%;
     background: var(--card);
-    display: grid;
-    place-items: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
     box-shadow: inset 0 1px 4px rgba(0, 0, 0, .05);
 }
 
@@ -676,7 +683,7 @@ body {
     font-size: 19px;
     font-weight: 800;
     letter-spacing: -.5px;
-    line-height: 1;
+    line-height: 1.05;
 }
 
 .gauge-cap {
@@ -684,6 +691,7 @@ body {
     font-weight: 700;
     color: var(--sub);
     margin-top: 3px;
+    line-height: 1.1;
 }
 
 .gauge-desc {
@@ -694,7 +702,6 @@ body {
 }
 
 .gauge.nw-sum {
-    justify-content: center;
     background: linear-gradient(180deg, var(--peri-soft), transparent 70%), var(--card);
 }
 
