@@ -243,90 +243,6 @@ body {
         grid-template-columns: 1fr 1fr;
         gap: 16px;
     }
-
-    .hero-cell:nth-child(3) {
-        border-left: none;
-        padding-left: 0;
-    }
-}
-
-/* ===== 월별 가계부 관리 바 ===== */
-.month-bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 14px;
-    flex-wrap: wrap;
-    border: 1px solid var(--line2);
-    background: linear-gradient(135deg, var(--peri-soft), var(--card) 65%);
-    border-radius: 16px;
-    padding: 14px 18px;
-    margin-bottom: 22px;
-    box-shadow: var(--shadow-sm);
-}
-
-.month-bar .mb-left {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.month-bar .mb-icon {
-    font-size: 26px;
-}
-
-.month-bar .mb-title {
-    font-size: 16px;
-    font-weight: 800;
-    letter-spacing: -.3px;
-}
-
-.month-bar .mb-sub {
-    font-size: 11.5px;
-    color: var(--sub);
-    font-weight: 500;
-    margin-top: 1px;
-}
-
-.month-bar .mb-right {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-}
-
-.month-bar select {
-    width: auto;
-    min-width: 92px;
-    height: 34px;
-    padding: 0 10px;
-    font-size: 13px;
-    font-weight: 700;
-}
-
-.month-bar #monthSelect {
-    min-width: 150px;
-    background: var(--card);
-    border-color: var(--peri);
-    color: var(--peri);
-}
-
-.month-bar .mb-div {
-    width: 1px;
-    height: 26px;
-    background: var(--line2);
-    margin: 0 2px;
-}
-
-@media (max-width:720px) {
-    .month-bar {
-        flex-direction: column;
-        align-items: stretch;
-    }
-
-    .month-bar .mb-right {
-        justify-content: space-between;
-    }
 }
 
 /* ===== [v9] 월별 가계부 관리 (수입·지출 탭 전용) ===== */
@@ -443,19 +359,6 @@ body {
     .ledger-manager {
         flex-direction: column;
         align-items: stretch;
-    }
-
-    .ledger-manager .lm-actions {
-        justify-content: space-between;
-    }
-
-    .ledger-manager #monthSelect {
-        width: 100%;
-    }
-
-    .lm-create .lm-create-body {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
     }
 }
 
@@ -662,11 +565,6 @@ body {
         opacity: 0;
         transform: translateY(6px);
     }
-
-    to {
-        opacity: 1;
-        transform: none;
-    }
 }
 
 .card {
@@ -722,10 +620,6 @@ body {
 @media (max-width:900px) {
     .grid3 {
         grid-template-columns: 1fr;
-    }
-
-    .grid4 {
-        grid-template-columns: 1fr 1fr;
     }
 }
 
@@ -967,6 +861,17 @@ select:focus {
 .item input.payday {
     text-align: center;
     font-weight: 700;
+}
+
+/* [v9.1] 카드 결제일(읽기전용) 표시 칸 */
+.item input.card-day {
+    text-align: center;
+    font-weight: 700;
+    color: var(--peri);
+    background: var(--peri-soft);
+    border-radius: 7px;
+    cursor: not-allowed;
+    font-size: 12px;
 }
 
 .item input:focus,
@@ -1234,10 +1139,6 @@ select:focus {
     .cal-cell {
         min-height: 52px;
         font-size: 10px;
-    }
-
-    .cal-cell .ev {
-        display: none;
     }
 }
 
@@ -1610,28 +1511,6 @@ body {
     overflow-x: hidden;
 }
 
-@media (max-width:640px) {
-
-    .acc-item,
-    .card-item {
-        grid-template-columns: 34px 1fr 32px;
-        grid-auto-rows: auto;
-    }
-
-    .cardhead {
-        display: none;
-    }
-
-    .acc-item > :nth-child(3),
-    .acc-item > :nth-child(4),
-    .card-item > :nth-child(3),
-    .card-item > :nth-child(4),
-    .card-item > :nth-child(5),
-    .card-item > :nth-child(6) {
-        grid-column: 2 / 4;
-    }
-}
-
 /* ===== 카드 세부내역(가계부) · 잔액 표기 ===== */
 .card-ledger {
     border: 1px solid var(--line2);
@@ -1753,25 +1632,4 @@ body {
     padding: 1px 6px;
     border-radius: 5px;
     margin-left: 4px;
-}
-
-@media (max-width:640px) {
-
-    .txn-row,
-    .txn-head {
-        grid-template-columns: 100px 1fr 90px 26px;
-    }
-
-    .txn-row > :nth-child(4),
-    .txn-head > :nth-child(4) {
-        display: none;
-    }
-
-    .bal-strip {
-        grid-template-columns: 1fr;
-    }
-
-    .plan-item {
-        grid-template-columns: 34px 1fr 1fr;
-    }
 }
