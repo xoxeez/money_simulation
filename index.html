@@ -15,6 +15,8 @@
     <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png" />
 </head>
 <body>
+    <!-- [v12 GSAP] 은은하게 떠다니는 오로라 배경 (다크/라이트 모두 대응) -->
+    <div class="aurora" aria-hidden="true"><span class="ab ab1"></span><span class="ab ab2"></span><span class="ab ab3"></span></div>
     <div class="wrap">
         <div class="topbar">
             <div class="brand">
@@ -459,7 +461,7 @@
                 <div class="chart-box"><canvas id="adTrendChart"></canvas></div>
             </div>
         </div>
-        <footer>참고용 자금 계획 도구이며 법률·세무 효력은 없습니다. 큰 거래는 전문가 상담을 권장합니다. · Renewal v12</footer>
+        <footer>참고용 자금 계획 도구이며 법률·세무 효력은 없습니다. 큰 거래는 전문가 상담을 권장합니다. · Renewal v12 · GSAP</footer>
     </div>
     <!-- 대출 등록/수정 모달 -->
     <div class="modal-bg" id="loanModal">
@@ -599,7 +601,7 @@
             </div>
         </div>
     </div>
-    <!-- 리소스 로더: CSS → 라이브러리 → firebase-config.js(선택) → app.js -->
+    <!-- 리소스 로더: CSS → 라이브러리(Chart·GSAP) → firebase-config.js(선택) → app.js → animations.js -->
     <script>
         (function () {
             function addCss(href) { var l = document.createElement("link"); l.rel = "stylesheet"; l.href = href; document.head.appendChild(l); }
@@ -615,11 +617,14 @@
             addCss("styles.css");
             var seq = [
                 ["https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js", false],
+                ["https://cdn.jsdelivr.net/npm/gsap@3.13/dist/gsap.min.js", true],
+                ["https://cdn.jsdelivr.net/npm/gsap@3.13/dist/ScrollTrigger.min.js", true],
                 ["https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js", true],
                 ["https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js", true],
                 ["https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js", true],
                 ["firebase-config.js", true],
-                ["app.js", false]
+                ["app.js", false],
+                ["animations.js", true]
             ];
             (function next(i) { if (i >= seq.length) return; addScript(seq[i][0], seq[i][1]).then(function () { next(i + 1); }); })(0);
         })();
