@@ -1,11 +1,10 @@
 /* =========================================================
-   소학행을 위한 자산 플래너 v11 — app.js
-   [v11 신규]
-   1) 잔고 마이너스 예상일 → 캘린더 뱃지 표시
-   2) 증권·투자 계좌 관리 (원금/평가액/손익, 월 마감 시 검토)
-   3) 지출 카테고리 태깅(고정지출·카드사용) → 지출 구성 카테고리별 도넛 + 클릭 상세
-   5) 카드 고정지출 자동 합계 → 카드 세부내역 상단에 "합계(고정비 포함)" 표기
-   [v10.1] 게이지 중앙정렬 · 저축/DSR 정정  [v10] 성장·목표  [v9.x] 다수
+   소학행을 위한 자산 플래너 v12 — app.js
+   [v12 신규]
+   1) 8→5탭 재편: 홈 · 가계부 · 캘린더 · 자산·부채(하위탭) · 성장·목표
+   2) 신용카드: 당월 사용은 비현금 기록 → 다음 달 결제일에 전월 사용분 실제 출금
+   3) 만기일시 이자후불(iod): 매월 상환 0원 + 발생이자만 표기, 만기에 원금+누적이자 일괄
+   [v11] 마이너스 예상일 · 증권/투자 · 카테고리 태깅   [v10] 성장·목표   [v9.x] 다수
 ========================================================= */
 const $ = (id) => document.getElementById(id);
 const won = (v) => (Math.round(fin(+v))).toLocaleString("ko-KR") + "원";
@@ -241,6 +240,7 @@ function loanCalc(l) {
         let interest = bal * r, principal = 0, pay = 0;
         if (i <= grace) { principal = 0; pay = interest; }
         else if (l.repay === "io") { principal = (i === n) ? bal : 0; pay = interest + principal; }
+        else if (l.repay === "iod") { principal = (i === n) ? bal : 0; pay = (i === n) ? (bal + totalInterest + interest) : 0; }
         else if (l.repay === "pr") { const pr = P / Math.max(1, (n - grace)); principal = Math.min(pr, bal); pay = principal + interest; }
         else if (l.repay === "graduate") { const yr = Math.floor((i - 1 - grace) / 12); pay = gradBase * Math.pow(1 + growth, yr); principal = Math.min(Math.max(pay - interest, 0), bal); pay = principal + interest; }
         else { const m = amort(bal, r, n - i + 1); principal = Math.min(m - interest, bal); pay = principal + interest; }
@@ -276,7 +276,7 @@ function loanPayInMonth(l, monthKey) {
     return sum;
 }
 const KIND_LABEL = { bank: "은행", family: "부모님 차용" };
-const REPAY_LABEL = { eq: "원리금균등", pr: "원금균등", io: "만기일시", graduate: "원리금체증식", custom: "기타(직접입력)" };
+const REPAY_LABEL = { eq: "원리금균등", pr: "원금균등", io: "만기일시", iod: "만기일시·이자후불", graduate: "원리금체증식", custom: "기타(직접입력)" };
 /* ---------- 담당자 기반 필터 ---------- */
 function accountsForOwner(owner) { return (!owner || owner === "J") ? accounts : accounts.filter(a => a.owner === owner); }
 function cardsForOwner(owner) { return (!owner || owner === "J") ? cards : cards.filter(c => c.owner === owner); }
@@ -433,10 +433,11 @@ function renderCardLedgers() {
         <button class="btn-del" data-txdel="${t.id}">×</button></div>`;
         });
         const fixedNote = fixed > 0 ? ` <span class="cl-fixed">(고정비 ${won(fixed)} 포함)</span>` : "";
+        const payNote = (+c.payDay > 0) ? `이번 달 사용분은 다음 달 ${c.payDay}일 결제 예정` : "결제일 미설정";
         wrap.innerHTML = `<div class="cl-head">
         <div class="cl-title">💳 ${c.name} <span class="pill pill-muted">${ownerName(c.owner)}</span> <span class="pill pill-muted">결제일 ${c.payDay ? c.payDay + "일" : "즉시"} · ${acc ? acc.name : "계좌미지정"}</span></div>
-        <div class="cl-total" data-cardtot="${c.id}">${monthLabel(currentMonth)} 합계 ${won(total)}${fixedNote}</div>
-      </div>${rows}
+        <div class="cl-total" data-cardtot="${c.id}">${monthLabel(currentMonth)} 사용액 ${won(total)}${fixedNote}</div>
+      </div><div class="desc" style="margin:-4px 0 8px;font-size:11.5px;">🗓️ ${payNote}</div>${rows}
       <button class="btn-add" data-txadd="${c.id}" style="margin-top:8px;">＋ 사용내역 추가</button>`;
         box.appendChild(wrap);
     });
@@ -445,7 +446,7 @@ function cardLedgerAmt(t, tx) {
     tx.amt = parseNum(t.value); t.value = fmtNum(tx.amt);
     const fixed = cardFixedTotal(tx.cardId);
     const tot = txnsOfCard(tx.cardId).reduce((s, x) => s + num(x.amt), 0) + fixed;
-    const wrap = t.closest(".card-ledger"); if (wrap) { const el = wrap.querySelector(".cl-total"); const fixedNote = fixed > 0 ? ` <span class="cl-fixed">(고정비 ${won(fixed)} 포함)</span>` : ""; el.innerHTML = monthLabel(currentMonth) + " 합계 " + won(tot) + fixedNote; }
+    const wrap = t.closest(".card-ledger"); if (wrap) { const el = wrap.querySelector(".cl-total"); const fixedNote = fixed > 0 ? ` <span class="cl-fixed">(고정비 ${won(fixed)} 포함)</span>` : ""; el.innerHTML = monthLabel(currentMonth) + " 사용액 " + won(tot) + fixedNote; }
 }
 $("cardLedgers").addEventListener("input", e => {
     const t = e.target, txid = t.dataset.tx; if (!txid) return; const tx = cardTxns.find(x => x.id === txid);
@@ -524,11 +525,11 @@ function renderLoans() {
       <div class="loan-stats">
         <div class="cell"><div class="k">잔여 원금</div><div class="v">${eok(c.remain)}</div></div>
         <div class="cell"><div class="k">연 금리</div><div class="v">${l.repay === "custom" ? "직접입력" : l.rate + "%" + (l.rateType === "variable" ? "~" : "")}</div></div>
-        <div class="cell"><div class="k">${l.repay === "graduate" ? "초기 월상환" : l.repay === "custom" ? "첫 상환액" : "월 상환액"}</div><div class="v" style="color:var(--minus)">${eok(c.firstPay)}</div></div>
+        <div class="cell"><div class="k">${l.repay === "graduate" ? "초기 월상환" : l.repay === "custom" ? "첫 상환액" : l.repay === "iod" ? "월 상환액(후불)" : "월 상환액"}</div><div class="v" style="color:var(--minus)">${eok(c.firstPay)}</div></div>
         <div class="cell"><div class="k">총 이자</div><div class="v">${eok(c.totalInterest)}</div></div>
       </div>
       <div class="bar"><span style="width:${Math.round((1 - c.remain / num(l.principal)) * 100)}%"></span></div>
-      <div class="meta" style="font-size:11.5px;color:var(--sub);margin-top:8px;">원금 ${eok(l.principal)} · ${l.repay === "custom" ? `${c.months}회 직접입력` : `기간 ${Math.round(l.term / 12 * 10) / 10}년(${l.term}개월)`} · 첫 상환 ${firstDate} · 총 상환 ${eok(num(l.principal) + c.totalInterest)}</div>`;
+      <div class="meta" style="font-size:11.5px;color:var(--sub);margin-top:8px;">원금 ${eok(l.principal)} · ${l.repay === "custom" ? `${c.months}회 직접입력` : `기간 ${Math.round(l.term / 12 * 10) / 10}년(${l.term}개월)`} · 첫 상환 ${firstDate} · 총 상환 ${eok(num(l.principal) + c.totalInterest)}${l.repay === "iod" ? " · 이자후불(만기일괄)" : ""}</div>`;
         box.appendChild(div);
     });
     $("loanTotalPill").textContent = "총 부채 " + eok(totalDebtRemain());
@@ -543,8 +544,9 @@ function openSchedModal(id) {
     schedLoanId = id; const l = loans.find(x => x.id === id); if (!l) return;
     $("schedTitle").textContent = `📅 ${l.name} 상환 스케줄`;
     const c = loanCalc(l);
+    const payLabel = l.repay === "graduate" ? "(초기)" : l.repay === "custom" ? "(첫 회차)" : l.repay === "iod" ? "(이자후불·매월 0)" : "";
     $("schedSummary").innerHTML = `
-    <div class="box"><div class="k">월 상환액${l.repay === "graduate" ? "(초기)" : l.repay === "custom" ? "(첫 회차)" : ""}</div><div class="v" style="color:var(--minus)">${won(Math.round(c.firstPay))}</div></div>
+    <div class="box"><div class="k">월 상환액${payLabel}</div><div class="v" style="color:var(--minus)">${won(Math.round(c.firstPay))}</div></div>
     <div class="box"><div class="k">총 상환기간</div><div class="v">${c.months}회</div></div>
     <div class="box"><div class="k">총 이자</div><div class="v">${eok(c.totalInterest)}</div></div>
     <div class="box"><div class="k">총 상환액</div><div class="v">${eok(num(l.principal) + c.totalInterest)}</div></div>`;
@@ -585,7 +587,7 @@ function renderCustomRepays() {
 }
 function updateModalPreview() {
     const l = collectModalLoan(); const c = loanCalc(l);
-    $("previewPay").textContent = eok(c.firstPay) + (l.repay === "graduate" ? " (초기)" : l.repay === "custom" ? " (첫 회차)" : "");
+    $("previewPay").textContent = eok(c.firstPay) + (l.repay === "graduate" ? " (초기)" : l.repay === "custom" ? " (첫 회차)" : l.repay === "iod" ? " (이자후불·매월 0)" : "");
     $("previewInt").textContent = eok(c.totalInterest);
     if (l.repay === "custom") {
         $("customHint").style.display = "block";
@@ -770,6 +772,7 @@ $("addExpense").addEventListener("click", () => { const v = validMethodForOwner(
 /* ---------- 이벤트 빌드 (월 단위) ---------- */
 function ymd(d) { const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, "0"), day = String(d.getDate()).padStart(2, "0"); return `${y}-${m}-${day}`; }
 function nthDayOfMonth(y, m, day) { const last = new Date(y, m + 1, 0).getDate(); return new Date(y, m, Math.min(day, last)); }
+function prevMonthKey(y, mo) { let yy = y, mm = mo - 1; if (mm < 0) { mm = 11; yy--; } return `${yy}-${String(mm + 1).padStart(2, "0")}`; }
 function eventsForMonth(y, mo) {
     const key = `${y}-${String(mo + 1).padStart(2, "0")}`;
     const L = ledgers[key];
@@ -781,15 +784,28 @@ function eventsForMonth(y, mo) {
         L.extraIncomes.forEach(x => { if (x.freq === "monthly") { const d = nthDayOfMonth(y, mo, +x.day || 1); const acc = accounts.find(a => a.id === x.acc); ev.push({ date: ymd(d), label: x.name, sub: `${ownerName(x.owner)} 기타수입(매월) · ${acc ? acc.name : ""}`, amt: num(x.amt), type: "extra-income", owner: x.owner, cash: true }); } else if (x.date && x.date.slice(0, 7) === key) { const acc = accounts.find(a => a.id === x.acc); ev.push({ date: x.date, label: x.name, sub: `${ownerName(x.owner)} 기타수입 · ${acc ? acc.name : ""}`, amt: num(x.amt), type: "extra-income", owner: x.owner, cash: true }); } });
         L.expenses.filter(e => e.method === "acc").forEach(ex => { const acc = accounts.find(a => a.id === ex.ref); ev.push({ date: ymd(nthDayOfMonth(y, mo, +ex.day || 1)), label: ex.name, sub: `${ownerName(ex.owner)} 지출 · ${acc ? acc.name : "계좌"}`, amt: -num(ex.amt), type: "expense", owner: ex.owner, cash: true }); });
         L.extraExpenses.forEach(x => { if (x.freq === "monthly") { const acc = accounts.find(a => a.id === x.acc); ev.push({ date: ymd(nthDayOfMonth(y, mo, +x.day || 1)), label: x.name, sub: `${ownerName(x.owner)} 기타지출(매월) · ${acc ? acc.name : ""}`, amt: -num(x.amt), type: "extra-expense", owner: x.owner, cash: true }); } else if (x.date && x.date.slice(0, 7) === key) { const acc = accounts.find(a => a.id === x.acc); ev.push({ date: x.date, label: x.name, sub: `${ownerName(x.owner)} 기타지출 · ${acc ? acc.name : ""}`, amt: -num(x.amt), type: "extra-expense", owner: x.owner, cash: true }); } });
+        // [v12] 신용카드: '당월' 사용은 비현금 기록, '전월' 사용분을 이번 달 결제일에 실제 출금
+        const prevKey = prevMonthKey(y, mo);
+        const PL = ledgers[prevKey];
         cards.forEach(c => {
             const acc = accounts.find(a => a.id === c.acc);
-            const recur = L.expenses.filter(e => e.method === "card" && e.ref === c.id);
-            const items = [];
-            recur.forEach(ex => items.push({ label: ex.name, amt: num(ex.amt), owner: ex.owner, sub: "고정지출" }));
-            const monthTx = L.cardTxns.filter(t => t.cardId === c.id);
-            monthTx.forEach(t => { items.push({ label: t.item, amt: num(t.amt), owner: t.owner, sub: "카드사용" }); ev.push({ date: t.date, label: `${t.item}`, sub: `${ownerName(t.owner)} · ${c.name} 사용(비현금)`, amt: -num(t.amt), type: "carduse", owner: t.owner, cash: false, cardName: c.name }); });
-            const total = items.reduce((s, x) => s + x.amt, 0);
-            if (total > 0) { const payDay = c.kind === "신용" && +c.payDay > 0 ? +c.payDay : (recur[0] ? +recur[0].day || 1 : 1); ev.push({ date: ymd(nthDayOfMonth(y, mo, payDay)), label: `${c.name} 결제`, sub: `${acc ? acc.name : "계좌"}에서 합산 출금 · ${items.length}건`, amt: -total, type: "cardpay", owner: c.owner, cash: true, items: items }); }
+            // 당월 카드 사용내역 → 비현금(지출구성엔 반영, 통장은 아직 안 빠짐)
+            L.cardTxns.filter(t => t.cardId === c.id).forEach(t => { ev.push({ date: t.date, label: `${t.item}`, sub: `${ownerName(t.owner)} · ${c.name} 사용(비현금)`, amt: -num(t.amt), type: "carduse", owner: t.owner, cash: false, cardName: c.name }); });
+            if (c.kind === "체크") {
+                // 체크카드: 당월 사용분 당월 출금
+                const items = [];
+                L.expenses.filter(e => e.method === "card" && e.ref === c.id).forEach(ex => items.push({ label: ex.name, amt: num(ex.amt), owner: ex.owner, sub: "고정지출" }));
+                L.cardTxns.filter(t => t.cardId === c.id).forEach(t => items.push({ label: t.item, amt: num(t.amt), owner: t.owner, sub: "카드사용" }));
+                const total = items.reduce((s, x) => s + x.amt, 0);
+                if (total > 0) { const payDay = +c.payDay > 0 ? +c.payDay : 1; ev.push({ date: ymd(nthDayOfMonth(y, mo, payDay)), label: `${c.name} 결제`, sub: `${acc ? acc.name : "계좌"}에서 당월 사용분 출금 · ${items.length}건`, amt: -total, type: "cardpay", owner: c.owner, cash: true, items: items }); }
+            } else if (PL && +c.payDay > 0) {
+                // 신용카드: 전월 사용분을 이번 달 결제일에 출금
+                const items = [];
+                PL.expenses.filter(e => e.method === "card" && e.ref === c.id).forEach(ex => items.push({ label: ex.name, amt: num(ex.amt), owner: ex.owner, sub: "고정지출(전월)" }));
+                PL.cardTxns.filter(t => t.cardId === c.id).forEach(t => items.push({ label: t.item, amt: num(t.amt), owner: t.owner, sub: "카드사용(전월)" }));
+                const total = items.reduce((s, x) => s + x.amt, 0);
+                if (total > 0) { ev.push({ date: ymd(nthDayOfMonth(y, mo, +c.payDay)), label: `${c.name} 결제`, sub: `${acc ? acc.name : "계좌"}에서 전월(${prevKey}) 사용분 출금 · ${items.length}건`, amt: -total, type: "cardpay", owner: c.owner, cash: true, items: items }); }
+            }
         });
     }
     return ev.sort((a, b) => a.date.localeCompare(b.date));
@@ -902,10 +918,18 @@ function computeAccountDeltas(monthKey) {
     (L.extraIncomes || []).forEach(x => { if (x.freq === "monthly" || inMonth(x.date)) add(x.acc, num(x.amt)); });
     (L.expenses || []).filter(e => e.method === "acc").forEach(e => add(e.ref, -num(e.amt)));
     (L.extraExpenses || []).forEach(x => { if (x.freq === "monthly" || inMonth(x.date)) add(x.acc, -num(x.amt)); });
+    /* [v12] 카드 출금: 체크=당월 사용분, 신용=전월 사용분이 이번 달 결제일에 출금 */
+    const _pk = (function () { const [yy, mm] = monthKey.split("-").map(Number); let py = yy, pm = mm - 1; if (pm < 1) { pm = 12; py--; } return `${py}-${String(pm).padStart(2, "0")}`; })();
+    const _PL = ledgers[_pk];
     cards.forEach(c => {
-        const recur = (L.expenses || []).filter(e => e.method === "card" && e.ref === c.id).reduce((s, e) => s + num(e.amt), 0);
-        const txn = (L.cardTxns || []).filter(t => t.cardId === c.id).reduce((s, t) => s + num(t.amt), 0);
-        const total = recur + txn;
+        let total = 0;
+        if (c.kind === "체크") {
+            total = (L.expenses || []).filter(e => e.method === "card" && e.ref === c.id).reduce((s, e) => s + num(e.amt), 0)
+                + (L.cardTxns || []).filter(t => t.cardId === c.id).reduce((s, t) => s + num(t.amt), 0);
+        } else if (_PL && +c.payDay > 0) {
+            total = (_PL.expenses || []).filter(e => e.method === "card" && e.ref === c.id).reduce((s, e) => s + num(e.amt), 0)
+                + (_PL.cardTxns || []).filter(t => t.cardId === c.id).reduce((s, t) => s + num(t.amt), 0);   // 전월 사용분
+        }
         if (total > 0) add(validAccForOwner(c.acc, c.owner), -total);
     });
     loans.forEach(l => { const pay = loanPayInMonth(l, monthKey); if (pay > 0) add(validAccForOwner(l.acc, l.owner), -pay); });
@@ -1352,7 +1376,7 @@ function drawGrowthCharts() {
         options: { plugins: { legend: { position: "bottom" }, tooltip: { callbacks: { label: c => c.dataset.label + ": " + eok(c.parsed.y) } } }, scales: { y: { ticks: { callback: v => eok(v) }, grid: { color: gridc() } }, x: { grid: { display: false } } }, maintainAspectRatio: false }
     });
     const note = $("nwTrendNote");
-    if (note) { const closedCount = hist.length - 1; note.innerHTML = closedCount < 1 ? `💡 아직 마감된 달이 없어 <b>현재</b> 시점만 표시돼요. 수입·지출 탭에서 <b>🎉 월 마감 완료</b>를 하면 매달 순자산이 이 그래프에 차곡차곡 쌓여요.` : `📅 마감된 <b>${closedCount}</b>개 달 + 현재 시점 기준 추이예요.`; }
+    if (note) { const closedCount = hist.length - 1; note.innerHTML = closedCount < 1 ? `💡 아직 마감된 달이 없어 <b>현재</b> 시점만 표시돼요. 가계부 탭에서 <b>🎉 월 마감 완료</b>를 하면 매달 순자산이 이 그래프에 차곡차곡 쌓여요.` : `📅 마감된 <b>${closedCount}</b>개 달 + 현재 시점 기준 추이예요.`; }
 }
 function openGoalModal(id) {
     goalEditId = id || null;
@@ -1393,8 +1417,18 @@ document.querySelectorAll(".tab-btn").forEach(btn => btn.addEventListener("click
     document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
     document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
     btn.classList.add("active"); $("tab-" + btn.dataset.tab).classList.add("active");
+    if (btn.dataset.tab === "assets") { const sub = document.querySelector(".subtab-btn.active") || document.querySelector(".subtab-btn"); if (sub) activateSub(sub.dataset.sub); }
     setTimeout(() => { if (btn.dataset.tab === "home") drawHome(); if (btn.dataset.tab === "flow") drawFlowCharts(); if (btn.dataset.tab === "calendar") renderCalendar(); if (btn.dataset.tab === "plan") renderPlan(); if (btn.dataset.tab === "growth") drawGrowthCharts(); }, 30);
+    if (window.scrollTo) window.scrollTo({ top: 0, behavior: "smooth" });
 }));
+/* [v12] 자산·부채 하위탭 */
+function activateSub(sub) {
+    document.querySelectorAll(".subtab-btn").forEach(b => b.classList.toggle("active", b.dataset.sub === sub));
+    document.querySelectorAll(".subtab-panel").forEach(p => p.classList.remove("active"));
+    const panel = $("tab-" + sub); if (panel) panel.classList.add("active");
+    setTimeout(() => { if (sub === "accounts") { renderAccounts(); renderCards(); } if (sub === "loans") renderLoans(); }, 20);
+}
+document.querySelectorAll(".subtab-btn").forEach(b => b.addEventListener("click", () => activateSub(b.dataset.sub)));
 /* ---------- 다크모드 ---------- */
 $("themeBtn").addEventListener("click", () => {
     const html = document.documentElement, dark = html.getAttribute("data-theme") === "dark";
