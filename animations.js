@@ -4,9 +4,8 @@
    · GSAP 미로드 시 자동 우아하게 무력화(no-op), 앱 동작에는 영향 없음
    · prefers-reduced-motion 존중 (멀미 민감 사용자 자동 비활성)
    · 밝음/어둠 모드 · 데스크톱/모바일 모두 대응
-   [연출] 1) 히어로/KPI 숫자 카운트업  2) 탭·하위탭 전환 스태거 등장
-          3) 캘린더 셀·게이지 팝인  4) 오로라 배경 드리프트
-          5) 모달 등장  6) 탭/버튼 터치 마이크로 인터랙션
+   [FIX] 동적 삽입 스크립트라 window 'load'가 이미 끝난 뒤 로드됨 →
+         readyState 기반 즉시 실행으로 변경 (첫 연출·카운트업 정상화)
 ========================================================= */
 (function () {
     "use strict";
@@ -146,11 +145,26 @@
         G.to(".ab3", { x: 34, y: -30, duration: 14, yoyo: true, repeat: -1, ease: "sine.inOut" });
     })();
 
-    /* ---------- 7) 최초 진입 연출 ---------- */
-    window.addEventListener("load", function () {
-        G.from(".topbar", { opacity: 0, y: -16, duration: .7, ease: "power2.out" });
-        G.from(".hero", { opacity: 0, y: 18, duration: .7, ease: "power3.out", delay: .05 });
-        G.from("#mainTabs", { opacity: 0, y: 12, duration: .6, ease: "power2.out", delay: .12 });
-        requestAnimationFrame(function () { revealPanel("tab-home"); countUpHome(); });
-    });
+    /* ---------- 7) 최초 진입 연출 ----------
+       [FIX] 이 스크립트는 로더가 동적으로 나중에 삽입하므로 window 'load'가
+       이미 발생했을 수 있음 → readyState로 판단해 즉시(또는 DOM 준비 시) 실행 */
+    var introDone = false;
+    function runIntro() {
+        if (introDone) return; introDone = true;
+        try {
+            G.from(".topbar", { opacity: 0, y: -16, duration: .7, ease: "power2.out" });
+            G.from(".hero", { opacity: 0, y: 18, duration: .7, ease: "power3.out", delay: .05 });
+            G.from("#mainTabs", { opacity: 0, y: 12, duration: .6, ease: "power2.out", delay: .12 });
+        } catch (e) { }
+        /* 값이 채워질 시간을 준 뒤 홈 패널 등장 + 카운트업 */
+        setTimeout(function () { revealPanel("tab-home"); countUpHome(); }, 120);
+    }
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", runIntro);
+    } else {
+        /* 이미 DOM 준비 완료(대부분의 경우) → 다음 프레임에 즉시 실행 */
+        (window.requestAnimationFrame || function (f) { setTimeout(f, 16); })(runIntro);
+    }
+    /* 안전망: 혹시 위 경로가 모두 놓쳐도 한 번은 실행되도록 */
+    setTimeout(runIntro, 400);
 })();
