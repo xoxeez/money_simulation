@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="ko" data-theme="light">
-
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
@@ -15,7 +14,6 @@
     <link rel="apple-touch-icon" href="apple-touch-icon.png" />
     <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png" />
 </head>
-
 <body>
     <div class="wrap">
         <div class="topbar">
@@ -23,7 +21,7 @@
                 <div class="logo">🌊</div>
                 <div>
                     <h1>소학행을 위한 자산 플래너</h1>
-                    <p class="sub">자산 · 계좌/카드 · 대출 · 월별 가계부 · 상환 캘린더 · 성장/목표</p>
+                    <p class="sub">자산 · 계좌/카드 · 대출 · 월별 가계부 · 캘린더 · 성장/목표</p>
                 </div>
             </div>
             <div class="top-actions">
@@ -61,14 +59,12 @@
                 </div>
             </div>
         </div>
-        <div class="tabs">
-            <button class="tab-btn active" data-tab="home">홈</button>
+        <div class="tabs" id="mainTabs">
+            <button class="tab-btn active" data-tab="home">🏠 홈</button>
             <button class="tab-btn tab-plan" data-tab="plan" style="display:none;">🧭 Plan</button>
-            <button class="tab-btn" data-tab="accounts">계좌 · 카드</button>
-            <button class="tab-btn" data-tab="loans">대출 · 차용</button>
-            <button class="tab-btn" data-tab="flow">수입 · 지출</button>
-            <button class="tab-btn" data-tab="calendar">상환 캘린더</button>
-            <button class="tab-btn" data-tab="house">주택 자금</button>
+            <button class="tab-btn" data-tab="flow">📒 가계부</button>
+            <button class="tab-btn" data-tab="calendar">📅 캘린더</button>
+            <button class="tab-btn" data-tab="assets">💼 자산 · 부채</button>
             <button class="tab-btn" data-tab="growth">📈 성장 · 목표</button>
         </div>
         <!-- ============ 홈 ============ -->
@@ -153,60 +149,6 @@
                     연동됩니다. 앞으로의 통장 예상 잔액은 이 기준일 잔고에서 출발해 수입/지출/상환/카드결제를 반영해 계산돼요.</p>
             </div>
         </div>
-        <!-- ============ 계좌 · 카드 ============ -->
-        <div class="tab-panel" id="tab-accounts">
-            <div class="card">
-                <div class="section-label">STEP 1</div>
-                <h2>호칭</h2>
-                <div class="grid2">
-                    <label class="field"><span class="lbl"><span class="dot dot-a"></span>본인 호칭</span><input type="text"
-                            id="nameA" value="소희" /></label>
-                    <label class="field"><span class="lbl"><span class="dot dot-b"></span>상대 호칭</span><input type="text"
-                            id="nameB" value="남자친구" /></label>
-                </div>
-            </div>
-            <div class="grid2">
-                <div class="card">
-                    <div class="owner-head">
-                        <div class="name"><span class="dot dot-a"></span><span class="nA">소희</span> 계좌</div>
-                        <div class="sum" style="color:var(--a)" id="accSumA">-</div>
-                    </div>
-                    <p class="desc">예금·주식·청약·현금 등 잔액이 자산으로 집계됩니다. (주식·연금은 「수입·지출」 탭에서 원금·손익 관리)</p>
-                    <div id="accListA"></div>
-                    <button class="btn-add" data-add-acc="A">＋ 계좌 추가</button>
-                </div>
-                <div class="card">
-                    <div class="owner-head">
-                        <div class="name"><span class="dot dot-b"></span><span class="nB">남자친구</span> 계좌</div>
-                        <div class="sum" style="color:var(--b)" id="accSumB">-</div>
-                    </div>
-                    <p class="desc">예금·주식·청약·현금 등 잔액이 자산으로 집계됩니다. (주식·연금은 「수입·지출」 탭에서 원금·손익 관리)</p>
-                    <div id="accListB"></div>
-                    <button class="btn-add" data-add-acc="B">＋ 계좌 추가</button>
-                </div>
-            </div>
-            <div class="card">
-                <h2>💳 카드 & 계좌 매핑</h2>
-                <p class="desc">각 카드가 어느 <b>결제 계좌</b>에서 빠져나가는지 연결하세요. 신용카드는 <b>카드별 결제일</b>에 연결 계좌에서 합산 출금됩니다. (체크카드는
-                    결제일 0으로 두면 즉시 출금) · <b>카드 사용내역은 「수입·지출」 탭에서 관리합니다.</b></p>
-                <div class="cardhead" id="cardHead"></div>
-                <div id="cardList"></div>
-                <button class="btn-add" id="addCard">＋ 카드 추가</button>
-            </div>
-        </div>
-        <!-- ============ 대출 · 차용 ============ -->
-        <div class="tab-panel" id="tab-loans">
-            <div class="row-between" style="margin-bottom:12px;">
-                <h2 style="font-size:17px;margin:0;">🏦 대출 · 차용</h2>
-                <div style="display:flex;gap:8px;align-items:center;">
-                    <span class="pill pill-bank" id="loanTotalPill">총 부채 -</span>
-                    <button class="btn primary sm" id="openAddLoan">＋ 대출 등록</button>
-                </div>
-            </div>
-            <p class="desc" style="margin:-4px 0 14px;color:var(--sub);font-size:12.5px;">금리변동·거치기간·중도상환·원리금체증식을 반영해 월
-                상환액과 총이자를 계산합니다. <b>상세보기</b>로 날짜별 원금·이자 상환 예정을 확인하세요.</p>
-            <div id="loanList"></div>
-        </div>
         <!-- ============ 수입 · 지출 (월별) ============ -->
         <div class="tab-panel" id="tab-flow">
             <!-- ===== 월별 가계부 관리(수입·지출 탭 전용) ===== -->
@@ -269,7 +211,7 @@
             <div class="card">
                 <div class="section-label">STEP 5</div>
                 <h2>💳 <span id="cardLedgerMonth">이번 달</span> 카드 세부내역 (가계부)</h2>
-                <p class="desc">신용카드 사용을 <b>사용일·카테고리 기준</b>으로 기록하면, 카드별 <b>결제일</b>에 그 달 합계가 자동으로 출금됩니다. <b>고정지출로 걸린 금액은 별도 입력 없이도 상단 합계에 자동 포함</b>돼요.</p>
+                <p class="desc"><b>당월에 사용한 카드 사용액</b>을 사용일·카테고리 기준으로 기록하세요. 신용카드는 <b>이번 달 사용분이 다음 달 결제일</b>에 연결 계좌에서 출금되고, 이번 달 통장에서는 <b>지난달 사용분</b>이 결제됩니다. <b>고정지출로 걸린 금액은 상단 합계에 자동 포함</b>돼요.</p>
                 <div id="cardLedgers"></div>
             </div>
             <!-- [v11] 증권·투자 계좌 관리 -->
@@ -300,7 +242,7 @@
                     <h2 style="margin:0;">🏦 <span id="mcMonthLabel">이번 달</span> 통장별 예상 잔고</h2>
                     <span class="pill pill-muted" id="mcStatus">진행 중</span>
                 </div>
-                <p class="desc">현재(기준) 잔고에서 이 달의 <b>수입(＋)·지출(－)</b>을 반영하고, <b>카드는 연결된 결제 계좌</b>에서, <b>대출 상환은 지정한 출금 계좌</b>에서 빠져나간 결과예요. 입력을 바꾸면 아래 잔고가 실시간으로 다시 계산됩니다.</p>
+                <p class="desc">현재(기준) 잔고에서 이 달의 <b>수입(＋)·지출(－)</b>을 반영하고, <b>카드는 연결된 결제 계좌</b>에서(신용카드는 지난달 사용분), <b>대출 상환은 지정한 출금 계좌</b>에서 빠져나간 결과예요. 입력을 바꾸면 아래 잔고가 실시간으로 다시 계산됩니다.</p>
                 <div id="mcBalanceList"></div>
                 <div class="mc-actions">
                     <button id="closeMonthBtn">🎉 월 마감 완료!</button>
@@ -309,7 +251,7 @@
                 <div class="mc-hint" id="mcHint"></div>
             </div>
         </div>
-        <!-- ============ 상환 캘린더 ============ -->
+        <!-- ============ 캘린더 (독립 탭) ============ -->
         <div class="tab-panel" id="tab-calendar">
             <div class="card">
                 <div class="cal-head">
@@ -340,92 +282,153 @@
                 <div id="upcomingList"></div>
             </div>
         </div>
-        <!-- ============ 주택 자금 ============ -->
-        <div class="tab-panel" id="tab-house">
-            <div class="card">
-                <div class="section-label">STEP 1</div>
-                <h2>주택별 담당자 · 예산 · 현재 자산가치</h2>
-                <p class="desc">각 주택의 담당자와 보유 예산을 지정하고, <b>현재 시세(자산가치)</b>를 입력하면 상단 총자산·순자산에 반영됩니다.</p>
-                <div class="grid2">
-                    <div>
-                        <label class="field"><span class="lbl">🏠 주택 A 이름</span><input type="text" id="houseA"
-                                value="" placeholder="예: 첫 번째 집" /></label>
-                        <div class="grid2">
-                            <label class="field"><span class="lbl">담당자</span><select id="houseAOwner">
-                                    <option value="A">본인</option>
-                                    <option value="B">상대</option>
-                                    <option value="J">공동</option>
-                                </select></label>
-                            <label class="field"><span class="lbl">보유 예산 (원)</span><input type="text"
-                                    inputmode="numeric" class="comma" id="budgetA" value="" /></label>
-                        </div>
-                        <label class="field"><span class="lbl">🏡 현재 주택 자산가치 (원)</span><input type="text"
-                                inputmode="numeric" class="comma" id="houseAValue" value="" /></label>
-                    </div>
-                    <div>
-                        <label class="field"><span class="lbl">🏠 주택 B 이름</span><input type="text" id="houseB"
-                                value="" placeholder="예: 두 번째 집" /></label>
-                        <div class="grid2">
-                            <label class="field"><span class="lbl">담당자</span><select id="houseBOwner">
-                                    <option value="A">본인</option>
-                                    <option value="B" selected>상대</option>
-                                    <option value="J">공동</option>
-                                </select></label>
-                            <label class="field"><span class="lbl">보유 예산 (원)</span><input type="text"
-                                    inputmode="numeric" class="comma" id="budgetB" value="" /></label>
-                        </div>
-                        <label class="field"><span class="lbl">🏡 현재 주택 자산가치 (원)</span><input type="text"
-                                inputmode="numeric" class="comma" id="houseBValue" value="" /></label>
+        <!-- ============ 자산 · 부채 (그룹) ============ -->
+        <div class="tab-panel" id="tab-assets">
+            <div class="subtabs" id="assetSubtabs">
+                <button class="subtab-btn active" data-sub="accounts">🏦 계좌 · 카드</button>
+                <button class="subtab-btn" data-sub="loans">🏦 대출 · 차용</button>
+                <button class="subtab-btn" data-sub="house">🏠 주택 자금</button>
+            </div>
+            <!-- ============ 계좌 · 카드 ============ -->
+            <div class="subtab-panel active" id="tab-accounts">
+                <div class="card">
+                    <div class="section-label">STEP 1</div>
+                    <h2>호칭</h2>
+                    <div class="grid2">
+                        <label class="field"><span class="lbl"><span class="dot dot-a"></span>본인 호칭</span><input type="text"
+                                id="nameA" value="소희" /></label>
+                        <label class="field"><span class="lbl"><span class="dot dot-b"></span>상대 호칭</span><input type="text"
+                                id="nameB" value="남자친구" /></label>
                     </div>
                 </div>
-                <div class="note-strip" id="houseAssetNote"></div>
-            </div>
-            <div class="card">
-                <div class="section-label">STEP 2</div>
-                <h2>주택별 자금 흐름</h2>
-                <p class="desc"><b style="color:var(--minus)">지불은 음수</b>, <b style="color:var(--plus)">유입은 양수</b>. 월급/저축
-                    유입도 항목으로 넣으면 시점별 잔여예산에 반영됩니다.</p>
                 <div class="grid2">
-                    <div class="card" style="background:var(--a-soft);border:none;">
-                        <h2 style="font-size:14.5px;"><span class="dot dot-a"></span><span id="hLabelA">주택 A</span></h2>
-                        <div id="cfListA" style="margin-top:12px;"></div>
-                        <button class="btn-add" id="addCfA">＋ 항목 추가</button>
-                    </div>
-                    <div class="card" style="background:var(--b-soft);border:none;">
-                        <h2 style="font-size:14.5px;"><span class="dot dot-b"></span><span id="hLabelB">주택 B</span></h2>
-                        <div id="cfListB" style="margin-top:12px;"></div>
-                        <button class="btn-add" id="addCfB">＋ 항목 추가</button>
-                    </div>
-                </div>
-            </div>
-            <button class="btn-primary" id="calcHouse">💡 주택 자금 시뮬레이션</button>
-            <div id="houseResults" style="display:none;">
-                <div class="grid2" style="margin-top:20px;">
                     <div class="card">
-                        <h2>📌 <span class="nA">소희</span> · <span id="rHouseA">주택 A</span></h2>
-                        <div class="kpi" style="background:var(--a-soft);border:none;margin-bottom:10px;">
-                            <div class="k">최종 잔여 예산</div>
-                            <div class="v" id="rBalA">-</div>
-                            <div class="s" id="rBalADesc">-</div>
+                        <div class="owner-head">
+                            <div class="name"><span class="dot dot-a"></span><span class="nA">소희</span> 계좌</div>
+                            <div class="sum" style="color:var(--a)" id="accSumA">-</div>
                         </div>
-                        <table style="width:100%;border-collapse:collapse;font-size:12.5px;" id="ledgerA"></table>
+                        <p class="desc">예금·주식·청약·현금 등 잔액이 자산으로 집계됩니다. (주식·연금은 「가계부」 탭에서 원금·손익 관리)</p>
+                        <div id="accListA"></div>
+                        <button class="btn-add" data-add-acc="A">＋ 계좌 추가</button>
                     </div>
                     <div class="card">
-                        <h2>📌 <span class="nB">남자친구</span> · <span id="rHouseB">주택 B</span></h2>
-                        <div class="kpi" style="background:var(--b-soft);border:none;margin-bottom:10px;">
-                            <div class="k">최종 잔여 예산</div>
-                            <div class="v" id="rBalB">-</div>
-                            <div class="s" id="rBalBDesc">-</div>
+                        <div class="owner-head">
+                            <div class="name"><span class="dot dot-b"></span><span class="nB">남자친구</span> 계좌</div>
+                            <div class="sum" style="color:var(--b)" id="accSumB">-</div>
                         </div>
-                        <table style="width:100%;border-collapse:collapse;font-size:12.5px;" id="ledgerB"></table>
+                        <p class="desc">예금·주식·청약·현금 등 잔액이 자산으로 집계됩니다. (주식·연금은 「가계부」 탭에서 원금·손익 관리)</p>
+                        <div id="accListB"></div>
+                        <button class="btn-add" data-add-acc="B">＋ 계좌 추가</button>
                     </div>
                 </div>
                 <div class="card">
-                    <h2>📅 날짜별 잔여 예산 흐름</h2>
-                    <div class="chart-box"><canvas id="houseFlowChart"></canvas></div>
+                    <h2>💳 카드 & 계좌 매핑</h2>
+                    <p class="desc">각 카드가 어느 <b>결제 계좌</b>에서 빠져나가는지 연결하세요. 신용카드는 <b>카드별 결제일</b>에 연결 계좌에서 <b>지난달 사용분</b>이 합산 출금됩니다. (체크카드는 결제일 0으로 두면 당월 즉시 출금) · <b>카드 사용내역은 「가계부」 탭에서 관리합니다.</b></p>
+                    <div class="cardhead" id="cardHead"></div>
+                    <div id="cardList"></div>
+                    <button class="btn-add" id="addCard">＋ 카드 추가</button>
                 </div>
             </div>
-        </div>
+            <!-- ============ 대출 · 차용 ============ -->
+            <div class="subtab-panel" id="tab-loans">
+                <div class="row-between" style="margin-bottom:12px;">
+                    <h2 style="font-size:17px;margin:0;">🏦 대출 · 차용</h2>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <span class="pill pill-bank" id="loanTotalPill">총 부채 -</span>
+                        <button class="btn primary sm" id="openAddLoan">＋ 대출 등록</button>
+                    </div>
+                </div>
+                <p class="desc" style="margin:-4px 0 14px;color:var(--sub);font-size:12.5px;">금리변동·거치기간·중도상환·원리금체증식을 반영해 월
+                    상환액과 총이자를 계산합니다. <b>상세보기</b>로 날짜별 원금·이자 상환 예정을 확인하세요.</p>
+                <div id="loanList"></div>
+            </div>
+            <!-- ============ 주택 자금 ============ -->
+            <div class="subtab-panel" id="tab-house">
+                <div class="card">
+                    <div class="section-label">STEP 1</div>
+                    <h2>주택별 담당자 · 예산 · 현재 자산가치</h2>
+                    <p class="desc">각 주택의 담당자와 보유 예산을 지정하고, <b>현재 시세(자산가치)</b>를 입력하면 상단 총자산·순자산에 반영됩니다.</p>
+                    <div class="grid2">
+                        <div>
+                            <label class="field"><span class="lbl">🏠 주택 A 이름</span><input type="text" id="houseA"
+                                    value="" placeholder="예: 첫 번째 집" /></label>
+                            <div class="grid2">
+                                <label class="field"><span class="lbl">담당자</span><select id="houseAOwner">
+                                        <option value="A">본인</option>
+                                        <option value="B">상대</option>
+                                        <option value="J">공동</option>
+                                    </select></label>
+                                <label class="field"><span class="lbl">보유 예산 (원)</span><input type="text"
+                                        inputmode="numeric" class="comma" id="budgetA" value="" /></label>
+                            </div>
+                            <label class="field"><span class="lbl">🏡 현재 주택 자산가치 (원)</span><input type="text"
+                                    inputmode="numeric" class="comma" id="houseAValue" value="" /></label>
+                        </div>
+                        <div>
+                            <label class="field"><span class="lbl">🏠 주택 B 이름</span><input type="text" id="houseB"
+                                    value="" placeholder="예: 두 번째 집" /></label>
+                            <div class="grid2">
+                                <label class="field"><span class="lbl">담당자</span><select id="houseBOwner">
+                                        <option value="A">본인</option>
+                                        <option value="B" selected>상대</option>
+                                        <option value="J">공동</option>
+                                    </select></label>
+                                <label class="field"><span class="lbl">보유 예산 (원)</span><input type="text"
+                                        inputmode="numeric" class="comma" id="budgetB" value="" /></label>
+                            </div>
+                            <label class="field"><span class="lbl">🏡 현재 주택 자산가치 (원)</span><input type="text"
+                                    inputmode="numeric" class="comma" id="houseBValue" value="" /></label>
+                        </div>
+                    </div>
+                    <div class="note-strip" id="houseAssetNote"></div>
+                </div>
+                <div class="card">
+                    <div class="section-label">STEP 2</div>
+                    <h2>주택별 자금 흐름</h2>
+                    <p class="desc"><b style="color:var(--minus)">지불은 음수</b>, <b style="color:var(--plus)">유입은 양수</b>. 월급/저축
+                        유입도 항목으로 넣으면 시점별 잔여예산에 반영됩니다.</p>
+                    <div class="grid2">
+                        <div class="card" style="background:var(--a-soft);border:none;">
+                            <h2 style="font-size:14.5px;"><span class="dot dot-a"></span><span id="hLabelA">주택 A</span></h2>
+                            <div id="cfListA" style="margin-top:12px;"></div>
+                            <button class="btn-add" id="addCfA">＋ 항목 추가</button>
+                        </div>
+                        <div class="card" style="background:var(--b-soft);border:none;">
+                            <h2 style="font-size:14.5px;"><span class="dot dot-b"></span><span id="hLabelB">주택 B</span></h2>
+                            <div id="cfListB" style="margin-top:12px;"></div>
+                            <button class="btn-add" id="addCfB">＋ 항목 추가</button>
+                        </div>
+                    </div>
+                </div>
+                <button class="btn-primary" id="calcHouse">💡 주택 자금 시뮬레이션</button>
+                <div id="houseResults" style="display:none;">
+                    <div class="grid2" style="margin-top:20px;">
+                        <div class="card">
+                            <h2>📌 <span class="nA">소희</span> · <span id="rHouseA">주택 A</span></h2>
+                            <div class="kpi" style="background:var(--a-soft);border:none;margin-bottom:10px;">
+                                <div class="k">최종 잔여 예산</div>
+                                <div class="v" id="rBalA">-</div>
+                                <div class="s" id="rBalADesc">-</div>
+                            </div>
+                            <table style="width:100%;border-collapse:collapse;font-size:12.5px;" id="ledgerA"></table>
+                        </div>
+                        <div class="card">
+                            <h2>📌 <span class="nB">남자친구</span> · <span id="rHouseB">주택 B</span></h2>
+                            <div class="kpi" style="background:var(--b-soft);border:none;margin-bottom:10px;">
+                                <div class="k">최종 잔여 예산</div>
+                                <div class="v" id="rBalB">-</div>
+                                <div class="s" id="rBalBDesc">-</div>
+                            </div>
+                            <table style="width:100%;border-collapse:collapse;font-size:12.5px;" id="ledgerB"></table>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <h2>📅 날짜별 잔여 예산 흐름</h2>
+                        <div class="chart-box"><canvas id="houseFlowChart"></canvas></div>
+                    </div>
+                </div>
+            </div>
+        </div><!-- /자산·부채 그룹 끝 -->
         <!-- ============ 성장 · 목표 ============ -->
         <div class="tab-panel" id="tab-growth">
             <div class="card">
@@ -456,7 +459,7 @@
                 <div class="chart-box"><canvas id="adTrendChart"></canvas></div>
             </div>
         </div>
-        <footer>참고용 자금 계획 도구이며 법률·세무 효력은 없습니다. 큰 거래는 전문가 상담을 권장합니다. · Renewal v11</footer>
+        <footer>참고용 자금 계획 도구이며 법률·세무 효력은 없습니다. 큰 거래는 전문가 상담을 권장합니다. · Renewal v12</footer>
     </div>
     <!-- 대출 등록/수정 모달 -->
     <div class="modal-bg" id="loanModal">
@@ -485,7 +488,8 @@
                 <label class="field"><span class="lbl">상환방식</span><select id="lRepay">
                         <option value="eq">원리금균등</option>
                         <option value="pr">원금균등</option>
-                        <option value="io">만기일시(이자만)</option>
+                        <option value="io">만기일시(이자 매월납부)</option>
+                        <option value="iod">만기일시(이자 후불 · 만기일괄)</option>
                         <option value="graduate">원리금체증식(자동)</option>
                         <option value="custom">기타(직접 입력)</option>
                     </select></label>
@@ -637,5 +641,4 @@
         });
     </script>
 </body>
-
 </html>
