@@ -1,0 +1,168 @@
+/* =========================================================
+   소학행을 위한 자산 플래너 v12 — glass.css  [글래스모피즘 레이어]
+   · styles.css 를 수정하지 않는 오버라이드 전용 파일
+   · 뒤의 오로라 배경이 비쳐 보이는 반투명 유리 효과
+   · 밝음/어둠 모드 모두 대응 · 데스크톱/모바일 대응
+   · backdrop-filter 미지원 브라우저는 자동으로 기존 불투명 카드로 폴백
+   [적용 대상] 히어로 · 카드 · KPI · 탭바 · 하위탭 · 모달 · 게이지 · 상단 버튼
+   [끄기] <body> 또는 <html>에 class="no-glass" 추가하면 전체 비활성
+========================================================= */
+
+/* ---------- 글래스 토큰 (모드별) ---------- */
+:root {
+    --glass-bg: rgba(255, 255, 255, 0.55);
+    --glass-bg-strong: rgba(255, 255, 255, 0.68);
+    --glass-border: rgba(255, 255, 255, 0.65);
+    --glass-shadow: 0 8px 32px rgba(50, 90, 140, 0.14);
+    --glass-blur: 16px;
+    --glass-hi: rgba(255, 255, 255, 0.55);
+    /* 상단 하이라이트 */
+}
+
+html[data-theme="dark"] {
+    --glass-bg: rgba(27, 39, 49, 0.48);
+    --glass-bg-strong: rgba(27, 39, 49, 0.62);
+    --glass-border: rgba(255, 255, 255, 0.12);
+    --glass-shadow: 0 10px 34px rgba(0, 0, 0, 0.42);
+    --glass-blur: 18px;
+    --glass-hi: rgba(255, 255, 255, 0.10);
+}
+
+/* backdrop-filter 지원 브라우저에서만 유리 효과 적용 (미지원 시 기존 유지) */
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+
+    body:not(.no-glass) .hero,
+    body:not(.no-glass) .card,
+    body:not(.no-glass) .kpi,
+    body:not(.no-glass) .modal,
+    body:not(.no-glass) .gauge,
+    body:not(.no-glass) .tabs,
+    body:not(.no-glass) .fb-bar,
+    body:not(.no-glass) .ledger-manager {
+        background: var(--glass-bg) !important;
+        -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+        backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+        border: 1px solid var(--glass-border) !important;
+        box-shadow: var(--glass-shadow) !important;
+        position: relative;
+    }
+
+    /* 상단 은은한 광택 라인 (유리 질감) */
+    body:not(.no-glass) .hero::before,
+    body:not(.no-glass) .card::before,
+    body:not(.no-glass) .modal::before {
+        content: "";
+        position: absolute;
+        inset: 0 0 auto 0;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, var(--glass-hi), transparent);
+        border-radius: inherit;
+        pointer-events: none;
+    }
+
+    /* 히어로는 살짝 더 진하게 (가독성) + 컬러 틴트 유지 */
+    body:not(.no-glass) .hero {
+        background:
+            linear-gradient(180deg, rgba(63, 127, 209, 0.14), transparent 70%),
+            var(--glass-bg-strong) !important;
+    }
+
+    /* KPI/게이지: 카드 안 중첩이므로 조금 더 투명하게 */
+    body:not(.no-glass) .kpi,
+    body:not(.no-glass) .gauge {
+        background: var(--glass-bg) !important;
+        -webkit-backdrop-filter: blur(10px) saturate(150%);
+        backdrop-filter: blur(10px) saturate(150%);
+    }
+
+    /* 상단 탭바: 라운드 유지하며 유리화 */
+    body:not(.no-glass) .tabs {
+        -webkit-backdrop-filter: blur(14px) saturate(150%);
+        backdrop-filter: blur(14px) saturate(150%);
+    }
+
+    /* 활성 탭은 살짝 더 불투명하게 (강조) */
+    body:not(.no-glass) .tab-btn.active {
+        background: var(--glass-bg-strong) !important;
+        -webkit-backdrop-filter: blur(8px);
+        backdrop-filter: blur(8px);
+    }
+
+    /* 하위탭(자산·부채) 알약 버튼 */
+    body:not(.no-glass) .subtab-btn {
+        background: var(--glass-bg) !important;
+        -webkit-backdrop-filter: blur(10px) saturate(150%);
+        backdrop-filter: blur(10px) saturate(150%);
+        border: 1px solid var(--glass-border) !important;
+    }
+
+    body:not(.no-glass) .subtab-btn.active {
+        background: var(--a) !important;
+        border-color: var(--a) !important;
+        color: #fff !important;
+    }
+
+    /* 상단 액션 버튼 유리화 (primary 제외) */
+    body:not(.no-glass) .top-actions .btn:not(.primary) {
+        background: var(--glass-bg) !important;
+        -webkit-backdrop-filter: blur(10px);
+        backdrop-filter: blur(10px);
+        border: 1px solid var(--glass-border) !important;
+    }
+
+    /* 모달 배경 오버레이도 유리 느낌 강화 */
+    body:not(.no-glass) .modal-bg {
+        background: rgba(30, 45, 65, 0.35);
+        -webkit-backdrop-filter: blur(6px);
+        backdrop-filter: blur(6px);
+    }
+
+    html[data-theme="dark"] body:not(.no-glass) .modal-bg {
+        background: rgba(5, 10, 18, 0.5);
+    }
+
+    /* 모달은 가독성 위해 더 진하게 */
+    body:not(.no-glass) .modal {
+        background: var(--glass-bg-strong) !important;
+        -webkit-backdrop-filter: blur(22px) saturate(160%);
+        backdrop-filter: blur(22px) saturate(160%);
+    }
+
+    /* 캘린더 날짜 셀: 은은한 유리 (과하지 않게) */
+    body:not(.no-glass) .cal-cell:not(.empty) {
+        background: var(--glass-bg) !important;
+        -webkit-backdrop-filter: blur(6px);
+        backdrop-filter: blur(6px);
+        border: 1px solid var(--glass-border) !important;
+    }
+
+    /* 입력창은 유리 위에서도 또렷하게 (살짝만) */
+    body:not(.no-glass) input[type=text],
+    body:not(.no-glass) input[type=number],
+    body:not(.no-glass) input[type=date],
+    body:not(.no-glass) select {
+        background: var(--glass-bg) !important;
+        -webkit-backdrop-filter: blur(4px);
+        backdrop-filter: blur(4px);
+    }
+
+    /* 오로라를 조금 더 선명하게 해서 유리 뒤 색감이 살도록 */
+    body:not(.no-glass) .aurora {
+        opacity: 0.42 !important;
+    }
+
+    html[data-theme="dark"] body:not(.no-glass) .aurora {
+        opacity: 0.36 !important;
+    }
+}
+
+/* 모바일: blur는 GPU 부담이 크므로 살짝 약하게 (부드러운 성능) */
+@media (max-width: 640px) {
+    :root {
+        --glass-blur: 12px;
+    }
+
+    html[data-theme="dark"] {
+        --glass-blur: 13px;
+    }
+}
