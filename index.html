@@ -4,7 +4,6 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>소학행을 위한 자산 플래너</title>
-    <!-- ===== PWA (홈 화면 설치 · 오프라인) ===== -->
     <link rel="manifest" href="manifest.json" />
     <meta name="theme-color" content="#3f7fd1" />
     <meta name="mobile-web-app-capable" content="yes" />
@@ -15,7 +14,6 @@
     <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png" />
 </head>
 <body>
-    <!-- [v12 GSAP] 은은하게 떠다니는 오로라 배경 (다크/라이트 모두 대응) -->
     <div class="aurora" aria-hidden="true"><span class="ab ab1"></span><span class="ab ab2"></span><span class="ab ab3"></span></div>
     <div class="wrap">
         <div class="topbar">
@@ -153,7 +151,6 @@
         </div>
         <!-- ============ 수입 · 지출 (월별) ============ -->
         <div class="tab-panel" id="tab-flow">
-            <!-- ===== 월별 가계부 관리(수입·지출 탭 전용) ===== -->
             <div class="ledger-manager">
                 <div class="lm-current">
                     <span class="lm-icon">📒</span>
@@ -175,11 +172,19 @@
                     <button class="btn primary sm" id="createMonth">이 달로 생성</button>
                     <button class="btn ghost sm" id="cancelCreate">취소</button>
                 </div>
-                <div class="lm-create-hint">💡 고정 수입·고정 지출은 <b>직전 가계부</b>에서 자동으로 이어받아요. (이미 있는 달은 새로 만들지 않고 그 달로 이동합니다)</div>
+                <div class="lm-create-hint">💡 고정 수입·고정 지출·<b>자동이체</b>는 <b>직전 가계부</b>에서 자동으로 이어받아요. (이미 있는 달은 새로 만들지 않고 그 달로 이동합니다)</div>
             </div>
             <div class="row-between" style="margin-bottom:14px;">
                 <h2 style="margin:0;font-size:17px;">📒 <span id="flowMonthLabel">2026년 8월</span> 수입 · 지출</h2>
                 <span class="pill pill-muted">이 달의 내역만 표시됩니다</span>
+            </div>
+            <!-- [v13] 계좌 간 이체 -->
+            <div class="card">
+                <div class="section-label">STEP 0</div>
+                <h2>🔄 <span id="transferMonthLabel">이번 달</span> 계좌 간 이체</h2>
+                <p class="desc">통장 간 이동(예: <b>소희 주거래 → 남친 주거래</b>)을 기록하면 <b>월 마감 통장 잔고</b>와 개인별 예상잔고에 반영돼요. (총자산은 변하지 않아요) · <b>자동</b>을 체크하면 다음 달 가계부 생성 시 자동으로 복사됩니다.</p>
+                <div id="transferList"></div>
+                <button class="btn-add" id="addTransfer">＋ 계좌 이체 추가</button>
             </div>
             <div class="card">
                 <div class="section-label">STEP 1</div>
@@ -209,14 +214,12 @@
                 <div id="extraExpenseList"></div>
                 <button class="btn-add" id="addExtraExpense">＋ 기타 지출 추가</button>
             </div>
-            <!-- 카드 세부내역 -->
             <div class="card">
                 <div class="section-label">STEP 5</div>
                 <h2>💳 <span id="cardLedgerMonth">이번 달</span> 카드 세부내역 (가계부)</h2>
                 <p class="desc"><b>당월에 사용한 카드 사용액</b>을 사용일·카테고리 기준으로 기록하세요. 신용카드는 <b>이번 달 사용분이 다음 달 결제일</b>에 연결 계좌에서 출금되고, 이번 달 통장에서는 <b>지난달 사용분</b>이 결제됩니다. <b>고정지출로 걸린 금액은 상단 합계에 자동 포함</b>돼요.</p>
                 <div id="cardLedgers"></div>
             </div>
-            <!-- [v11] 증권·투자 계좌 관리 -->
             <div class="card">
                 <div class="section-label">STEP 6</div>
                 <h2>📈 <span id="investMonthLabel">이번 달</span> 증권·투자 계좌 관리</h2>
@@ -238,13 +241,12 @@
                     <div class="bd-panel" id="burdenDetail" style="display:none;"></div>
                 </div>
             </div>
-            <!-- 월별 통장 잔고 계산 + 월 마감 -->
             <div class="card" id="monthCloseCard">
                 <div class="row-between" style="margin-bottom:6px;">
                     <h2 style="margin:0;">🏦 <span id="mcMonthLabel">이번 달</span> 통장별 예상 잔고</h2>
                     <span class="pill pill-muted" id="mcStatus">진행 중</span>
                 </div>
-                <p class="desc">현재(기준) 잔고에서 이 달의 <b>수입(＋)·지출(－)</b>을 반영하고, <b>카드는 연결된 결제 계좌</b>에서(신용카드는 지난달 사용분), <b>대출 상환은 지정한 출금 계좌</b>에서 빠져나간 결과예요. 입력을 바꾸면 아래 잔고가 실시간으로 다시 계산됩니다.</p>
+                <p class="desc">현재(기준) 잔고에서 이 달의 <b>수입(＋)·지출(－)</b>을 반영하고, <b>카드는 연결된 결제 계좌</b>에서(신용카드는 지난달 사용분), <b>대출 상환은 지정한 출금 계좌</b>에서, <b>계좌 이체는 출금→입금 계좌</b>로 빠져나간 결과예요. 입력을 바꾸면 아래 잔고가 실시간으로 다시 계산됩니다.</p>
                 <div id="mcBalanceList"></div>
                 <div class="mc-actions">
                     <button id="closeMonthBtn">🎉 월 마감 완료!</button>
@@ -269,6 +271,7 @@
                     <div style="display:flex;gap:14px;font-size:12px;color:var(--sub);flex-wrap:wrap;">
                         <span><span class="dot" style="background:var(--plus)"></span>유입(＋)</span>
                         <span><span class="dot" style="background:var(--minus)"></span>지출(−)</span>
+                        <span><span class="dot" style="background:var(--peri)"></span>🔄 계좌이체</span>
                         <span><span class="dot" style="background:var(--gold)"></span>⚠️ 마이너스 예상일</span>
                         <span style="color:var(--sub)">날짜를 클릭하면 상세 내역·잔액이 아래에 표시돼요</span>
                     </div>
@@ -280,7 +283,7 @@
             </div>
             <div class="card">
                 <h2>🗓️ 다가오는 현금 일정</h2>
-                <p class="desc">앞으로의 +/− 흐름 (상환·수입·지출·주택자금)</p>
+                <p class="desc">앞으로의 +/− 흐름 (상환·수입·지출·주택자금·이체)</p>
                 <div id="upcomingList"></div>
             </div>
         </div>
@@ -291,7 +294,6 @@
                 <button class="subtab-btn" data-sub="loans">🏦 대출 · 차용</button>
                 <button class="subtab-btn" data-sub="house">🏠 주택 자금</button>
             </div>
-            <!-- ============ 계좌 · 카드 ============ -->
             <div class="subtab-panel active" id="tab-accounts">
                 <div class="card">
                     <div class="section-label">STEP 1</div>
@@ -331,7 +333,6 @@
                     <button class="btn-add" id="addCard">＋ 카드 추가</button>
                 </div>
             </div>
-            <!-- ============ 대출 · 차용 ============ -->
             <div class="subtab-panel" id="tab-loans">
                 <div class="row-between" style="margin-bottom:12px;">
                     <h2 style="font-size:17px;margin:0;">🏦 대출 · 차용</h2>
@@ -344,7 +345,6 @@
                     상환액과 총이자를 계산합니다. <b>상세보기</b>로 날짜별 원금·이자 상환 예정을 확인하세요.</p>
                 <div id="loanList"></div>
             </div>
-            <!-- ============ 주택 자금 ============ -->
             <div class="subtab-panel" id="tab-house">
                 <div class="card">
                     <div class="section-label">STEP 1</div>
@@ -461,7 +461,7 @@
                 <div class="chart-box"><canvas id="adTrendChart"></canvas></div>
             </div>
         </div>
-        <footer>참고용 자금 계획 도구이며 법률·세무 효력은 없습니다. 큰 거래는 전문가 상담을 권장합니다. · Renewal v12 · GSAP</footer>
+        <footer>참고용 자금 계획 도구이며 법률·세무 효력은 없습니다. 큰 거래는 전문가 상담을 권장합니다. · Renewal v13 · 계좌이체</footer>
     </div>
     <!-- 대출 등록/수정 모달 -->
     <div class="modal-bg" id="loanModal">
@@ -601,7 +601,7 @@
             </div>
         </div>
     </div>
-    <!-- 리소스 로더: CSS → 라이브러리(Chart·GSAP) → firebase-config.js(선택) → app.js → animations.js -->
+    <!-- 리소스 로더: CSS(styles·glass) → 라이브러리(Chart) → firebase-config.js(선택) → app.js → animations.js -->
     <script>
         (function () {
             function addCss(href) { var l = document.createElement("link"); l.rel = "stylesheet"; l.href = href; document.head.appendChild(l); }
@@ -618,8 +618,6 @@
             addCss("glass.css");
             var seq = [
                 ["https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js", false],
-                ["https://cdn.jsdelivr.net/npm/gsap@3.13/dist/gsap.min.js", true],
-                ["https://cdn.jsdelivr.net/npm/gsap@3.13/dist/ScrollTrigger.min.js", true],
                 ["https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js", true],
                 ["https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js", true],
                 ["https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js", true],
@@ -630,7 +628,6 @@
             (function next(i) { if (i >= seq.length) return; addScript(seq[i][0], seq[i][1]).then(function () { next(i + 1); }); })(0);
         })();
     </script>
-    <!-- ===== PWA 서비스워커 등록 (https 환경에서 동작) ===== -->
     <script>
         if ("serviceWorker" in navigator) {
             window.addEventListener("load", function () {
@@ -639,11 +636,10 @@
                     .catch(function (err) { console.warn("서비스워커 등록 실패(무시 가능):", err); });
             });
         }
-        /* 안드로이드 설치 배너: 필요 시 커스텀 설치 버튼에 연결할 수 있게 이벤트 보관 */
         window.addEventListener("beforeinstallprompt", function (e) {
             e.preventDefault();
             window.deferredInstallPrompt = e;
-            console.log("💡 이 앱은 홈 화면에 설치할 수 있어요. (주소창의 설치 아이콘 또는 메뉴 → 앱 설치)");
+            console.log("💡 이 앱은 홈 화면에 설치할 수 있어요.");
         });
     </script>
 </body>
