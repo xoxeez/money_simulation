@@ -1,10 +1,9 @@
 /* =========================================================
-   소학행을 위한 자산 플래너 v12 — app.js
-   [v12 신규]
-   1) 8→5탭 재편: 홈 · 가계부 · 캘린더 · 자산·부채(하위탭) · 성장·목표
-   2) 신용카드: 당월 사용은 비현금 기록 → 다음 달 결제일에 전월 사용분 실제 출금
-   3) 만기일시 이자후불(iod): 매월 상환 0원 + 발생이자만 표기, 만기에 원금+누적이자 일괄
-   [v11] 마이너스 예상일 · 증권/투자 · 카테고리 태깅   [v10] 성장·목표   [v9.x] 다수
+   소학행을 위한 자산 플래너 v13 — app.js
+   [v13 신규] 계좌 간 이체(A통장→B통장): 월 마감 통장 잔고·개인별 예상잔고 반영,
+              가계부 상단 '계좌 이체' 섹션, 자동이체 체크 항목만 다음 달 자동 복사
+   [v12] 8→5탭 재편 · 카드 전월결제 · 만기일시 이자후불(iod)
+   [v11] 마이너스 예상일 · 증권/투자 · 카테고리 태깅   [v10] 성장·목표
 ========================================================= */
 const $ = (id) => document.getElementById(id);
 const won = (v) => (Math.round(fin(+v))).toLocaleString("ko-KR") + "원";
@@ -72,15 +71,16 @@ let cfA = [];
 let cfB = [];
 let goals = [];
 /* ---------- 월별 가계부(ledger) ---------- */
-function blankLedger() { return { incomes: [], expenses: [], extraIncomes: [], extraExpenses: [], cardTxns: [] }; }
+function blankLedger() { return { incomes: [], expenses: [], extraIncomes: [], extraExpenses: [], cardTxns: [], transfers: [] }; }
 function numifyLedger(L) {
     if (!L) return;
-    ["incomes", "expenses", "extraIncomes", "extraExpenses", "cardTxns"].forEach(n => { if (!Array.isArray(L[n])) L[n] = []; ensureIds(L[n]); });
+    ["incomes", "expenses", "extraIncomes", "extraExpenses", "cardTxns", "transfers"].forEach(n => { if (!Array.isArray(L[n])) L[n] = []; ensureIds(L[n]); });
     (L.incomes || []).forEach(x => { x.amt = num(x.amt); x.payDay = +x.payDay || 1; });
     (L.expenses || []).forEach(x => { x.amt = num(x.amt); x.day = +x.day || 1; if (!x.cat) x.cat = "기타"; });
     (L.extraIncomes || []).forEach(x => { x.amt = num(x.amt); x.day = +x.day || 1; });
     (L.extraExpenses || []).forEach(x => { x.amt = num(x.amt); x.day = +x.day || 1; if (!x.cat) x.cat = "기타"; });
     (L.cardTxns || []).forEach(x => { x.amt = num(x.amt); if (!x.cat) x.cat = "기타"; });
+    (L.transfers || []).forEach(x => { x.amt = num(x.amt); x.day = +x.day || 1; x.auto = !!x.auto; });   /* [v13] */
 }
 function numifyAll() {
     ensureIds(accounts); ensureIds(cards); ensureIds(loans); ensureIds(goals);
@@ -95,13 +95,13 @@ function numifyAll() {
 let ledgers = { [REAL_MONTH]: blankLedger() };
 let months = [REAL_MONTH];
 let currentMonth = REAL_MONTH;
-let incomes, expenses, extraIncomes, extraExpenses, cardTxns;
-function bindMonth() { const L = ledgers[currentMonth]; incomes = L.incomes; expenses = L.expenses; extraIncomes = L.extraIncomes; extraExpenses = L.extraExpenses; cardTxns = L.cardTxns; }
+let incomes, expenses, extraIncomes, extraExpenses, cardTxns, transfers;
+function bindMonth() { const L = ledgers[currentMonth]; incomes = L.incomes; expenses = L.expenses; extraIncomes = L.extraIncomes; extraExpenses = L.extraExpenses; cardTxns = L.cardTxns; transfers = L.transfers; }
 function setLedgerArr(name, arr) {
     ledgers[currentMonth][name] = arr;
     if (name === "incomes") incomes = arr; else if (name === "expenses") expenses = arr;
     else if (name === "extraIncomes") extraIncomes = arr; else if (name === "extraExpenses") extraExpenses = arr;
-    else if (name === "cardTxns") cardTxns = arr;
+    else if (name === "cardTxns") cardTxns = arr; else if (name === "transfers") transfers = arr;
     return arr;
 }
 bindMonth();
@@ -116,10 +116,10 @@ function renderMonthBar() {
     const lab = monthLabel(currentMonth);
     if ($("mbTitle")) $("mbTitle").textContent = lab + " 가계부";
     ["flowMonthLabel"].forEach(id => { if ($(id)) $(id).textContent = lab; });
-    ["flowMonthMini", "flowMonthLabel2", "flowMonthLabel3", "kMonthPayLabel", "cardLedgerMonth", "investMonthLabel"].forEach(id => { if ($(id)) $(id).textContent = (currentMonth === REAL_MONTH ? "이번 달" : lab); });
+    ["flowMonthMini", "flowMonthLabel2", "flowMonthLabel3", "kMonthPayLabel", "cardLedgerMonth", "investMonthLabel", "transferMonthLabel"].forEach(id => { if ($(id)) $(id).textContent = (currentMonth === REAL_MONTH ? "이번 달" : lab); });
 }
 function rerenderMonthViews() {
-    renderIncome(); renderExtra("income"); renderExpenses(); renderExtra("expense"); renderCardLedgers(); renderInvestments();
+    renderTransfers(); renderIncome(); renderExtra("income"); renderExpenses(); renderExtra("expense"); renderCardLedgers(); renderInvestments();
     refreshSummary(); renderCalendar(); renderUpcoming();
     drawFlowCharts();
     drawGrowthCharts();
@@ -135,7 +135,11 @@ function createMonth(y, m) {
     if (!ledgers[key]) {
         const prev = months.filter(k => k < key).sort().pop();
         const L = blankLedger();
-        if (prev) { L.incomes = cloneArr(ledgers[prev].incomes); L.expenses = cloneArr(ledgers[prev].expenses); }
+        if (prev) {
+            L.incomes = cloneArr(ledgers[prev].incomes);
+            L.expenses = cloneArr(ledgers[prev].expenses);
+            L.transfers = cloneArr((ledgers[prev].transfers || []).filter(t => t.auto));   /* [v13] 자동이체만 복사 */
+        }
         numifyLedger(L);
         ledgers[key] = L; months.push(key);
     }
@@ -285,6 +289,11 @@ function accOptions(sel, owner) {
     if (!list.length) return `<option value="">계좌 없음</option>`;
     return list.map(a => `<option value="${a.id}" ${a.id === sel ? "selected" : ""}>${ownerName(a.owner)} · ${a.name}</option>`).join("");
 }
+/* [v13] 전체 계좌 옵션(이체용, owner 구분 없음) */
+function accOptionsAll(sel) {
+    if (!accounts.length) return `<option value="">계좌 없음</option>`;
+    return accounts.map(a => `<option value="${a.id}" ${a.id === sel ? "selected" : ""}>${ownerName(a.owner)} · ${a.name}</option>`).join("");
+}
 function validAccForOwner(id, owner) { const list = accountsForOwner(owner); return list.some(a => a.id === id) ? id : (list[0] ? list[0].id : ""); }
 function methodOptions(sel, owner) {
     const cs = cardsForOwner(owner), as = accountsForOwner(owner);
@@ -318,7 +327,7 @@ function renderAccounts() {
         $("accSum" + o).textContent = eok(accSum(o));
     });
 }
-function afterAccountChange() { renderAccounts(); renderPlan(); renderCards(); renderCardLedgers(); renderInvestments(); renderIncome(); renderExtra("income"); renderExpenses(); renderExtra("expense"); refreshSummary(); }
+function afterAccountChange() { renderAccounts(); renderPlan(); renderCards(); renderCardLedgers(); renderInvestments(); renderTransfers(); renderIncome(); renderExtra("income"); renderExpenses(); renderExtra("expense"); refreshSummary(); }
 ["accListA", "accListB"].forEach(id => {
     $(id).addEventListener("input", e => {
         const t = e.target, aid = t.dataset.id; if (!aid) return; const a = accounts.find(x => x.id === aid);
@@ -333,6 +342,44 @@ function afterAccountChange() { renderAccounts(); renderPlan(); renderCards(); r
     $(id).addEventListener("click", e => { if (e.target.dataset.del) { accounts = accounts.filter(x => x.id !== e.target.dataset.del); afterAccountChange(); } });
 });
 document.querySelectorAll("[data-add-acc]").forEach(b => b.addEventListener("click", () => { accounts.push({ id: uid(), owner: b.dataset.addAcc, type: "예금", name: "새 계좌", amt: 0, principal: 0 }); afterAccountChange(); }));
+/* ---------- [v13] 계좌 간 이체 ---------- */
+function renderTransfers() {
+    const box = $("transferList"); if (!box) return; box.innerHTML = "";
+    box.insertAdjacentHTML("beforeend", `<div class="item" style="grid-template-columns:1.1fr 1.2fr 1.2fr 0.9fr 0.5fr 0.55fr 30px;background:transparent;border:none;padding:4px 15px;color:var(--sub);font-size:11.5px;font-weight:700;"><div>항목</div><div>출금 계좌</div><div>입금 계좌</div><div>금액</div><div>이체일</div><div>자동</div><div></div></div>`);
+    if (!accounts.length) { box.insertAdjacentHTML("beforeend", `<div style="color:var(--sub);font-size:13px;padding:6px 2px;">먼저 「자산·부채 → 계좌·카드」에서 계좌를 추가하면 이체를 기록할 수 있어요.</div>`); return; }
+    transfers.forEach(tr => {
+        const row = document.createElement("div"); row.className = "item xfer-item"; row.style.gridTemplateColumns = "1.1fr 1.2fr 1.2fr 0.9fr 0.5fr 0.55fr 30px";
+        row.innerHTML = `<input type="text" value="${tr.name || ""}" data-id="${tr.id}" data-k="name" class="nm" placeholder="예: 생활비 이체"/>
+      <select data-id="${tr.id}" data-k="from">${accOptionsAll(tr.from)}</select>
+      <select data-id="${tr.id}" data-k="to">${accOptionsAll(tr.to)}</select>
+      <input type="text" inputmode="numeric" class="amt" value="${fmtNum(tr.amt)}" data-id="${tr.id}" data-k="amt"/>
+      <input type="number" class="payday" value="${tr.day}" data-id="${tr.id}" data-k="day" min="1" max="31"/>
+      <label class="xfer-auto" title="자동이체: 다음 달 가계부 생성 시 자동 복사"><input type="checkbox" data-id="${tr.id}" data-k="auto" ${tr.auto ? "checked" : ""}/></label>
+      <button class="btn-del" data-del="${tr.id}">×</button>`;
+        box.appendChild(row);
+    });
+}
+function transferSet(t) {
+    const tr = transfers.find(x => x.id === t.dataset.id); if (!tr) return null; const k = t.dataset.k;
+    if (k === "amt") { tr.amt = parseNum(t.value); t.value = fmtNum(tr.amt); }
+    else if (k === "day") { tr.day = Math.max(1, Math.min(31, +t.value || 1)); }
+    else if (k === "auto") { tr.auto = t.checked; }
+    else tr[k] = t.value;
+    return { tr, k };
+}
+if ($("transferList")) {
+    $("transferList").addEventListener("input", e => { if (e.target.dataset.id === undefined) return; transferSet(e.target); refreshSummary(); renderCalendar(); });
+    $("transferList").addEventListener("change", e => {
+        if (e.target.dataset.id === undefined) return; const r = transferSet(e.target); if (!r) return;
+        refreshSummary(); renderCalendar(); renderUpcoming();
+    });
+    $("transferList").addEventListener("click", e => { if (e.target.dataset.del) { setLedgerArr("transfers", transfers.filter(x => x.id !== e.target.dataset.del)); renderTransfers(); refreshSummary(); renderCalendar(); renderUpcoming(); } });
+}
+if ($("addTransfer")) $("addTransfer").addEventListener("click", () => {
+    const a0 = accounts[0], a1 = accounts[1] || accounts[0];
+    transfers.push({ id: uid(), name: "새 이체", from: a0 ? a0.id : "", to: a1 ? a1.id : "", amt: 0, day: 1, auto: false });
+    renderTransfers(); refreshSummary(); renderCalendar();
+});
 /* ---------- Plan 탭 ---------- */
 function renderPlan() {
     ["A", "B"].forEach(o => {
@@ -352,7 +399,7 @@ function renderPlan() {
 function renderPlanSummary() {
     const el = $("planSummary"); if (!el) return;
     const total = accounts.reduce((s, a) => s + num(a.amt), 0);
-    el.innerHTML = `<div>📌 기준일 <b>${ANCHOR()}</b></div><div>💰 기준일 계좌 총잔고 <b>${eok(total)}</b></div><div style="color:var(--sub);font-size:11.5px;">이 잔고에서 출발해 수입·지출·상환·카드결제가 반영됩니다.</div>`;
+    el.innerHTML = `<div>📌 기준일 <b>${ANCHOR()}</b></div><div>💰 기준일 계좌 총잔고 <b>${eok(total)}</b></div><div style="color:var(--sub);font-size:11.5px;">이 잔고에서 출발해 수입·지출·상환·카드결제·이체가 반영됩니다.</div>`;
 }
 ["planListA", "planListB"].forEach(id => {
     const box = $(id); if (!box) return;
@@ -408,7 +455,6 @@ $("cardList").addEventListener("click", e => { if (e.target.dataset.del) { cards
 $("addCard").addEventListener("click", () => { const a = accounts[0]; cards.push({ id: uid(), owner: "A", name: "새 카드", kind: "신용", acc: validAccForOwner(a ? a.id : "", "A"), payDay: 14 }); renderCards(); renderCardLedgers(); renderExpenses(); });
 /* ---------- 카드 세부내역 ---------- */
 function txnsOfCard(cardId) { return cardTxns.filter(t => t.cardId === cardId); }
-/* [v11] 카드에 걸린 고정지출(method=card) 합계 */
 function cardFixedTotal(cardId) { return expenses.filter(e => e.method === "card" && e.ref === cardId).reduce((s, e) => s + num(e.amt), 0); }
 function cardMonthTotal(cardId) { return txnsOfCard(cardId).reduce((s, x) => s + num(x.amt), 0) + cardFixedTotal(cardId); }
 function renderCardLedgers() {
@@ -419,7 +465,7 @@ function renderCardLedgers() {
         c.acc = validAccForOwner(c.acc, c.owner);
         const acc = accounts.find(a => a.id === c.acc);
         const list = txnsOfCard(c.id);
-        const fixed = cardFixedTotal(c.id);          /* [v11] 고정비 합계 */
+        const fixed = cardFixedTotal(c.id);
         const total = list.reduce((s, t) => s + num(t.amt), 0) + fixed;
         const wrap = document.createElement("div"); wrap.className = "card-ledger";
         let rows = `<div class="txn-head"><div>사용일</div><div>항목</div><div>카테고리</div><div>담당</div><div>금액</div><div></div></div>`;
@@ -784,22 +830,25 @@ function eventsForMonth(y, mo) {
         L.extraIncomes.forEach(x => { if (x.freq === "monthly") { const d = nthDayOfMonth(y, mo, +x.day || 1); const acc = accounts.find(a => a.id === x.acc); ev.push({ date: ymd(d), label: x.name, sub: `${ownerName(x.owner)} 기타수입(매월) · ${acc ? acc.name : ""}`, amt: num(x.amt), type: "extra-income", owner: x.owner, cash: true }); } else if (x.date && x.date.slice(0, 7) === key) { const acc = accounts.find(a => a.id === x.acc); ev.push({ date: x.date, label: x.name, sub: `${ownerName(x.owner)} 기타수입 · ${acc ? acc.name : ""}`, amt: num(x.amt), type: "extra-income", owner: x.owner, cash: true }); } });
         L.expenses.filter(e => e.method === "acc").forEach(ex => { const acc = accounts.find(a => a.id === ex.ref); ev.push({ date: ymd(nthDayOfMonth(y, mo, +ex.day || 1)), label: ex.name, sub: `${ownerName(ex.owner)} 지출 · ${acc ? acc.name : "계좌"}`, amt: -num(ex.amt), type: "expense", owner: ex.owner, cash: true }); });
         L.extraExpenses.forEach(x => { if (x.freq === "monthly") { const acc = accounts.find(a => a.id === x.acc); ev.push({ date: ymd(nthDayOfMonth(y, mo, +x.day || 1)), label: x.name, sub: `${ownerName(x.owner)} 기타지출(매월) · ${acc ? acc.name : ""}`, amt: -num(x.amt), type: "extra-expense", owner: x.owner, cash: true }); } else if (x.date && x.date.slice(0, 7) === key) { const acc = accounts.find(a => a.id === x.acc); ev.push({ date: x.date, label: x.name, sub: `${ownerName(x.owner)} 기타지출 · ${acc ? acc.name : ""}`, amt: -num(x.amt), type: "extra-expense", owner: x.owner, cash: true }); } });
+        /* [v13] 계좌 간 이체: 합산 net 0(총자산 불변), 개인별·통장별 잔고는 반영 */
+        (L.transfers || []).forEach(tr => {
+            const amt = num(tr.amt); if (amt <= 0) return;
+            const fa = accounts.find(a => a.id === tr.from), ta = accounts.find(a => a.id === tr.to);
+            ev.push({ date: ymd(nthDayOfMonth(y, mo, +tr.day || 1)), label: tr.name || "계좌 이체", sub: `${fa ? fa.name : "?"} → ${ta ? ta.name : "?"}${tr.auto ? " · 자동이체" : ""}`, amt: 0, xferAmt: amt, type: "transfer", fromAcc: tr.from, toAcc: tr.to, fromOwner: fa ? fa.owner : null, toOwner: ta ? ta.owner : null, cash: true });
+        });
         // [v12] 신용카드: '당월' 사용은 비현금 기록, '전월' 사용분을 이번 달 결제일에 실제 출금
         const prevKey = prevMonthKey(y, mo);
         const PL = ledgers[prevKey];
         cards.forEach(c => {
             const acc = accounts.find(a => a.id === c.acc);
-            // 당월 카드 사용내역 → 비현금(지출구성엔 반영, 통장은 아직 안 빠짐)
             L.cardTxns.filter(t => t.cardId === c.id).forEach(t => { ev.push({ date: t.date, label: `${t.item}`, sub: `${ownerName(t.owner)} · ${c.name} 사용(비현금)`, amt: -num(t.amt), type: "carduse", owner: t.owner, cash: false, cardName: c.name }); });
             if (c.kind === "체크") {
-                // 체크카드: 당월 사용분 당월 출금
                 const items = [];
                 L.expenses.filter(e => e.method === "card" && e.ref === c.id).forEach(ex => items.push({ label: ex.name, amt: num(ex.amt), owner: ex.owner, sub: "고정지출" }));
                 L.cardTxns.filter(t => t.cardId === c.id).forEach(t => items.push({ label: t.item, amt: num(t.amt), owner: t.owner, sub: "카드사용" }));
                 const total = items.reduce((s, x) => s + x.amt, 0);
                 if (total > 0) { const payDay = +c.payDay > 0 ? +c.payDay : 1; ev.push({ date: ymd(nthDayOfMonth(y, mo, payDay)), label: `${c.name} 결제`, sub: `${acc ? acc.name : "계좌"}에서 당월 사용분 출금 · ${items.length}건`, amt: -total, type: "cardpay", owner: c.owner, cash: true, items: items }); }
             } else if (PL && +c.payDay > 0) {
-                // 신용카드: 전월 사용분을 이번 달 결제일에 출금
                 const items = [];
                 PL.expenses.filter(e => e.method === "card" && e.ref === c.id).forEach(ex => items.push({ label: ex.name, amt: num(ex.amt), owner: ex.owner, sub: "고정지출(전월)" }));
                 PL.cardTxns.filter(t => t.cardId === c.id).forEach(t => items.push({ label: t.item, amt: num(t.amt), owner: t.owner, sub: "카드사용(전월)" }));
@@ -818,6 +867,7 @@ function futureEvents() {
 function loanRepayEvents() { const ev = []; loans.forEach(l => { loanSchedWithDates(l).forEach(s => { ev.push({ date: s.date, amt: -Math.round(s.pay) }); }); }); return ev.sort((a, b) => a.date.localeCompare(b.date)); }
 function ownerShare(ev, owner) {
     if (!ev.cash) return 0;
+    if (ev.type === "transfer") { let s = 0; if (ev.fromOwner === owner) s -= ev.xferAmt; if (ev.toOwner === owner) s += ev.xferAmt; return s; }   /* [v13] */
     if (ev.type === "cardpay" && ev.items) { let s = 0; ev.items.forEach(it => { if (it.owner === owner) s += it.amt; else if (it.owner === "J") s += it.amt / 2; }); return -s; }
     if (ev.owner === owner) return ev.amt;
     if (ev.owner === "J") return ev.amt / 2;
@@ -829,7 +879,6 @@ function balanceAsOf(owner, dateStr, events) {
     events.forEach(ev => { if (!ev.cash) return; const sh = ownerShare(ev, owner); if (ev.date > anchor && ev.date <= dateStr) bal += sh; else if (ev.date <= anchor && ev.date > dateStr) bal -= sh; });
     return fin(bal);
 }
-/* [v11] 특정일의 두 사람 합산 예상잔고 */
 function combinedBalanceAsOf(dateStr, events) { return balanceAsOf("A", dateStr, events) + balanceAsOf("B", dateStr, events); }
 /* ---------- 캘린더 ---------- */
 let calYear, calMonth, selectedDate = null, cachedEvents = [];
@@ -849,13 +898,15 @@ function renderCalendar() {
         let html = `<div class="d">${day}</div>`; const evs = byDate[ds];
         if (evs) {
             let net = 0; html += `<div class="ev">`;
-            evs.slice(0, 2).forEach(e => { html += `<span class="ev-tag ${e.amt >= 0 ? "ev-plus" : "ev-minus"}">${e.amt >= 0 ? "＋" : "－"}${eok(Math.abs(e.amt))}</span>`; });
+            evs.slice(0, 2).forEach(e => {
+                if (e.type === "transfer") html += `<span class="ev-tag ev-xfer">🔄${eok(e.xferAmt)}</span>`;
+                else html += `<span class="ev-tag ${e.amt >= 0 ? "ev-plus" : "ev-minus"}">${e.amt >= 0 ? "＋" : "－"}${eok(Math.abs(e.amt))}</span>`;
+            });
             if (evs.length > 2) html += `<span class="ev-tag ev-info">＋${evs.length - 2}건</span>`;
             evs.forEach(e => net += e.amt);
             html += `</div><div class="cal-net" style="color:${net >= 0 ? "var(--plus)" : "var(--minus)"}">${net >= 0 ? "＋" : "－"}${eok(Math.abs(net))}</div>`;
             monthNet += net;
         }
-        /* [v11] 잔고 마이너스 예상일 뱃지 */
         const proj = combinedBalanceAsOf(ds, cachedEvents);
         if (proj < 0) { cell.classList.add("neg-day"); html += `<div class="cal-warn" title="이 날 예상 합산잔고 ${won(proj)}">⚠️ ${eok(proj)}</div>`; if (!firstNegDay) firstNegDay = ds; }
         cell.innerHTML = html; body.appendChild(cell);
@@ -879,6 +930,10 @@ function renderDayDetail(ds) {
     if (!evs.length) html += `<div style="color:var(--sub);font-size:13px;padding:10px 0;">이 날짜엔 등록된 일정이 없어요.</div>`;
     else {
         evs.forEach(e => {
+            if (e.type === "transfer") {   /* [v13] 이체 전용 표시 */
+                html += `<div class="dd-row"><div>🔄</div><div><div class="lbl">${e.label} <span class="tag-note">계좌이체</span></div><div class="sub">${e.sub || ""}</div></div><div class="val" style="color:var(--peri);">${eok(e.xferAmt)}</div></div>`;
+                return;
+            }
             const em = e.type === "loan" ? "🏦" : (e.type === "income" || e.type === "extra-income") ? "💰" : e.type === "house" ? "🏠" : e.type === "cardpay" ? "💳" : e.type === "carduse" ? "🧾" : "💸";
             const note = e.cash ? "" : `<span class="tag-note">비현금·카드사용</span>`;
             html += `<div class="dd-row"><div>${em}</div><div><div class="lbl">${e.label}${note}</div><div class="sub">${e.sub || ""}</div></div><div class="val" style="color:${e.amt >= 0 ? "var(--plus)" : "var(--minus)"}">${e.amt >= 0 ? "＋" : "－"}${won(Math.abs(e.amt))}</div></div>`;
@@ -894,7 +949,7 @@ function renderDayDetail(ds) {
       <div class="bal-box b"><div class="who"><span class="dot dot-b"></span>${nameOf.B} 예상 잔액 (이 날짜 기준)</div><div class="amt">${won(balB)}</div><div class="delta" style="color:${dayNetB >= 0 ? "var(--plus)" : "var(--minus)"}">${dayNetB === 0 ? "당일 변동 없음" : (dayNetB >= 0 ? "＋" : "－") + won(Math.abs(dayNetB)) + " 당일"}</div></div>
     </div>
     ${comb < 0 ? `<div class="neg-note">⚠️ 이 날 두 사람 합산 예상잔고 <b>${won(comb)}</b> — 마이너스예요.</div>` : ""}
-    <div class="desc" style="margin:10px 0 0;">※ 잔액은 <b>기준일(${ANCHOR()})</b> 계좌 잔고에서 출발해 이 달의 현금흐름을 반영한 <b>예상치</b>입니다. (카드 사용은 결제일에만 현금 반영)</div>`;
+    <div class="desc" style="margin:10px 0 0;">※ 잔액은 <b>기준일(${ANCHOR()})</b> 계좌 잔고에서 출발해 이 달의 현금흐름을 반영한 <b>예상치</b>입니다. (카드 사용은 결제일에만 현금 반영 · 계좌 이체는 합산엔 영향 없고 개인 잔고에만 반영)</div>`;
     box.innerHTML = html;
 }
 $("calPrev").addEventListener("click", () => { calMonth--; if (calMonth < 0) { calMonth = 11; calYear--; } renderCalendar(); });
@@ -904,7 +959,11 @@ function renderUpcoming() {
     const box = $("upcomingList"); box.innerHTML = "";
     const events = futureEvents().slice(0, 14);
     if (!events.length) { box.innerHTML = `<div style="color:var(--sub);font-size:13px;padding:8px 0;">예정된 일정이 없어요.</div>`; return; }
-    events.forEach(e => { const row = document.createElement("div"); row.className = "tl-row"; row.innerHTML = `<div class="date">${e.date}</div><div class="label">${e.label} <span style="color:var(--sub);font-size:11.5px;">${e.sub || ""}</span></div><div class="val ${e.amt >= 0 ? "plus" : "minus"}">${e.amt >= 0 ? "＋" : "－"}${won(Math.abs(e.amt))}</div>`; box.appendChild(row); });
+    events.forEach(e => {
+        const row = document.createElement("div"); row.className = "tl-row";
+        if (e.type === "transfer") { row.innerHTML = `<div class="date">${e.date}</div><div class="label">${e.label} <span style="color:var(--sub);font-size:11.5px;">${e.sub || ""}</span></div><div class="val" style="color:var(--peri)">🔄 ${won(e.xferAmt)}</div>`; box.appendChild(row); return; }
+        row.innerHTML = `<div class="date">${e.date}</div><div class="label">${e.label} <span style="color:var(--sub);font-size:11.5px;">${e.sub || ""}</span></div><div class="val ${e.amt >= 0 ? "plus" : "minus"}">${e.amt >= 0 ? "＋" : "－"}${won(Math.abs(e.amt))}</div>`; box.appendChild(row);
+    });
 }
 /* ---------- [v9] 월별 통장 잔고 계산 & 월 마감 ---------- */
 function loanRepayInMonth(l, monthKey) { return loanPayInMonth(l, monthKey); }
@@ -918,6 +977,8 @@ function computeAccountDeltas(monthKey) {
     (L.extraIncomes || []).forEach(x => { if (x.freq === "monthly" || inMonth(x.date)) add(x.acc, num(x.amt)); });
     (L.expenses || []).filter(e => e.method === "acc").forEach(e => add(e.ref, -num(e.amt)));
     (L.extraExpenses || []).forEach(x => { if (x.freq === "monthly" || inMonth(x.date)) add(x.acc, -num(x.amt)); });
+    /* [v13] 계좌 간 이체: 출금계좌 -, 입금계좌 + */
+    (L.transfers || []).forEach(tr => { const amt = num(tr.amt); if (amt > 0) { add(tr.from, -amt); add(tr.to, amt); } });
     /* [v12] 카드 출금: 체크=당월 사용분, 신용=전월 사용분이 이번 달 결제일에 출금 */
     const _pk = (function () { const [yy, mm] = monthKey.split("-").map(Number); let py = yy, pm = mm - 1; if (pm < 1) { pm = 12; py--; } return `${py}-${String(pm).padStart(2, "0")}`; })();
     const _PL = ledgers[_pk];
@@ -928,7 +989,7 @@ function computeAccountDeltas(monthKey) {
                 + (L.cardTxns || []).filter(t => t.cardId === c.id).reduce((s, t) => s + num(t.amt), 0);
         } else if (_PL && +c.payDay > 0) {
             total = (_PL.expenses || []).filter(e => e.method === "card" && e.ref === c.id).reduce((s, e) => s + num(e.amt), 0)
-                + (_PL.cardTxns || []).filter(t => t.cardId === c.id).reduce((s, t) => s + num(t.amt), 0);   // 전월 사용분
+                + (_PL.cardTxns || []).filter(t => t.cardId === c.id).reduce((s, t) => s + num(t.amt), 0);
         }
         if (total > 0) add(validAccForOwner(c.acc, c.owner), -total);
     });
@@ -972,7 +1033,7 @@ function renderMonthClose() {
     if ($("mcMonthLabel")) $("mcMonthLabel").textContent = (currentMonth === REAL_MONTH ? "이번 달" : monthLabel(currentMonth));
     if ($("mcHint")) $("mcHint").innerHTML = closed
         ? `✅ <b>${monthLabel(currentMonth)}</b> 마감 완료! 예상 잔고가 각 통장의 새 잔고로 확정되어 다음 달로 이어졌어요. 되돌리려면 <b>마감 취소</b>를 눌러주세요.`
-        : `💡 <b>월 마감 완료!</b>를 누르면 위 <b>예상 잔고</b>가 각 통장의 새 잔고로 확정되고(증권 평가액 포함), 다음 달 가계부가 자동으로 만들어져요. 마감 전에 위 <b>증권·투자 계좌 관리</b>에서 이번 달 평가액을 갱신해 주세요.`;
+        : `💡 <b>월 마감 완료!</b>를 누르면 위 <b>예상 잔고</b>가 각 통장의 새 잔고로 확정되고(증권 평가액·계좌 이체 포함), 다음 달 가계부가 자동으로 만들어져요. (자동이체 항목은 다음 달로 복사됩니다)`;
 }
 function closeMonth() {
     const L = ledgers[currentMonth]; if (!L) return;
@@ -1134,7 +1195,6 @@ function drawHome() {
     if (flowChartHome) flowChartHome.destroy();
     flowChartHome = new Chart($("flowChart"), { type: "bar", data: { labels: ["월 현금흐름"], datasets: [{ label: "수입", data: [incTot], backgroundColor: COL.plus, borderRadius: 6 }, { label: "생활비", data: [-expTot], backgroundColor: COL.minus, borderRadius: 6 }, { label: "대출상환", data: [-payTot], backgroundColor: COL.peri, borderRadius: 6 }] }, options: { indexAxis: "y", plugins: { legend: { position: "bottom" }, tooltip: { callbacks: { label: c => c.dataset.label + ": " + won(Math.abs(c.parsed.x)) } } }, scales: { x: { ticks: { callback: v => eok(v) }, grid: { color: gridc() } }, y: { grid: { display: false } } }, maintainAspectRatio: false } });
 }
-/* [v9.3/v11] 지출(생활비) 항목 — 현재 가계부 월 기준, cat 포함 */
 function monthlyExpenseItems() {
     const items = [];
     expenses.forEach(e => items.push({ name: e.name, amt: num(e.amt), owner: e.owner || "J", cat: e.cat || "기타", kind: e.method === "card" ? "카드고정" : "계좌지출" }));
@@ -1146,7 +1206,7 @@ function monthlyLoanItems() {
     return loans.map(l => ({ name: `${l.name} 상환`, amt: fin(loanCalc(l).firstPay), owner: l.owner || "J", kind: "대출상환" })).filter(it => it.amt > 0);
 }
 let burdenData = { A: { living: [], loan: [] }, B: { living: [], loan: [] } };
-let flowItems = [];   /* [v11] 지출 항목 캐시 (카테고리 상세용) */
+let flowItems = [];
 function splitToOwner(store, owner, name, amt, kind) {
     if (owner === "J") { store.A.push({ name, amt: amt / 2, joint: true, kind }); store.B.push({ name, amt: amt / 2, joint: true, kind }); }
     else if (store[owner]) store[owner].push({ name, amt, joint: false, kind });
@@ -1157,7 +1217,6 @@ function drawFlowCharts() {
     flowItems = items;
     const loanItems = monthlyLoanItems();
     const totalExp = items.reduce((s, x) => s + x.amt, 0);
-    /* [v11] 카테고리별 집계 */
     const catMap = {};
     items.forEach(it => { const c = it.cat || "기타"; catMap[c] = (catMap[c] || 0) + it.amt; });
     const cats = EXPENSE_CATS.filter(c => catMap[c]);
@@ -1171,7 +1230,6 @@ function drawFlowCharts() {
             onClick: (evt, els) => { if (els.length) showCategoryDetail(cats[els[0].index]); }
         }
     });
-    /* 담당자별 부담 (기존) */
     const living = { A: 0, B: 0 };
     const loanShare = { A: 0, B: 0 };
     const liveStore = { A: [], B: [] }, loanStore = { A: [], B: [] };
@@ -1231,7 +1289,6 @@ function showBurdenDetail(owner, withLoan) {
     box.innerHTML = html; box.style.display = "block";
     box.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
-/* [v11] 카테고리 클릭 → 해당 카테고리 항목 상세 */
 function showCategoryDetail(cat) {
     const box = $("expenseDetail"); if (!box) return;
     const list = flowItems.filter(it => (it.cat || "기타") === cat).sort((a, b) => b.amt - a.amt);
@@ -1242,9 +1299,7 @@ function showCategoryDetail(cat) {
     box.innerHTML = html; box.style.display = "block";
     box.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
-/* ========================================================= */
 /* ----------------- [v10] 성장 · 목표 ----------------- */
-/* ========================================================= */
 let goalEditId = null;
 function goalCurrent(g) {
     if (g.accIds && g.accIds.length) {
@@ -1409,7 +1464,7 @@ if ($("goalList")) $("goalList").addEventListener("click", e => {
 });
 /* ========================================================= */
 function syncNames() { document.querySelectorAll(".nA").forEach(el => el.textContent = nameOf.A); document.querySelectorAll(".nB").forEach(el => el.textContent = nameOf.B); }
-function rerenderAll() { renderAccounts(); renderPlan(); renderCards(); renderCardLedgers(); renderInvestments(); renderIncome(); renderExtra("income"); renderExpenses(); renderExtra("expense"); renderLoans(); refreshSummary(); }
+function rerenderAll() { renderAccounts(); renderPlan(); renderCards(); renderCardLedgers(); renderInvestments(); renderTransfers(); renderIncome(); renderExtra("income"); renderExpenses(); renderExtra("expense"); renderLoans(); refreshSummary(); }
 $("nameA").addEventListener("input", () => { syncNames(); rerenderAll(); });
 $("nameB").addEventListener("input", () => { syncNames(); rerenderAll(); });
 /* ---------- 탭 ---------- */
@@ -1421,7 +1476,6 @@ document.querySelectorAll(".tab-btn").forEach(btn => btn.addEventListener("click
     setTimeout(() => { if (btn.dataset.tab === "home") drawHome(); if (btn.dataset.tab === "flow") drawFlowCharts(); if (btn.dataset.tab === "calendar") renderCalendar(); if (btn.dataset.tab === "plan") renderPlan(); if (btn.dataset.tab === "growth") drawGrowthCharts(); }, 30);
     if (window.scrollTo) window.scrollTo({ top: 0, behavior: "smooth" });
 }));
-/* [v12] 자산·부채 하위탭 */
 function activateSub(sub) {
     document.querySelectorAll(".subtab-btn").forEach(b => b.classList.toggle("active", b.dataset.sub === sub));
     document.querySelectorAll(".subtab-panel").forEach(p => p.classList.remove("active"));
@@ -1446,11 +1500,11 @@ function applyData(d) {
     if (Array.isArray(d.cfA)) cfA = d.cfA; if (Array.isArray(d.cfB)) cfB = d.cfB;
     if (d.ledgers && d.months) {
         ledgers = d.ledgers; months = d.months.slice();
-        Object.keys(ledgers).forEach(k => { const L = ledgers[k]; ["incomes", "expenses", "extraIncomes", "extraExpenses", "cardTxns"].forEach(n => { if (!Array.isArray(L[n])) L[n] = []; }); });
+        Object.keys(ledgers).forEach(k => { const L = ledgers[k]; ["incomes", "expenses", "extraIncomes", "extraExpenses", "cardTxns", "transfers"].forEach(n => { if (!Array.isArray(L[n])) L[n] = []; }); });
         currentMonth = (d.currentMonth && ledgers[d.currentMonth]) ? d.currentMonth : months.sort()[months.length - 1];
     } else {
         const key = d.currentMonth || REAL_MONTH;
-        ledgers = {}; ledgers[key] = { incomes: d.incomes || [], expenses: d.expenses || [], extraIncomes: d.extraIncomes || [], extraExpenses: d.extraExpenses || [], cardTxns: d.cardTxns || [] };
+        ledgers = {}; ledgers[key] = { incomes: d.incomes || [], expenses: d.expenses || [], extraIncomes: d.extraIncomes || [], extraExpenses: d.extraExpenses || [], cardTxns: d.cardTxns || [], transfers: d.transfers || [] };
         months = [key]; currentMonth = key;
     }
     numifyAll();
@@ -1493,7 +1547,7 @@ function bootRender() {
     numifyAll();
     syncNames(); bindMonth(); renderMonthBar();
     renderAccounts(); renderPlan(); renderCards(); renderCardLedgers(); renderInvestments(); renderLoans();
-    renderIncome(); renderExtra("income"); renderExpenses(); renderExtra("expense");
+    renderTransfers(); renderIncome(); renderExtra("income"); renderExpenses(); renderExtra("expense");
     renderCf(cfA, "cfListA"); renderCf(cfB, "cfListB");
     $("hLabelA").textContent = $("houseA").value; $("hLabelB").textContent = $("houseB").value;
     const [cy, cm] = currentMonth.split("-"); calYear = +cy; calMonth = +cm - 1;
