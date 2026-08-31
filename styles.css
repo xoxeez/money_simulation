@@ -1,7 +1,8 @@
 /* =========================================================
-소학행을 위한 자산 플래너 v12 — Summer Cool Tone
+소학행을 위한 자산 플래너 v13 — Summer Cool Tone
 [v10.2] 모바일 반응형 전면 개선
-[v12] 8→5탭 재편 · 자산·부채 하위탭 · 캘린더 독립 · 데스크톱/모바일 동시 대응
+[v12] 8→5탭 재편 · 자산·부채 하위탭 · 캘린더 독립
+[v13] 계좌 간 이체 UI
 ========================================================= */
 :root {
 --bg: #eef4fa;
@@ -218,7 +219,6 @@ grid-template-columns: 1fr 1fr;
 gap: 16px;
 }
 }
-/* ===== [v9] 월별 가계부 관리 (수입·지출 탭 전용) ===== */
 .ledger-manager {
 display: flex;
 align-items: center;
@@ -314,7 +314,6 @@ line-height: 1.5;
 .lm-create .lm-create-hint b {
 color: var(--peri);
 }
-/* ===== [v9] 월별 통장 잔고 & 월 마감 ===== */
 #monthCloseCard {
 background: linear-gradient(180deg, var(--b-soft), transparent 60%), var(--card);
 }
@@ -424,7 +423,6 @@ border-radius: 11px;
 .mc-hint b {
 color: var(--ink);
 }
-/* ===== [v9.3~9.4] 차트 세부내역 패널 ===== */
 .bd-note {
 font-size: 12px;
 color: var(--sub);
@@ -531,7 +529,6 @@ font-size: 12.5px;
 color: var(--sub);
 padding: 8px 2px;
 }
-/* ===== [v10] 성장 · 목표 : 게이지 대시보드 ===== */
 .gauge-grid {
 display: grid;
 grid-template-columns: repeat(4, 1fr);
@@ -610,7 +607,6 @@ color: var(--minus);
 grid-template-columns: 1fr 1fr;
 }
 }
-/* ===== [v10] 공동 목표 ===== */
 .goal {
 border: 1px solid var(--line2);
 border-radius: 14px;
@@ -1221,6 +1217,10 @@ color: var(--plus);
 background: var(--minus-bg);
 color: var(--minus);
 }
+.ev-xfer {
+background: var(--peri-soft);
+color: var(--peri);
+}
 .cal-net {
 font-weight: 800;
 font-size: 10.5px;
@@ -1601,7 +1601,6 @@ font-weight: 700;
 margin-bottom: 6px;
 padding: 0 2px;
 }
-/* [v11] 카드 고정비 포함 표기 */
 .cl-fixed {
 font-size: 11px;
 font-weight: 700;
@@ -1611,11 +1610,9 @@ padding: 1px 7px;
 border-radius: 6px;
 margin-left: 4px;
 }
-/* [v11] 지출 카테고리 셀렉트 */
 .cat-sel {
 font-size: 12.5px !important;
 }
-/* [v11] 증권·투자 계좌 관리 */
 .inv-head,
 .inv-row {
 display: grid;
@@ -1688,7 +1685,6 @@ margin-top: 4px;
 .inv-row.inv-total .inv-name {
 font-weight: 800;
 }
-/* [v11] 캘린더 마이너스 예상일 */
 .cal-cell.neg-day {
 background: linear-gradient(180deg, var(--minus-bg), var(--card) 70%);
 border-color: var(--minus);
@@ -1779,6 +1775,24 @@ border-radius: 5px;
 margin-left: 4px;
 }
 /* =========================================================
+[v13] 계좌 간 이체 UI
+========================================================= */
+.xfer-item .xfer-auto {
+display: flex;
+align-items: center;
+justify-content: center;
+cursor: pointer;
+}
+.xfer-item .xfer-auto input {
+width: 18px;
+height: 18px;
+accent-color: var(--peri);
+cursor: pointer;
+}
+.xfer-item select {
+font-size: 12.5px;
+}
+/* =========================================================
 [v12] 자산·부채 하위탭
 ========================================================= */
 .subtabs {
@@ -1856,13 +1870,13 @@ flex: 0 0 auto;
 .wrap {
 padding: 16px 12px 90px;
 }
-/* 인라인 grid 리스트 행 → 스택 */
 .item {
 grid-template-columns: 1fr 1fr !important;
 }
 .item .nm,
 .item.acc-item,
-.item.card-item {
+.item.card-item,
+.item.xfer-item {
 grid-column: 1 / -1;
 }
 .cardhead {
@@ -1907,7 +1921,6 @@ padding: 18px;
 grid-template-columns: 1fr 1fr;
 }
 }
-/* 초소형(≤430px): 2열도 버거운 요소는 1열 */
 @media (max-width:430px) {
 .hero-grid {
 grid-template-columns: 1fr 1fr;
