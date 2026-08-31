@@ -1,9 +1,12 @@
 /* =========================================================
-   소학행을 위한 자산 플래너 v13 — app.js
-   [v13 신규] 계좌 간 이체(A통장→B통장): 월 마감 통장 잔고·개인별 예상잔고 반영,
-              가계부 상단 '계좌 이체' 섹션, 자동이체 체크 항목만 다음 달 자동 복사
-   [v12] 8→5탭 재편 · 카드 전월결제 · 만기일시 이자후불(iod)
-   [v11] 마이너스 예상일 · 증권/투자 · 카테고리 태깅   [v10] 성장·목표
+   소학행을 위한 자산 플래너 v14 — app.js
+   [v14 수정]
+   1) 담당자별 월 부담·재무건강: 대출 상환을 '현재 보고 있는 달에 실제 상환일이 있는 금액'만 반영
+      (예: 9월 시작 대출이 8월 부담에 잘못 합산되던 버그 수정)
+   2) 좌측 '지출 구성' 도넛 클릭 → 담당자별로 그룹된 상세 항목 표시 (우측 부담 상세처럼)
+   3) 카드 사용 담당이 '개인(특정 이름)'이고 그 카드 연동계좌가 남의 계좌면,
+      '이번 달 통장별 예상 잔고' 상단에 정산 입금 요청 문구 표시
+   [v13] 계좌 간 이체   [v12] 카드 전월결제·이자후불   [v11] 마이너스예상일·투자·카테고리
 ========================================================= */
 const $ = (id) => document.getElementById(id);
 const won = (v) => (Math.round(fin(+v))).toLocaleString("ko-KR") + "원";
@@ -55,7 +58,6 @@ function attachAllComma() { document.querySelectorAll("input.comma").forEach(att
 const COL = { a: "#3f7fd1", b: "#23b0be", peri: "#6f7fe0", aqua: "#4fc4d6", plus: "#2bb59a", minus: "#e078a0", gold: "#e0b64f" };
 const CHART_PALETTE = ["#3f7fd1", "#23b0be", "#6f7fe0", "#4fc4d6", "#2bb59a", "#e0b64f", "#e078a0", "#9db8d4", "#b7cfc5", "#c9b6e8", "#8fd0c4", "#f0c987"];
 const ACC_ICON = { 예금: "🏦", 주식: "📈", 청약: "🏠", 현금: "💵", 연금: "👛", 기타: "💠" };
-/* [v11] 지출 카테고리 */
 const EXPENSE_CATS = ["식비", "주거/공과", "교통", "통신", "데이트/여가", "쇼핑", "의료", "교육", "경조사", "저축/투자", "기타"];
 const CAT_ICON = { "식비": "🍚", "주거/공과": "🏠", "교통": "🚗", "통신": "📱", "데이트/여가": "💕", "쇼핑": "🛍️", "의료": "🏥", "교육": "📚", "경조사": "🎁", "저축/투자": "💰", "기타": "💠" };
 function catOptions(sel) { return EXPENSE_CATS.map(c => `<option value="${c}" ${sel === c ? "selected" : ""}>${CAT_ICON[c]} ${c}</option>`).join(""); }
@@ -80,7 +82,7 @@ function numifyLedger(L) {
     (L.extraIncomes || []).forEach(x => { x.amt = num(x.amt); x.day = +x.day || 1; });
     (L.extraExpenses || []).forEach(x => { x.amt = num(x.amt); x.day = +x.day || 1; if (!x.cat) x.cat = "기타"; });
     (L.cardTxns || []).forEach(x => { x.amt = num(x.amt); if (!x.cat) x.cat = "기타"; });
-    (L.transfers || []).forEach(x => { x.amt = num(x.amt); x.day = +x.day || 1; x.auto = !!x.auto; });   /* [v13] */
+    (L.transfers || []).forEach(x => { x.amt = num(x.amt); x.day = +x.day || 1; x.auto = !!x.auto; });
 }
 function numifyAll() {
     ensureIds(accounts); ensureIds(cards); ensureIds(loans); ensureIds(goals);
@@ -138,7 +140,7 @@ function createMonth(y, m) {
         if (prev) {
             L.incomes = cloneArr(ledgers[prev].incomes);
             L.expenses = cloneArr(ledgers[prev].expenses);
-            L.transfers = cloneArr((ledgers[prev].transfers || []).filter(t => t.auto));   /* [v13] 자동이체만 복사 */
+            L.transfers = cloneArr((ledgers[prev].transfers || []).filter(t => t.auto));
         }
         numifyLedger(L);
         ledgers[key] = L; months.push(key);
@@ -289,7 +291,6 @@ function accOptions(sel, owner) {
     if (!list.length) return `<option value="">계좌 없음</option>`;
     return list.map(a => `<option value="${a.id}" ${a.id === sel ? "selected" : ""}>${ownerName(a.owner)} · ${a.name}</option>`).join("");
 }
-/* [v13] 전체 계좌 옵션(이체용, owner 구분 없음) */
 function accOptionsAll(sel) {
     if (!accounts.length) return `<option value="">계좌 없음</option>`;
     return accounts.map(a => `<option value="${a.id}" ${a.id === sel ? "selected" : ""}>${ownerName(a.owner)} · ${a.name}</option>`).join("");
@@ -468,7 +469,7 @@ function renderCardLedgers() {
         const fixed = cardFixedTotal(c.id);
         const total = list.reduce((s, t) => s + num(t.amt), 0) + fixed;
         const wrap = document.createElement("div"); wrap.className = "card-ledger";
-        let rows = `<div class="txn-head"><div>사용일</div><div>항목</div><div>카테고리</div><div>담당</div><div>금액</div><div></div></div>`;
+        let rows = `<div class="txn-head"><div>사용일</div><div>항목</div><div>카테고리</div><div>담당(용도)</div><div>금액</div><div></div></div>`;
         list.slice().sort((a, b) => a.date.localeCompare(b.date)).forEach(t => {
             rows += `<div class="txn-row">
         <input type="date" value="${t.date}" data-tx="${t.id}" data-k="date"/>
@@ -483,7 +484,7 @@ function renderCardLedgers() {
         wrap.innerHTML = `<div class="cl-head">
         <div class="cl-title">💳 ${c.name} <span class="pill pill-muted">${ownerName(c.owner)}</span> <span class="pill pill-muted">결제일 ${c.payDay ? c.payDay + "일" : "즉시"} · ${acc ? acc.name : "계좌미지정"}</span></div>
         <div class="cl-total" data-cardtot="${c.id}">${monthLabel(currentMonth)} 사용액 ${won(total)}${fixedNote}</div>
-      </div><div class="desc" style="margin:-4px 0 8px;font-size:11.5px;">🗓️ ${payNote}</div>${rows}
+      </div><div class="desc" style="margin:-4px 0 8px;font-size:11.5px;">🗓️ ${payNote} · 💡 담당(용도)에 <b>개인 이름</b>을 고르면 아래 「통장별 예상 잔고」 위에 정산 요청이 떠요</div>${rows}
       <button class="btn-add" data-txadd="${c.id}" style="margin-top:8px;">＋ 사용내역 추가</button>`;
         box.appendChild(wrap);
     });
@@ -830,13 +831,11 @@ function eventsForMonth(y, mo) {
         L.extraIncomes.forEach(x => { if (x.freq === "monthly") { const d = nthDayOfMonth(y, mo, +x.day || 1); const acc = accounts.find(a => a.id === x.acc); ev.push({ date: ymd(d), label: x.name, sub: `${ownerName(x.owner)} 기타수입(매월) · ${acc ? acc.name : ""}`, amt: num(x.amt), type: "extra-income", owner: x.owner, cash: true }); } else if (x.date && x.date.slice(0, 7) === key) { const acc = accounts.find(a => a.id === x.acc); ev.push({ date: x.date, label: x.name, sub: `${ownerName(x.owner)} 기타수입 · ${acc ? acc.name : ""}`, amt: num(x.amt), type: "extra-income", owner: x.owner, cash: true }); } });
         L.expenses.filter(e => e.method === "acc").forEach(ex => { const acc = accounts.find(a => a.id === ex.ref); ev.push({ date: ymd(nthDayOfMonth(y, mo, +ex.day || 1)), label: ex.name, sub: `${ownerName(ex.owner)} 지출 · ${acc ? acc.name : "계좌"}`, amt: -num(ex.amt), type: "expense", owner: ex.owner, cash: true }); });
         L.extraExpenses.forEach(x => { if (x.freq === "monthly") { const acc = accounts.find(a => a.id === x.acc); ev.push({ date: ymd(nthDayOfMonth(y, mo, +x.day || 1)), label: x.name, sub: `${ownerName(x.owner)} 기타지출(매월) · ${acc ? acc.name : ""}`, amt: -num(x.amt), type: "extra-expense", owner: x.owner, cash: true }); } else if (x.date && x.date.slice(0, 7) === key) { const acc = accounts.find(a => a.id === x.acc); ev.push({ date: x.date, label: x.name, sub: `${ownerName(x.owner)} 기타지출 · ${acc ? acc.name : ""}`, amt: -num(x.amt), type: "extra-expense", owner: x.owner, cash: true }); } });
-        /* [v13] 계좌 간 이체: 합산 net 0(총자산 불변), 개인별·통장별 잔고는 반영 */
         (L.transfers || []).forEach(tr => {
             const amt = num(tr.amt); if (amt <= 0) return;
             const fa = accounts.find(a => a.id === tr.from), ta = accounts.find(a => a.id === tr.to);
             ev.push({ date: ymd(nthDayOfMonth(y, mo, +tr.day || 1)), label: tr.name || "계좌 이체", sub: `${fa ? fa.name : "?"} → ${ta ? ta.name : "?"}${tr.auto ? " · 자동이체" : ""}`, amt: 0, xferAmt: amt, type: "transfer", fromAcc: tr.from, toAcc: tr.to, fromOwner: fa ? fa.owner : null, toOwner: ta ? ta.owner : null, cash: true });
         });
-        // [v12] 신용카드: '당월' 사용은 비현금 기록, '전월' 사용분을 이번 달 결제일에 실제 출금
         const prevKey = prevMonthKey(y, mo);
         const PL = ledgers[prevKey];
         cards.forEach(c => {
@@ -867,7 +866,7 @@ function futureEvents() {
 function loanRepayEvents() { const ev = []; loans.forEach(l => { loanSchedWithDates(l).forEach(s => { ev.push({ date: s.date, amt: -Math.round(s.pay) }); }); }); return ev.sort((a, b) => a.date.localeCompare(b.date)); }
 function ownerShare(ev, owner) {
     if (!ev.cash) return 0;
-    if (ev.type === "transfer") { let s = 0; if (ev.fromOwner === owner) s -= ev.xferAmt; if (ev.toOwner === owner) s += ev.xferAmt; return s; }   /* [v13] */
+    if (ev.type === "transfer") { let s = 0; if (ev.fromOwner === owner) s -= ev.xferAmt; if (ev.toOwner === owner) s += ev.xferAmt; return s; }
     if (ev.type === "cardpay" && ev.items) { let s = 0; ev.items.forEach(it => { if (it.owner === owner) s += it.amt; else if (it.owner === "J") s += it.amt / 2; }); return -s; }
     if (ev.owner === owner) return ev.amt;
     if (ev.owner === "J") return ev.amt / 2;
@@ -930,7 +929,7 @@ function renderDayDetail(ds) {
     if (!evs.length) html += `<div style="color:var(--sub);font-size:13px;padding:10px 0;">이 날짜엔 등록된 일정이 없어요.</div>`;
     else {
         evs.forEach(e => {
-            if (e.type === "transfer") {   /* [v13] 이체 전용 표시 */
+            if (e.type === "transfer") {
                 html += `<div class="dd-row"><div>🔄</div><div><div class="lbl">${e.label} <span class="tag-note">계좌이체</span></div><div class="sub">${e.sub || ""}</div></div><div class="val" style="color:var(--peri);">${eok(e.xferAmt)}</div></div>`;
                 return;
             }
@@ -949,7 +948,7 @@ function renderDayDetail(ds) {
       <div class="bal-box b"><div class="who"><span class="dot dot-b"></span>${nameOf.B} 예상 잔액 (이 날짜 기준)</div><div class="amt">${won(balB)}</div><div class="delta" style="color:${dayNetB >= 0 ? "var(--plus)" : "var(--minus)"}">${dayNetB === 0 ? "당일 변동 없음" : (dayNetB >= 0 ? "＋" : "－") + won(Math.abs(dayNetB)) + " 당일"}</div></div>
     </div>
     ${comb < 0 ? `<div class="neg-note">⚠️ 이 날 두 사람 합산 예상잔고 <b>${won(comb)}</b> — 마이너스예요.</div>` : ""}
-    <div class="desc" style="margin:10px 0 0;">※ 잔액은 <b>기준일(${ANCHOR()})</b> 계좌 잔고에서 출발해 이 달의 현금흐름을 반영한 <b>예상치</b>입니다. (카드 사용은 결제일에만 현금 반영 · 계좌 이체는 합산엔 영향 없고 개인 잔고에만 반영)</div>`;
+    <div class="desc" style="margin:10px 0 0;">※ 잔액은 <b>기준일(${ANCHOR()})</b> 계좌 잔고에서 출발해 이 달의 현금흐름을 반영한 <b>예상치</b>입니다.</div>`;
     box.innerHTML = html;
 }
 $("calPrev").addEventListener("click", () => { calMonth--; if (calMonth < 0) { calMonth = 11; calYear--; } renderCalendar(); });
@@ -977,9 +976,7 @@ function computeAccountDeltas(monthKey) {
     (L.extraIncomes || []).forEach(x => { if (x.freq === "monthly" || inMonth(x.date)) add(x.acc, num(x.amt)); });
     (L.expenses || []).filter(e => e.method === "acc").forEach(e => add(e.ref, -num(e.amt)));
     (L.extraExpenses || []).forEach(x => { if (x.freq === "monthly" || inMonth(x.date)) add(x.acc, -num(x.amt)); });
-    /* [v13] 계좌 간 이체: 출금계좌 -, 입금계좌 + */
     (L.transfers || []).forEach(tr => { const amt = num(tr.amt); if (amt > 0) { add(tr.from, -amt); add(tr.to, amt); } });
-    /* [v12] 카드 출금: 체크=당월 사용분, 신용=전월 사용분이 이번 달 결제일에 출금 */
     const _pk = (function () { const [yy, mm] = monthKey.split("-").map(Number); let py = yy, pm = mm - 1; if (pm < 1) { pm = 12; py--; } return `${py}-${String(pm).padStart(2, "0")}`; })();
     const _PL = ledgers[_pk];
     cards.forEach(c => {
@@ -1001,12 +998,38 @@ function accountBaseFor(monthKey) {
     if (L && L.closed && L.startBalances) return { ...L.startBalances };
     const base = {}; accounts.forEach(a => base[a.id] = num(a.amt)); return base;
 }
+/* [v14] 카드 개인 사용분 정산: 카드 사용(당월)/카드 고정지출 중 담당이 '개인'이고
+   그 카드의 연동 계좌 소유자와 다르면, 사용자가 연동 계좌로 입금해야 함 */
+function computeCardSettlement(monthKey) {
+    const L = ledgers[monthKey]; if (!L) return [];
+    const rows = [];
+    cards.forEach(c => {
+        const acc = accounts.find(a => a.id === c.acc);
+        const byOwner = {};
+        (L.cardTxns || []).filter(t => t.cardId === c.id && t.owner && t.owner !== "J").forEach(t => { byOwner[t.owner] = (byOwner[t.owner] || 0) + num(t.amt); });
+        (L.expenses || []).filter(e => e.method === "card" && e.ref === c.id && e.owner && e.owner !== "J").forEach(e => { byOwner[e.owner] = (byOwner[e.owner] || 0) + num(e.amt); });
+        Object.keys(byOwner).forEach(o => {
+            if (byOwner[o] > 0 && o !== c.owner) rows.push({ user: o, cardName: c.name, accName: acc ? acc.name : "연동 계좌", accOwner: c.owner, amount: byOwner[o] });
+        });
+    });
+    return rows;
+}
 function renderMonthClose() {
     const box = $("mcBalanceList"); if (!box) return;
     const L = ledgers[currentMonth]; const closed = !!(L && L.closed);
     const base = accountBaseFor(currentMonth);
     const deltas = computeAccountDeltas(currentMonth);
-    let html = `<div class="mc-head"><div>계좌</div><div>기준 잔고</div><div>이 달 증감</div><div>예상 잔고</div></div>`;
+    /* [v14] 카드 개인 사용분 정산 요청 문구 */
+    const settle = computeCardSettlement(currentMonth);
+    let settleHtml = "";
+    if (settle.length) {
+        settleHtml = `<div class="settle-note"><div class="settle-title">💌 카드 개인 사용분 정산 요청 <span class="pill pill-muted">공동 결제는 제외</span></div>`;
+        settle.forEach(s => {
+            settleHtml += `<div class="settle-row"><div class="settle-who"><b>${ownerName(s.user)}</b>님이 사용 → <span class="settle-card">${s.cardName}</span> 연동 <b>${ownerName(s.accOwner)} · ${s.accName}</b>로</div><div class="settle-amt">${won(s.amount)} 입금 요청</div></div>`;
+        });
+        settleHtml += `<div class="settle-hint">개인 용도로 쓴 카드값을 <b>연동 계좌</b>로 이체하면 통장 잔고가 정확히 맞아요. (담당을 <b>공동</b>으로 두면 이 정산에서 빠져요)</div></div>`;
+    }
+    let html = settleHtml + `<div class="mc-head"><div>계좌</div><div>기준 잔고</div><div>이 달 증감</div><div>예상 잔고</div></div>`;
     let tStart = 0, tEnd = 0;
     ["A", "B"].forEach(o => {
         const list = accounts.filter(a => a.owner === o);
@@ -1153,7 +1176,8 @@ function monthExpenseTotal() {
     s += cardTxns.reduce((a, t) => a + num(t.amt), 0);
     return s;
 }
-function monthLoanRepayTotal() { return monthlyPayTotal(); }
+/* [v14] 현재 보고 있는 달에 실제 상환일이 있는 대출 상환액만 합산 */
+function monthLoanRepayTotal() { return loans.reduce((s, l) => s + fin(loanPayInMonth(l, currentMonth)), 0); }
 function monthNetFlow() {
     const [y, mo] = currentMonth.split("-");
     return eventsForMonth(+y, +mo - 1).filter(e => e.cash).reduce((s, e) => s + num(e.amt), 0);
@@ -1191,7 +1215,7 @@ function drawHome() {
     assetChart = new Chart($("assetChart"), { type: "doughnut", data: { labels: tl.map(t => t === "주택" ? "🏡 주택(보유)" : ((ACC_ICON[t] || "") + " " + t)), datasets: [{ data: tl.map(t => types[t]), backgroundColor: [COL.a, COL.b, COL.peri, COL.aqua, COL.plus, COL.gold, "#9db8d4", "#c9b6e8"], borderWidth: 2, borderColor: cardc() }] }, options: { plugins: { legend: { position: "bottom" }, tooltip: { callbacks: { label: c => c.label + ": " + eok(c.parsed) } } }, cutout: "60%", maintainAspectRatio: false } });
     if (balanceChart) balanceChart.destroy();
     balanceChart = new Chart($("balanceChart"), { type: "bar", data: { labels: [nameOf.A, nameOf.B], datasets: [{ label: "자산", data: [assetOf("A"), assetOf("B")], backgroundColor: COL.plus, borderRadius: 6 }, { label: "부채", data: [debtOf("A"), debtOf("B")], backgroundColor: COL.minus, borderRadius: 6 }] }, options: { plugins: { legend: { position: "bottom" }, tooltip: { callbacks: { label: c => c.dataset.label + ": " + eok(c.parsed.y) } } }, scales: { y: { ticks: { callback: v => eok(v) }, grid: { color: gridc() } }, x: { grid: { display: false } } }, maintainAspectRatio: false } });
-    const incTot = monthIncomeTotal(), expTot = monthExpenseTotal(), payTot = monthlyPayTotal();
+    const incTot = monthIncomeTotal(), expTot = monthExpenseTotal(), payTot = monthLoanRepayTotal();
     if (flowChartHome) flowChartHome.destroy();
     flowChartHome = new Chart($("flowChart"), { type: "bar", data: { labels: ["월 현금흐름"], datasets: [{ label: "수입", data: [incTot], backgroundColor: COL.plus, borderRadius: 6 }, { label: "생활비", data: [-expTot], backgroundColor: COL.minus, borderRadius: 6 }, { label: "대출상환", data: [-payTot], backgroundColor: COL.peri, borderRadius: 6 }] }, options: { indexAxis: "y", plugins: { legend: { position: "bottom" }, tooltip: { callbacks: { label: c => c.dataset.label + ": " + won(Math.abs(c.parsed.x)) } } }, scales: { x: { ticks: { callback: v => eok(v) }, grid: { color: gridc() } }, y: { grid: { display: false } } }, maintainAspectRatio: false } });
 }
@@ -1202,8 +1226,9 @@ function monthlyExpenseItems() {
     cardTxns.forEach(t => items.push({ name: t.item, amt: num(t.amt), owner: t.owner || "J", cat: t.cat || "기타", kind: "카드사용" }));
     return items.filter(it => it.amt !== 0);
 }
+/* [v14] 현재 달에 실제 상환일이 있는 대출만 담당자별 부담에 반영 */
 function monthlyLoanItems() {
-    return loans.map(l => ({ name: `${l.name} 상환`, amt: fin(loanCalc(l).firstPay), owner: l.owner || "J", kind: "대출상환" })).filter(it => it.amt > 0);
+    return loans.map(l => ({ name: `${l.name} 상환`, amt: fin(loanPayInMonth(l, currentMonth)), owner: l.owner || "J", kind: "대출상환" })).filter(it => it.amt > 0);
 }
 let burdenData = { A: { living: [], loan: [] }, B: { living: [], loan: [] } };
 let flowItems = [];
@@ -1261,7 +1286,7 @@ function drawFlowCharts() {
     if ($("burdenTotalNote")) $("burdenTotalNote").innerHTML =
         `<div style="font-weight:800;color:var(--peri);margin-bottom:4px;">📅 ${mlab} 기준</div>
      <div>🏠 <b>생활비 부담</b> · ${nameOf.A} ${won(living.A)} + ${nameOf.B} ${won(living.B)} = <b>${won(living.A + living.B)}</b> (지출 합계 ${won(totalExp)} 일치)</div>
-     <div style="margin-top:4px;">🏦 <b>대출 상환 포함</b> · ${nameOf.A} ${won(totalIncl.A)} + ${nameOf.B} ${won(totalIncl.B)} = <b>${won(totalIncl.A + totalIncl.B)}</b></div>
+     <div style="margin-top:4px;">🏦 <b>대출 상환 포함</b> · ${nameOf.A} ${won(totalIncl.A)} + ${nameOf.B} ${won(totalIncl.B)} = <b>${won(totalIncl.A + totalIncl.B)}</b> <span style="color:var(--sub);">(이 달 실제 상환일 있는 대출만)</span></div>
      <div style="margin-top:4px;color:var(--sub);">막대(생활비/대출포함)를 클릭하면 세부내역이 보여요.</div>`;
     if ($("burdenDetail")) { $("burdenDetail").style.display = "none"; $("burdenDetail").innerHTML = ""; }
     if ($("expenseDetail")) { $("expenseDetail").style.display = "none"; $("expenseDetail").innerHTML = ""; }
@@ -1289,13 +1314,21 @@ function showBurdenDetail(owner, withLoan) {
     box.innerHTML = html; box.style.display = "block";
     box.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
+/* [v14] 지출 구성 도넛 클릭 → 담당자별로 그룹된 상세 (우측 부담 상세처럼) */
 function showCategoryDetail(cat) {
     const box = $("expenseDetail"); if (!box) return;
-    const list = flowItems.filter(it => (it.cat || "기타") === cat).sort((a, b) => b.amt - a.amt);
+    const list = flowItems.filter(it => (it.cat || "기타") === cat);
     const total = list.reduce((s, x) => s + x.amt, 0);
     let html = `<div class="bd-head">${CAT_ICON[cat]} ${cat} · 합계 <b>${won(total)}</b> <span class="bd-close" onclick="document.getElementById('expenseDetail').style.display='none';">✕</span></div>`;
-    if (!list.length) html += `<div class="bd-empty">이 카테고리 항목이 없어요.</div>`;
-    else list.forEach(it => { html += `<div class="bd-row"><span class="bd-name">${it.name} <span class="bd-kind">${it.kind}</span></span><span class="bd-amt">${won(it.amt)} <span style="color:var(--sub);font-weight:600;">· ${ownerName(it.owner)}</span></span></div>`; });
+    if (!list.length) { html += `<div class="bd-empty">이 카테고리 항목이 없어요.</div>`; box.innerHTML = html; box.style.display = "block"; return; }
+    ["A", "B", "J"].forEach(o => {
+        const items = list.filter(it => (it.owner || "J") === o).sort((a, b) => b.amt - a.amt);
+        if (!items.length) return;
+        const sub = items.reduce((s, x) => s + x.amt, 0);
+        const icon = o === "J" ? "🤝" : "🙋";
+        html += `<div class="bd-sub">${icon} ${ownerName(o)} <b>${won(sub)}</b></div>`;
+        items.forEach(it => { html += `<div class="bd-row"><span class="bd-name">${it.name} <span class="bd-kind">${it.kind}</span></span><span class="bd-amt">${won(it.amt)}</span></div>`; });
+    });
     box.innerHTML = html; box.style.display = "block";
     box.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
