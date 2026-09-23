@@ -1,34 +1,14 @@
 {
-  "name": "소학행을 위한 자산 플래너",
-  "short_name": "자산플래너",
-  "description": "커플 공동 자산 관리 · 가계부 · 대출 · 목표 · 성장 대시보드",
-  "lang": "ko",
-  "dir": "ltr",
-  "start_url": "./index.html",
-  "scope": "./",
+  "name": "소학행 자산 플래너",
+  "short_name": "소학행 플래너",
+  "description": "두 사람이 함께 쓰는 자산·가계부 플래너",
+  "start_url": "./",
   "display": "standalone",
-  "orientation": "portrait-primary",
-  "background_color": "#eef4fa",
-  "theme_color": "#3f7fd1",
-  "categories": ["finance", "productivity", "lifestyle"],
+  "background_color": "#f4f7fb",
+  "theme_color": "#f4f7fb",
+  "lang": "ko",
   "icons": [
-    {
-      "src": "icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "icon-maskable-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
-    }
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
   ]
 }
