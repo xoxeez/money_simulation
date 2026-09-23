@@ -11,6 +11,23 @@ const amount = (value) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+/**
+ * Convert the owner labels used by older versions into the stable A/B/J keys.
+ * Unknown labels are intentionally returned as joint and marked for review so
+ * a migration can never silently assign a private expense to the wrong person.
+ */
+export function normalizeLegacyOwner(value, { nameA = "나", nameB = "상대방" } = {}) {
+  const original = String(value ?? "").trim();
+  if (!original) return { owner: "J", needsReview: false, original };
+  const normalized = original.toLowerCase().replace(/\s+/g, "");
+  if (["a", "ownera", "persona", "본인", "나", "me", "self"].includes(normalized)) return { owner: "A", needsReview: false, original };
+  if (["b", "ownerb", "personb", "상대", "상대방", "partner", "other"].includes(normalized)) return { owner: "B", needsReview: false, original };
+  if (["j", "joint", "공동", "공통", "함께", "couple"].includes(normalized)) return { owner: "J", needsReview: false, original };
+  if (normalized === String(nameA).trim().toLowerCase().replace(/\s+/g, "")) return { owner: "A", needsReview: false, original };
+  if (normalized === String(nameB).trim().toLowerCase().replace(/\s+/g, "")) return { owner: "B", needsReview: false, original };
+  return { owner: "J", needsReview: true, original };
+}
+
 export function monthKeyFromDate(date, fallback = "") {
   const value = String(date || "");
   return /^\d{4}-\d{2}/.test(value) ? value.slice(0, 7) : fallback;
@@ -83,8 +100,15 @@ function normalizeLedger(ledger) {
 
 export function migrateLegacyData(raw = {}, { today = localYmd() } = {}) {
   const source = clone(raw) || {};
+  const nameA = String(source.nameA || "나").trim() || "나";
+  const nameB = String(source.nameB || "상대방").trim() || "상대방";
+  const unresolved = Array.isArray(source.migrationAudit?.usageOwnerUnresolved) ? clone(source.migrationAudit.usageOwnerUnresolved) : [];
+  const unresolvedKeys = new Set(unresolved.map((item) => `${item.source}:${item.monthKey}:${item.sourceId}:${item.original}`));
+  const resolvedKeys = new Set();
   const data = {
     ...source,
+    nameA,
+    nameB,
     schemaVersion: SCHEMA_VERSION,
     migratedAt: source.migratedAt || new Date().toISOString(),
     migrationToday: today,
@@ -93,7 +117,11 @@ export function migrateLegacyData(raw = {}, { today = localYmd() } = {}) {
     loans: Array.isArray(source.loans) ? source.loans : [],
     goals: Array.isArray(source.goals) ? source.goals : [],
     months: Array.isArray(source.months) ? [...source.months] : Object.keys(source.ledgers || {}),
-    ledgers: {}
+    ledgers: {},
+    migrationAudit: {
+      ...(source.migrationAudit || {}),
+      usageOwnerUnresolved: unresolved
+    }
   };
   data.months = [...new Set(data.months.filter((key) => /^\d{4}-\d{2}$/.test(key)))].sort();
   if (!data.months.length) data.months = [String(today).slice(0, 7)];
@@ -101,13 +129,41 @@ export function migrateLegacyData(raw = {}, { today = localYmd() } = {}) {
   for (const monthKey of data.months) {
     const ledger = normalizeLedger(source.ledgers?.[monthKey]);
     for (const tx of ledger.cardTxns) {
-      if (!tx.usageOwner) tx.usageOwner = tx.owner || "J";
+      const rawOwner = tx.usageOwnerOriginal || tx.usageOwner || tx.owner;
+      const ownerResult = normalizeLegacyOwner(rawOwner, { nameA, nameB });
+      tx.usageOwner = ownerResult.owner;
+      if (tx.usageOwnerOriginal && !ownerResult.needsReview) {
+        resolvedKeys.add(`cardTxn:${monthKey}:${tx.id || `${monthKey}:card:${ledger.cardTxns.indexOf(tx)}`}:${tx.usageOwnerOriginal}`);
+      }
+      if (ownerResult.needsReview) {
+        const sourceId = tx.id || `${monthKey}:card:${ledger.cardTxns.indexOf(tx)}`;
+        const key = `cardTxn:${monthKey}:${sourceId}:${ownerResult.original}`;
+        if (!unresolvedKeys.has(key)) {
+          unresolved.push({ monthKey, source: "cardTxn", sourceId, original: ownerResult.original });
+          unresolvedKeys.add(key);
+        }
+        tx.usageOwnerOriginal = ownerResult.original;
+      }
       if (!tx.payment) tx.payment = { type: "card", id: tx.cardId || "" };
       tx.amount = amount(tx.amount ?? tx.amt);
       tx.monthKey = tx.monthKey || monthKeyFromDate(tx.date, monthKey);
     }
     for (const expense of ledger.expenses) {
-      if (!expense.usageOwner) expense.usageOwner = expense.owner || "J";
+      const rawOwner = expense.usageOwnerOriginal || expense.usageOwner || expense.owner;
+      const ownerResult = normalizeLegacyOwner(rawOwner, { nameA, nameB });
+      expense.usageOwner = ownerResult.owner;
+      if (expense.usageOwnerOriginal && !ownerResult.needsReview) {
+        resolvedKeys.add(`expense:${monthKey}:${expense.id || `${monthKey}:expense:${ledger.expenses.indexOf(expense)}`}:${expense.usageOwnerOriginal}`);
+      }
+      if (ownerResult.needsReview) {
+        const sourceId = expense.id || `${monthKey}:expense:${ledger.expenses.indexOf(expense)}`;
+        const key = `expense:${monthKey}:${sourceId}:${ownerResult.original}`;
+        if (!unresolvedKeys.has(key)) {
+          unresolved.push({ monthKey, source: "expense", sourceId, original: ownerResult.original });
+          unresolvedKeys.add(key);
+        }
+        expense.usageOwnerOriginal = ownerResult.original;
+      }
       if (expense.method === "card" && !expense.payment) expense.payment = { type: "card", id: expense.ref || "" };
       expense.amount = amount(expense.amount ?? expense.amt);
       expense.monthKey = expense.monthKey || monthKey;
@@ -117,6 +173,7 @@ export function migrateLegacyData(raw = {}, { today = localYmd() } = {}) {
     }
     data.ledgers[monthKey] = ledger;
   }
+  data.migrationAudit.usageOwnerUnresolved = unresolved.filter((item) => !resolvedKeys.has(`${item.source}:${item.monthKey}:${item.sourceId}:${item.original}`));
   for (const monthKey of data.months) {
     const ledger = data.ledgers[monthKey];
     if (ledger.closed && ledger.closeSnapshot && !ledger.closeSnapshot.summary) {
@@ -140,6 +197,7 @@ function legacyCardTransactions(monthKey, ledger) {
       category: tx.cat || "기타",
       amount: amount(tx.amount ?? tx.amt),
       usageOwner: tx.usageOwner || tx.owner || "J",
+      usageOwnerOriginal: tx.usageOwnerOriginal || "",
       payment: tx.payment || { type: "card", id: tx.cardId || "" },
       source: "cardTxn"
     });
@@ -156,6 +214,7 @@ function legacyCardTransactions(monthKey, ledger) {
       category: expense.cat || "기타",
       amount: amount(expense.amount ?? expense.amt),
       usageOwner: expense.usageOwner || expense.owner || "J",
+      usageOwnerOriginal: expense.usageOwnerOriginal || "",
       payment: expense.payment || { type: "card", id: expense.ref || "" },
       source: "fixedExpense"
     });
