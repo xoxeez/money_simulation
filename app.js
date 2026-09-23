@@ -15,7 +15,7 @@ const TODAY = (() => { const date = new Date(); const pad = (value) => String(va
 const CURRENT_MONTH = TODAY.slice(0, 7);
 const COLORS = ["#2868d7", "#159e9b", "#7659c9", "#e28c43", "#bd4c65", "#6f8ea9", "#8d63bc", "#a2b85b"];
 const CATEGORIES = ["식비", "주거/공과", "교통", "통신", "데이트/여가", "쇼핑", "의료", "교육", "경조사", "저축/투자", "기타"];
-const state = { data: null, screen: "dashboard", selectedMonth: CURRENT_MONTH, recordFilter: "all", charts: {}, detail: null, cloudDb: null, saveTimer: null, housingCalculated: false };
+const state = { data: null, screen: "dashboard", selectedMonth: CURRENT_MONTH, recordFilter: "all", charts: {}, detail: null, analyticsDetail: null, cloudDb: null, saveTimer: null, housingCalculated: false };
 
 function deepClone(value) { return value == null ? value : JSON.parse(JSON.stringify(value)); }
 function parseAmount(value) {
@@ -71,6 +71,31 @@ function ensureData(raw) {
   const reviewIds = new Set(data.settlementReviews.map((item) => item.sourceTransactionId));
   data.settlementReviews.push(...reviews.filter((item) => !reviewIds.has(item.sourceTransactionId)));
   return data;
+}
+
+function syncPeopleInputs() {
+  if (!state.data) return;
+  const inputA = $("nameAInput");
+  const inputB = $("nameBInput");
+  if (inputA && document.activeElement !== inputA) inputA.value = state.data.nameA || "나";
+  if (inputB && document.activeElement !== inputB) inputB.value = state.data.nameB || "상대방";
+  const purposeA = $("purposeA");
+  const purposeB = $("purposeB");
+  if (purposeA) purposeA.textContent = state.data.nameA || "나";
+  if (purposeB) purposeB.textContent = state.data.nameB || "상대방";
+  const recordFilterA = document.querySelector('#recordFilters [data-filter="A"]');
+  const recordFilterB = document.querySelector('#recordFilters [data-filter="B"]');
+  if (recordFilterA) recordFilterA.textContent = state.data.nameA || "나";
+  if (recordFilterB) recordFilterB.textContent = state.data.nameB || "상대방";
+  const audit = state.data.migrationAudit?.usageOwnerUnresolved || [];
+  const notice = $("ownerAuditNotice");
+  if (notice) {
+    notice.hidden = audit.length === 0;
+    if (audit.length) {
+      const examples = audit.slice(0, 3).map((item) => `‘${item.original}’`).join(", ");
+      notice.textContent = `과거 데이터에서 확인이 필요한 사용 목적 ${audit.length}건이 있습니다. ${examples}${audit.length > 3 ? " 외" : ""} 표기는 공동으로 임시 분류했으니 거래 기록에서 실제 사용자를 확인해주세요.`;
+    }
+  }
 }
 
 function loadLocal() {
@@ -154,12 +179,12 @@ function allRecords(monthKey = state.selectedMonth) {
   for (const expense of ledger.expenses || []) {
     if (expense.method === "card") continue;
     const day = String(Math.max(1, Number(expense.day) || 1)).padStart(2, "0");
-    records.push({ id: expense.id || `${monthKey}:expense:${records.length}`, sourceTransactionId: expense.id || `${monthKey}:expense:${records.length}`, monthKey, date: expense.date || `${monthKey}-${day}`, item: expense.name || "계좌 지출", category: expense.cat || "기타", amount: parseAmount(expense.amount ?? expense.amt), usageOwner: expense.usageOwner || expense.owner || "J", payment: { type: "account", id: expense.acc || expense.ref || "" }, paymentLabel: paymentLabel({ type: "account", id: expense.acc || expense.ref || "" }), source: "accountExpense" });
+    records.push({ id: expense.id || `${monthKey}:expense:${records.length}`, sourceTransactionId: expense.id || `${monthKey}:expense:${records.length}`, monthKey, date: expense.date || `${monthKey}-${day}`, item: expense.name || "계좌 지출", category: expense.cat || "기타", amount: parseAmount(expense.amount ?? expense.amt), usageOwner: expense.usageOwner || expense.owner || "J", usageOwnerOriginal: expense.usageOwnerOriginal || "", payment: { type: "account", id: expense.acc || expense.ref || "" }, paymentLabel: paymentLabel({ type: "account", id: expense.acc || expense.ref || "" }), source: "accountExpense" });
   }
   for (const extra of ledger.extraExpenses || []) {
     const date = extra.freq === "monthly" ? `${monthKey}-${String(Math.max(1, Number(extra.day) || 1)).padStart(2, "0")}` : (extra.date || `${monthKey}-01`);
     if (!date.startsWith(monthKey)) continue;
-    records.push({ id: extra.id || `${monthKey}:extra:${records.length}`, sourceTransactionId: extra.id || `${monthKey}:extra:${records.length}`, monthKey, date, item: extra.name || "기타 지출", category: extra.cat || "기타", amount: parseAmount(extra.amount ?? extra.amt), usageOwner: extra.usageOwner || extra.owner || "J", payment: { type: "account", id: extra.acc || "" }, paymentLabel: "기타 지출", source: "extraExpense" });
+    records.push({ id: extra.id || `${monthKey}:extra:${records.length}`, sourceTransactionId: extra.id || `${monthKey}:extra:${records.length}`, monthKey, date, item: extra.name || "기타 지출", category: extra.cat || "기타", amount: parseAmount(extra.amount ?? extra.amt), usageOwner: extra.usageOwner || extra.owner || "J", usageOwnerOriginal: extra.usageOwnerOriginal || "", payment: { type: "account", id: extra.acc || "" }, paymentLabel: "기타 지출", source: "extraExpense" });
   }
   return records.filter((record) => record.amount > 0).sort((a, b) => String(b.date).localeCompare(String(a.date)));
 }
@@ -241,7 +266,9 @@ function renderDashboard() {
 }
 
 function recordHtml(record) {
-  return `<button class="record-row" type="button" data-record-id="${esc(record.id)}"><div class="record-main"><div class="record-title">${esc(record.item)}</div><div class="record-sub">${esc(record.date)} · ${esc(record.category)}</div></div><span class="pill ${ownerClass(record.usageOwner)} record-purpose">${esc(ownerName(record.usageOwner))}</span><div class="record-meta"><div class="record-sub">${esc(record.paymentLabel || paymentLabel(record.payment))}</div></div><div class="record-amount">－${fmt(record.amount)}</div></button>`;
+  const auditLabel = record.usageOwnerOriginal ? " · 확인 필요" : "";
+  const auditTitle = record.usageOwnerOriginal ? ` title="기존 표기: ${esc(record.usageOwnerOriginal)}"` : "";
+  return `<button class="record-row" type="button" data-record-id="${esc(record.id)}"><div class="record-main"><div class="record-title">${esc(record.item)}</div><div class="record-sub">${esc(record.date)} · ${esc(record.category)}</div></div><span class="pill ${ownerClass(record.usageOwner)} record-purpose"${auditTitle}>${esc(ownerName(record.usageOwner))}${auditLabel}</span><div class="record-meta"><div class="record-sub">${esc(record.paymentLabel || paymentLabel(record.payment))}</div></div><div class="record-amount">－${fmt(record.amount)}</div></button>`;
 }
 
 function renderRecords() {
@@ -250,8 +277,12 @@ function renderRecords() {
   $("recordList").innerHTML = records.length ? records.map(recordHtml).join("") : `<div class="empty">이 조건에 맞는 거래가 없습니다.</div>`;
   $("recordList").querySelectorAll("[data-record-id]").forEach((el) => el.addEventListener("click", () => { const record = allRecords().find((item) => item.id === el.dataset.recordId); if (record) openDetail(record.item, [record]); }));
   const reviews = pendingReviews();
-  $("migrationNotice").hidden = reviews.length === 0;
-  if (reviews.length) $("migrationNotice").textContent = `${reviews.length}건의 개인 카드 사용 내역이 정산 검토를 기다리고 있습니다. 과거에 이미 이체했다면 정산 화면에서 완료로 표시해주세요.`;
+  const auditCount = state.data.migrationAudit?.usageOwnerUnresolved?.length || 0;
+  const messages = [];
+  if (reviews.length) messages.push(`${reviews.length}건의 개인 카드 사용 내역이 정산 검토를 기다리고 있습니다. 과거에 이미 이체했다면 정산 화면에서 완료로 표시해주세요.`);
+  if (auditCount) messages.push(`과거 사용 목적 표기 ${auditCount}건은 공동으로 임시 분류했습니다. 자산 화면에서 이름을 설정한 뒤 ‘확인 필요’ 항목을 재검토해주세요.`);
+  $("migrationNotice").hidden = messages.length === 0;
+  if (messages.length) $("migrationNotice").textContent = messages.join(" ");
 }
 
 function settlementStatusLabel(status) { return status === "confirmed" ? "이체 완료" : status === "excluded" ? "대상 아님" : status === "pending" ? "이체 필요" : "검토 필요"; }
@@ -304,6 +335,7 @@ function reopenMonth(monthKey) {
 }
 
 function renderAssets() {
+  syncPeopleInputs();
   const accounts = state.data.accounts || [];
   $("accountTotal").textContent = fmt(accountTotal());
   $("accountList").innerHTML = accounts.length ? accounts.map((account) => `<div class="asset-row"><div class="asset-icon">▣</div><div class="asset-main"><div class="asset-title">${esc(account.name || "이름 없는 계좌")}</div><div class="asset-sub">${esc(ownerName(account.owner))} · ${esc(account.type || "예금")}</div></div><div class="asset-total">${fmt(account.amt)}</div></div>`).join("") : `<div class="empty">관리할 계좌를 추가해주세요.</div>`;
@@ -452,14 +484,44 @@ function addTransactionFromForm(event) {
 
 function renderAnalytics() {
   updateMonthSelects();
+  renderAnalyticsDetail(state.analyticsDetail?.title, state.analyticsDetail?.records);
   if (!window.Chart) return;
   const accounts = state.data.accounts || [];
   const types = {}; accounts.forEach((account) => { types[account.type || "기타"] = (types[account.type || "기타"] || 0) + parseAmount(account.amt); });
   destroyChart("assets");
-  state.charts.assets = new Chart($("chartAssets"), { type: "doughnut", data: { labels: Object.keys(types).length ? Object.keys(types) : ["자산 없음"], datasets: [{ data: Object.keys(types).length ? Object.values(types) : [1], backgroundColor: COLORS, borderColor: getComputedStyle(document.documentElement).getPropertyValue("--surface").trim(), borderWidth: 3 }] }, options: { ...chartDefaults(), cutout: "62%", maintainAspectRatio: false, onClick: (_event, elements) => { if (!elements.length || !Object.keys(types).length) return; const type = Object.keys(types)[elements[0].index]; openDetail(`${type} 계좌`, accounts.filter((account) => (account.type || "기타") === type).map((account) => ({ item: account.name, date: "현재", category: account.type || "기타", amount: parseAmount(account.amt), usageOwner: account.owner, paymentLabel: "자산" }))); } } });
+  state.charts.assets = new Chart($("chartAssets"), { type: "doughnut", data: { labels: Object.keys(types).length ? Object.keys(types) : ["자산 없음"], datasets: [{ data: Object.keys(types).length ? Object.values(types) : [1], backgroundColor: COLORS, borderColor: getComputedStyle(document.documentElement).getPropertyValue("--surface").trim(), borderWidth: 3 }] }, options: { ...chartDefaults(), cutout: "62%", maintainAspectRatio: false, onClick: (_event, elements) => { if (!elements.length || !Object.keys(types).length) return; const type = Object.keys(types)[elements[0].index]; const detailRecords = accounts.filter((account) => (account.type || "기타") === type).map((account) => ({ id: `asset:${account.id}`, item: account.name, date: "현재", category: account.type || "기타", amount: parseAmount(account.amt), usageOwner: account.owner, paymentLabel: "자산" })); openAnalyticsDetail(`${type} 계좌`, detailRecords); } } });
   const months = allMonths(); const trendValues = months.map((monthKey) => totalExpenses(monthKey));
   destroyChart("trend");
-  state.charts.trend = new Chart($("chartTrend"), { type: "line", data: { labels: months.map(monthLabel), datasets: [{ label: "월 지출", data: trendValues, borderColor: "#2868d7", backgroundColor: "rgba(40,104,215,.12)", fill: true, tension: .3, pointRadius: 4, pointHoverRadius: 6 }] }, options: { ...chartDefaults(), maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { callback: (value) => fmtShort(value) }, grid: { color: getComputedStyle(document.documentElement).getPropertyValue("--line").trim() } }, x: { grid: { display: false } } }, onClick: (_event, elements) => { if (!elements.length) return; const key = months[elements[0].index]; openDetail(`${monthLabel(key)} 지출`, allRecords(key)); } } });
+  state.charts.trend = new Chart($("chartTrend"), { type: "line", data: { labels: months.map(monthLabel), datasets: [{ label: "월 지출", data: trendValues, borderColor: "#2868d7", backgroundColor: "rgba(40,104,215,.12)", fill: true, tension: .3, pointRadius: 4, pointHoverRadius: 6 }] }, options: { ...chartDefaults(), maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { callback: (value) => fmtShort(value) }, grid: { color: getComputedStyle(document.documentElement).getPropertyValue("--line").trim() } }, x: { grid: { display: false } } }, onClick: (_event, elements) => { if (!elements.length) return; const key = months[elements[0].index]; openAnalyticsDetail(`${monthLabel(key)} 지출`, allRecords(key)); } } });
+}
+
+function analyticsSummaryHtml() {
+  const records = allRecords();
+  const total = records.reduce((sum, record) => sum + record.amount, 0);
+  const joint = records.filter((record) => record.usageOwner === "J").reduce((sum, record) => sum + record.amount, 0);
+  const pending = pendingReviews();
+  const categories = Object.entries(records.reduce((result, record) => { result[record.category] = (result[record.category] || 0) + record.amount; return result; }, {})).sort((a, b) => b[1] - a[1]);
+  const topCategory = categories[0];
+  return `<div class="analysis-summary"><div class="analysis-summary-grid"><div class="analysis-stat"><span>이번 달 지출</span><strong>${fmtShort(total)}</strong><small>${records.length}건의 기록</small></div><div class="analysis-stat"><span>공동 지출</span><strong>${fmtShort(joint)}</strong><small>전체의 ${total ? Math.round(joint / total * 100) : 0}%</small></div><div class="analysis-stat"><span>정산 대기</span><strong>${fmtShort(pending.reduce((sum, item) => sum + parseAmount(item.amount), 0))}</strong><small>${pending.length}건 확인 필요</small></div></div><div class="analysis-insight"><b>${topCategory ? `${esc(topCategory[0])} 비중이 가장 큽니다.` : "아직 분석할 지출이 없습니다."}</b><span>${topCategory ? `${fmt(topCategory[1])} · 전체의 ${total ? Math.round(topCategory[1] / total * 100) : 0}%` : "기록을 추가하면 카테고리와 정산 흐름을 요약합니다."}</span></div><p class="analysis-help">자산 구성 도넛을 클릭하면 해당 계좌 목록이, 월별 지출 추이의 점을 클릭하면 해당 월 거래 목록이 아래에 표시됩니다.</p></div>`;
+}
+
+function renderAnalyticsDetail(title = "", records = null) {
+  const box = $("analyticsDetail");
+  if (!box) return;
+  if (!records) {
+    box.className = "analysis-summary-wrap";
+    box.innerHTML = analyticsSummaryHtml();
+    return;
+  }
+  box.className = "analysis-detail";
+  box.innerHTML = `<div class="analysis-detail-head"><div><b>${esc(title || "선택한 내역")}</b><span>${records.length}건 · ${fmt(records.reduce((sum, record) => sum + parseAmount(record.amount), 0))}</span></div><button type="button" class="text-btn" data-analysis-reset>요약으로</button></div>${records.length ? `<div class="record-list analysis-detail-list">${records.map((record) => recordHtml(record)).join("")}</div>` : `<div class="detail-empty">연결된 내역이 없습니다.</div>`}`;
+  box.querySelector("[data-analysis-reset]")?.addEventListener("click", () => { state.analyticsDetail = null; renderAnalyticsDetail(); });
+  box.querySelectorAll("[data-record-id]").forEach((el) => el.addEventListener("click", () => { const record = records.find((item) => String(item.id) === String(el.dataset.recordId)); if (record) openDetail(record.item, [record]); }));
+}
+
+function openAnalyticsDetail(title, records = []) {
+  state.analyticsDetail = { title, records };
+  renderAnalyticsDetail(title, records);
 }
 
 function openDetail(title, records = []) {
@@ -473,9 +535,9 @@ function updateNavBadge() { const count = pendingReviews().length; $("navBadge")
 
 function bindEvents() {
   document.querySelectorAll("[data-open-screen]").forEach((button) => button.addEventListener("click", () => setScreen(button.dataset.openScreen)));
-  $("monthSelect").addEventListener("change", (event) => { state.selectedMonth = event.target.value; renderAll(); });
-  $("recordMonthSelect").addEventListener("change", (event) => { state.selectedMonth = event.target.value; renderRecords(); renderSettlements(); });
-  $("analyticsMonthSelect").addEventListener("change", (event) => { state.selectedMonth = event.target.value; renderAnalytics(); });
+  $("monthSelect").addEventListener("change", (event) => { state.selectedMonth = event.target.value; state.analyticsDetail = null; renderAll(); });
+  $("recordMonthSelect").addEventListener("change", (event) => { state.selectedMonth = event.target.value; state.analyticsDetail = null; renderRecords(); renderSettlements(); });
+  $("analyticsMonthSelect").addEventListener("change", (event) => { state.selectedMonth = event.target.value; state.analyticsDetail = null; renderAnalytics(); });
   $("recordFilters").addEventListener("click", (event) => { const button = event.target.closest("[data-filter]"); if (!button) return; state.recordFilter = button.dataset.filter; document.querySelectorAll("#recordFilters .segment").forEach((item) => item.classList.toggle("active", item === button)); renderRecords(); });
   $("openQuickEntry").addEventListener("click", openQuickEntry); $("openQuickEntryRecords").addEventListener("click", openQuickEntry);
   $("quickEntryForm").addEventListener("submit", addTransactionFromForm);
@@ -490,6 +552,15 @@ function bindEvents() {
   $("closeMonthBtn").addEventListener("click", () => setScreen("settlements"));
   $("settlementMonthAction").addEventListener("click", () => setScreen("settlements"));
   $("addAccountBtn").addEventListener("click", addAccount); $("addCardBtn").addEventListener("click", addCard); $("addLoanBtn").addEventListener("click", addLoan); $("addGoalBtn").addEventListener("click", addGoal);
+  [["nameAInput", "nameA", "나"], ["nameBInput", "nameB", "상대방"]].forEach(([id, key, fallback]) => {
+    const input = $(id);
+    input.addEventListener("input", () => {
+      state.data[key] = input.value.trim() || fallback;
+      syncPeopleInputs();
+      queueSave();
+    });
+    input.addEventListener("change", () => { state.data[key] = input.value.trim() || fallback; renderAll(); });
+  });
   $("addCfA").addEventListener("click", () => addHousingEntry("A")); $("addCfB").addEventListener("click", () => addHousingEntry("B")); $("calcHousingBtn").addEventListener("click", calculateHousing);
   $("closeDetail").addEventListener("click", () => $("detailDialog").close());
   document.addEventListener("click", (event) => { const record = event.target.closest("[data-record-id]"); if (record && !$("detailDialog").open) { const item = allRecords().find((entry) => entry.id === record.dataset.recordId); if (item) openDetail(item.item, [item]); } });
