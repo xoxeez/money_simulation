@@ -1,5 +1,7 @@
 import {
   buildOpenMonthReviews,
+  buildHousingSeries,
+  calculateHousingLedger,
   createCloseSnapshot,
   deriveSettlementForTransaction,
   listMonthTransactions,
@@ -13,7 +15,7 @@ const TODAY = (() => { const date = new Date(); const pad = (value) => String(va
 const CURRENT_MONTH = TODAY.slice(0, 7);
 const COLORS = ["#2868d7", "#159e9b", "#7659c9", "#e28c43", "#bd4c65", "#6f8ea9", "#8d63bc", "#a2b85b"];
 const CATEGORIES = ["식비", "주거/공과", "교통", "통신", "데이트/여가", "쇼핑", "의료", "교육", "경조사", "저축/투자", "기타"];
-const state = { data: null, screen: "dashboard", selectedMonth: CURRENT_MONTH, recordFilter: "all", charts: {}, detail: null, cloudDb: null, saveTimer: null };
+const state = { data: null, screen: "dashboard", selectedMonth: CURRENT_MONTH, recordFilter: "all", charts: {}, detail: null, cloudDb: null, saveTimer: null, housingCalculated: false };
 
 function deepClone(value) { return value == null ? value : JSON.parse(JSON.stringify(value)); }
 function parseAmount(value) {
@@ -61,6 +63,8 @@ function ensureData(raw) {
   data.nameB ||= "상대방";
   data.accounts ||= [];
   data.cards ||= [];
+  data.cfA ||= [];
+  data.cfB ||= [];
   data.settlementReviews ||= [];
   for (const key of data.months) data.ledgers[key] = { ...blankLedger(), ...(data.ledgers[key] || {}) };
   const reviews = buildOpenMonthReviews(data);
@@ -309,6 +313,8 @@ function renderAssets() {
   $("cardList").querySelectorAll("[data-card-delete]").forEach((button) => button.addEventListener("click", () => { state.data.cards = state.data.cards.filter((card) => card.id !== button.dataset.cardDelete); queueSave(); renderAssets(); toast("카드를 삭제했습니다."); }));
   renderLoansAndGoals();
   renderHousing();
+  renderHousingCashFlows();
+  if (state.housingCalculated) renderHousingResults(false);
 }
 
 function renderLoansAndGoals() {
@@ -324,8 +330,63 @@ function renderHousing() {
     { prefix: "B", name: state.data.houseB || "주택 B", owner: state.data.houseBOwner || "J", budget: parseAmount(state.data.budgetB), value: parseAmount(state.data.houseBValue) }
   ];
   $("houseList").innerHTML = houses.map((house) => `<div class="house-card"><h4>⌂ ${esc(house.name)}</h4><label>주택 이름<input data-house-key="house${house.prefix}" value="${esc(house.name)}"></label><label>담당자<select data-house-key="house${house.prefix}Owner"><option value="J" ${house.owner === "J" ? "selected" : ""}>공동</option><option value="A" ${house.owner === "A" ? "selected" : ""}>${esc(ownerName("A"))}</option><option value="B" ${house.owner === "B" ? "selected" : ""}>${esc(ownerName("B"))}</option></select></label><label>보유 예산<input data-house-key="budget${house.prefix}" inputmode="numeric" value="${inputNumber(house.budget)}"></label><label>현재 자산가치<input data-house-key="house${house.prefix}Value" inputmode="numeric" value="${inputNumber(house.value)}"></label></div>`).join("");
-  $("houseList").querySelectorAll("[data-house-key]").forEach((control) => control.addEventListener("change", () => { const key = control.dataset.houseKey; state.data[key] = /^(budget|house.*Value)$/.test(key) ? parseAmount(control.value) : control.value; queueSave(); renderHousing(); }));
+  $("houseList").querySelectorAll("[data-house-key]").forEach((control) => control.addEventListener("change", () => { const key = control.dataset.houseKey; state.data[key] = /^(budget|house.*Value)$/.test(key) ? parseAmount(control.value) : control.value; queueSave(); renderHousing(); renderHousingCashFlows(); }));
 }
+
+function housingEntries(prefix) {
+  const key = prefix === "A" ? "cfA" : "cfB";
+  if (!Array.isArray(state.data[key])) state.data[key] = [];
+  return state.data[key];
+}
+
+function renderHousingCashFlows() {
+  for (const prefix of ["A", "B"]) {
+    const list = housingEntries(prefix);
+    const box = $(`cfList${prefix}`);
+    $(`houseFlowTitle${prefix}`).textContent = state.data[`house${prefix}`] || `주택 ${prefix}`;
+    box.innerHTML = list.length ? list.map((entry, index) => `<div class="housing-entry"><input type="date" data-house-entry="${prefix}" data-index="${index}" data-key="date" value="${esc(entry.date || TODAY)}" aria-label="주택 ${prefix} 자금 날짜"><input type="text" data-house-entry="${prefix}" data-index="${index}" data-key="label" value="${esc(entry.label || "항목")}" placeholder="항목" aria-label="주택 ${prefix} 자금 항목"><input class="entry-amount" type="text" inputmode="numeric" data-house-entry="${prefix}" data-index="${index}" data-key="amt" value="${inputNumber(entry.amt)}" placeholder="금액" aria-label="주택 ${prefix} 자금 금액"><button class="delete-entry" type="button" data-house-delete="${prefix}" data-index="${index}" aria-label="항목 삭제">×</button></div>`).join("") : `<div class="housing-empty">아직 입력된 자금 흐름이 없습니다.</div>`;
+    box.querySelectorAll("[data-house-entry]").forEach((control) => control.addEventListener("input", () => {
+      const entry = housingEntries(control.dataset.houseEntry)[Number(control.dataset.index)]; if (!entry) return;
+      entry[control.dataset.key] = control.dataset.key === "amt" ? parseAmount(control.value) : control.value;
+      if (control.dataset.key === "amt") control.value = inputNumber(entry.amt);
+      queueSave();
+    }));
+    box.querySelectorAll("[data-house-delete]").forEach((button) => button.addEventListener("click", () => { housingEntries(button.dataset.houseDelete).splice(Number(button.dataset.index), 1); queueSave(); renderHousingCashFlows(); }));
+  }
+}
+
+function addHousingEntry(prefix) {
+  const list = housingEntries(prefix);
+  list.push({ date: TODAY, label: "새 항목", amt: 0 });
+  list.sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  queueSave(); renderHousingCashFlows();
+}
+
+function housingLedgerHtml(ledger, budget) {
+  let html = `<table><thead><tr><th>날짜</th><th>항목</th><th>금액</th><th>잔여예산</th></tr></thead><tbody><tr><td>${esc(TODAY)}</td><td>보유 예산</td><td>—</td><td><b>${fmtShort(budget)}</b></td></tr>`;
+  for (const row of ledger.rows) {
+    const amountText = `${row.amt >= 0 ? "＋" : "－"}${fmtShort(Math.abs(row.amt))}`;
+    html += row.up ? `<tr><td>${esc(row.date)}</td><td>${esc(row.label)} <span class="pill warning">예정</span></td><td style="color:${row.amt < 0 ? "var(--danger)" : "var(--positive)"};font-weight:750">${amountText}</td><td style="font-weight:800;color:${row.bal < 0 ? "var(--danger)" : "inherit"}">${fmtShort(row.bal)}</td></tr>` : `<tr class="past-row"><td>${esc(row.date)}</td><td>${esc(row.label)} <span class="pill neutral">완료</span></td><td>${amountText}</td><td>반영됨</td></tr>`;
+  }
+  return `${html}</tbody></table>`;
+}
+
+function renderHousingResults(scroll = false) {
+  const budgetA = parseAmount(state.data.budgetA); const budgetB = parseAmount(state.data.budgetB);
+  const ledgerA = calculateHousingLedger(budgetA, housingEntries("A"), TODAY); const ledgerB = calculateHousingLedger(budgetB, housingEntries("B"), TODAY);
+  $("housingResults").hidden = false;
+  $("resultHouseA").textContent = state.data.houseA || "주택 A"; $("resultHouseB").textContent = state.data.houseB || "주택 B";
+  const setBalance = (valueId, descId, result, budget) => { const value = $(valueId); value.textContent = fmtShort(result.final); value.style.color = result.final < 0 ? "var(--danger)" : "var(--positive)"; $(descId).textContent = `${result.final < 0 ? `부족액 ${fmt(Math.abs(result.final))}` : `여유 ${fmt(result.final)}`} · 시작예산 ${fmtShort(budget)}`; };
+  setBalance("resultBalanceA", "resultBalanceADesc", ledgerA, budgetA); setBalance("resultBalanceB", "resultBalanceBDesc", ledgerB, budgetB);
+  $("housingLedgerA").innerHTML = housingLedgerHtml(ledgerA, budgetA); $("housingLedgerB").innerHTML = housingLedgerHtml(ledgerB, budgetB);
+  if (window.Chart) {
+    const series = buildHousingSeries(ledgerA, ledgerB); destroyChart("house");
+    state.charts.house = new Chart($("houseFlowChart"), { type: "line", data: { labels: ["오늘", ...series.dates], datasets: [{ label: `${state.data.nameA || "나"} · ${state.data.houseA || "주택 A"}`, data: [budgetA, ...series.a], borderColor: "#2868d7", backgroundColor: "rgba(40,104,215,.12)", fill: true, tension: .25 }, { label: `${state.data.nameB || "상대방"} · ${state.data.houseB || "주택 B"}`, data: [budgetB, ...series.b], borderColor: "#159e9b", backgroundColor: "rgba(21,158,155,.12)", fill: true, tension: .25 }] }, options: { ...chartDefaults(), maintainAspectRatio: false, scales: { y: { ticks: { callback: (value) => fmtShort(value) }, grid: { color: getComputedStyle(document.documentElement).getPropertyValue("--line").trim() } }, x: { grid: { color: getComputedStyle(document.documentElement).getPropertyValue("--line").trim() } } }, plugins: { ...chartDefaults().plugins, tooltip: { callbacks: { label: (context) => `${context.dataset.label}: ${fmt(context.raw)}` } } } } });
+  }
+  if (scroll) $("housingResults").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function calculateHousing() { state.housingCalculated = true; renderHousingResults(true); queueSave(); toast("주택 자금 흐름을 계산했습니다."); }
 
 function addAccount() {
   const name = prompt("계좌 이름을 입력하세요.", "생활비 계좌"); if (!name) return;
@@ -429,6 +490,7 @@ function bindEvents() {
   $("closeMonthBtn").addEventListener("click", () => setScreen("settlements"));
   $("settlementMonthAction").addEventListener("click", () => setScreen("settlements"));
   $("addAccountBtn").addEventListener("click", addAccount); $("addCardBtn").addEventListener("click", addCard); $("addLoanBtn").addEventListener("click", addLoan); $("addGoalBtn").addEventListener("click", addGoal);
+  $("addCfA").addEventListener("click", () => addHousingEntry("A")); $("addCfB").addEventListener("click", () => addHousingEntry("B")); $("calcHousingBtn").addEventListener("click", calculateHousing);
   $("closeDetail").addEventListener("click", () => $("detailDialog").close());
   document.addEventListener("click", (event) => { const record = event.target.closest("[data-record-id]"); if (record && !$("detailDialog").open) { const item = allRecords().find((entry) => entry.id === record.dataset.recordId); if (item) openDetail(item.item, [item]); } });
 }
