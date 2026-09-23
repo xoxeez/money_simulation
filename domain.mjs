@@ -239,3 +239,25 @@ export function normalizeTransactionInput(input = {}) {
     source: "new"
   };
 }
+
+export function calculateHousingLedger(budget, entries = [], today = localYmd()) {
+  const initial = amount(budget);
+  let balance = initial;
+  const rows = [...entries].map((entry) => ({ ...entry, date: String(entry.date || today), label: entry.label || "주택 자금", amt: amount(entry.amt ?? entry.amount) })).sort((a, b) => a.date.localeCompare(b.date));
+  for (const row of rows) {
+    row.up = row.date >= today;
+    if (row.up) balance += row.amt;
+    row.bal = row.up ? balance : null;
+  }
+  return { initial, rows, final: balance };
+}
+
+export function buildHousingSeries(ledgerA, ledgerB) {
+  const dates = [...new Set([...(ledgerA?.rows || []), ...(ledgerB?.rows || [])].filter((row) => row.up).map((row) => row.date))].sort();
+  const series = (ledger, fallback) => {
+    let last = ledger?.initial ?? fallback;
+    const byDate = Object.fromEntries((ledger?.rows || []).filter((row) => row.up).map((row) => [row.date, row.bal]));
+    return dates.map((date) => { if (byDate[date] != null) last = byDate[date]; return last; });
+  };
+  return { dates, a: series(ledgerA, 0), b: series(ledgerB, 0) };
+}
