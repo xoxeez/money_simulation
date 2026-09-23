@@ -1,646 +1,144 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko" data-theme="light">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>소학행을 위한 자산 플래너</title>
-    <link rel="manifest" href="manifest.json" />
-    <meta name="theme-color" content="#3f7fd1" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="자산플래너" />
-    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
-    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f4f7fb">
+  <meta name="description" content="두 사람이 함께 쓰는 자산·가계부 플래너">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="favicon-32.png" type="image/png">
+  <link rel="stylesheet" href="styles.css">
+  <title>소학행 자산 플래너</title>
 </head>
 <body>
-    <div class="aurora" aria-hidden="true"><span class="ab ab1"></span><span class="ab ab2"></span><span class="ab ab3"></span></div>
-    <div class="wrap">
-        <div class="topbar">
-            <div class="brand">
-                <div class="logo">🌊</div>
-                <div>
-                    <h1>소학행을 위한 자산 플래너</h1>
-                    <p class="sub">자산 · 계좌/카드 · 대출 · 월별 가계부 · 캘린더 · 성장/목표</p>
-                </div>
-            </div>
-            <div class="top-actions">
-                <button class="btn" id="planToggle" title="Plan 모드 열기/닫기">🧭 Plan 모드</button>
-                <button class="btn icon" id="themeBtn" title="라이트/다크">🌙</button>
-                <button class="btn" id="loadBtn">☁️ 불러오기</button>
-                <button class="btn primary" id="saveBtn">💾 저장</button>
-            </div>
+  <a class="skip-link" href="#main">본문으로 건너뛰기</a>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-wrap">
+        <div class="brand-mark" aria-hidden="true">SH</div>
+        <div>
+          <p class="eyebrow">SHARED MONEY SPACE</p>
+          <h1>소학행 자산 플래너</h1>
         </div>
-        <div class="fb-bar"><span class="fb-dot" id="fbDot"></span><span id="fbStatus">연결 확인 중…</span></div>
-        <div class="hero">
-            <div class="names"><span class="nA">소희</span><span class="heart">❤</span><span
-                    class="nB">남자친구</span></div>
-            <div class="meta">순자산 = 총자산 − 총부채 · 매월 수입/지출/상환이 캘린더에 반영됩니다</div>
-            <div class="hero-grid">
-                <div class="hero-cell">
-                    <div class="k">두 사람 순자산</div>
-                    <div class="v" id="heroNet">-</div>
-                    <div class="s">총자산 − 총부채</div>
-                </div>
-                <div class="hero-cell">
-                    <div class="k">총자산</div>
-                    <div class="v" id="heroAsset" style="color:var(--plus)">-</div>
-                    <div class="s">예금·주식·청약·주택 등</div>
-                </div>
-                <div class="hero-cell">
-                    <div class="k">총부채</div>
-                    <div class="v" id="heroDebt" style="color:var(--minus)">-</div>
-                    <div class="s">대출·차용 잔액</div>
-                </div>
-                <div class="hero-cell">
-                    <div class="k"><span id="flowMonthMini">이번 달</span> 순현금흐름</div>
-                    <div class="v" id="heroFlow">-</div>
-                    <div class="s">수입 − 지출 − 상환</div>
-                </div>
-            </div>
+      </div>
+      <div class="top-actions">
+        <span id="saveStatus" class="save-status" role="status">저장 준비 중</span>
+        <button class="icon-btn" id="themeBtn" type="button" aria-label="테마 전환">☾</button>
+        <button class="outline-btn" id="exportBtn" type="button">백업</button>
+        <button class="outline-btn" id="importBtn" type="button">복원</button>
+        <input id="importFile" type="file" accept="application/json" hidden>
+        <button class="outline-btn" id="loadBtn" type="button">불러오기</button>
+        <button class="primary-btn" id="saveBtn" type="button">저장</button>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="screen active" id="dashboard" data-screen="dashboard" aria-labelledby="dashboardTitle">
+        <div class="screen-heading">
+          <div>
+            <p class="eyebrow" id="dashboardPeriod">2026년 9월</p>
+            <h2 id="dashboardTitle">이번 달 돈의 흐름</h2>
+            <p class="muted">공동 지출과 개인 정산을 한 화면에서 확인하세요.</p>
+          </div>
+          <button class="primary-btn large" id="openQuickEntry" type="button">＋ 지출 기록</button>
         </div>
-        <div class="tabs" id="mainTabs">
-            <button class="tab-btn active" data-tab="home">🏠 홈</button>
-            <button class="tab-btn tab-plan" data-tab="plan" style="display:none;">🧭 Plan</button>
-            <button class="tab-btn" data-tab="flow">📒 가계부</button>
-            <button class="tab-btn" data-tab="calendar">📅 캘린더</button>
-            <button class="tab-btn" data-tab="assets">💼 자산 · 부채</button>
-            <button class="tab-btn" data-tab="growth">📈 성장 · 목표</button>
+
+        <div class="month-toolbar compact-toolbar">
+          <label class="field-inline"><span>기준 월</span><select id="monthSelect" aria-label="기준 월"></select></label>
+          <button class="outline-btn small" id="closeMonthBtn" type="button">이번 달 마감</button>
         </div>
-        <!-- ============ 홈 ============ -->
-        <div class="tab-panel active" id="tab-home">
-            <div class="grid4" style="margin-bottom:20px;">
-                <div class="kpi">
-                    <div class="ic ic-a">🙋‍♀️</div>
-                    <div class="k"><span class="nA">소희</span> 순자산</div>
-                    <div class="v" id="kNetA">-</div>
-                    <div class="s" id="kNetADesc">-</div>
-                </div>
-                <div class="kpi">
-                    <div class="ic ic-b">🙋‍♂️</div>
-                    <div class="k"><span class="nB">남자친구</span> 순자산</div>
-                    <div class="v" id="kNetB">-</div>
-                    <div class="s" id="kNetBDesc">-</div>
-                </div>
-                <div class="kpi">
-                    <div class="ic ic-m">💳</div>
-                    <div class="k">대출 잔액 / 건수</div>
-                    <div class="v" id="kLoan">-</div>
-                    <div class="s" id="kLoanNext">-</div>
-                </div>
-                <div class="kpi">
-                    <div class="ic ic-p">📅</div>
-                    <div class="k"><span id="kMonthPayLabel">이번 달</span> 상환</div>
-                    <div class="v" id="kMonthPay">-</div>
-                    <div class="s">캘린더에서 확인</div>
-                </div>
-            </div>
-            <div class="grid2">
-                <div class="card">
-                    <h2>💠 자산 구성</h2>
-                    <p class="desc">두 사람 자산을 유형별로 (주택 포함)</p>
-                    <div class="chart-box"><canvas id="assetChart"></canvas></div>
-                </div>
-                <div class="card">
-                    <h2>⚖️ 자산 vs 부채</h2>
-                    <p class="desc">사람별 비교</p>
-                    <div class="chart-box"><canvas id="balanceChart"></canvas></div>
-                </div>
-            </div>
-            <div class="card">
-                <h2>💵 <span id="flowMonthLabel2">이번 달</span> 현금흐름 구성</h2>
-                <p class="desc">수입 − 생활비 − 대출상환</p>
-                <div class="chart-box"><canvas id="flowChart"></canvas></div>
-            </div>
+
+        <div class="kpi-grid" id="dashboardKpis"></div>
+        <div class="dashboard-grid">
+          <article class="panel chart-panel">
+            <div class="panel-heading"><div><p class="eyebrow">MONTHLY SPENDING</p><h3>이번 달 지출</h3></div><button class="text-btn" data-open-screen="records">전체 보기</button></div>
+            <div class="chart-wrap"><canvas id="chartExpense" aria-label="이번 달 지출 카테고리 차트"></canvas></div>
+          </article>
+          <article class="panel chart-panel">
+            <div class="panel-heading"><div><p class="eyebrow">PERSONAL LOAD</p><h3>담당자별 부담</h3></div><button class="text-btn" data-open-screen="settlements">정산 보기</button></div>
+            <div class="chart-wrap"><canvas id="chartBurden" aria-label="담당자별 부담 차트"></canvas></div>
+          </article>
         </div>
-        <!-- ============ Plan 모드 ============ -->
-        <div class="tab-panel" id="tab-plan">
-            <div class="card plan-hero">
-                <div class="section-label">PLAN MODE</div>
-                <h2>🧭 시뮬레이션 기준점 설정</h2>
-                <p class="desc">특정 <b>기준 날짜</b>와 그 날의 <b>계좌별 실제 잔고</b>를 입력하면, 이후 모든 +/− 는 <b>수입·지출 탭</b>의
-                    내역으로만 자동 계산됩니다. (가장 최근에 통장을 확인한 시점을 기준일로 잡으면 정확해요)</p>
-                <div class="grid2">
-                    <label class="field"><span class="lbl">📌 기준 날짜 (스냅샷 시점)</span><input type="date"
-                            id="planDate" /></label>
-                    <div class="plan-summary" id="planSummary"></div>
-                </div>
-            </div>
-            <div class="grid2">
-                <div class="card">
-                    <div class="owner-head">
-                        <div class="name"><span class="dot dot-a"></span><span class="nA">소희</span> 계좌 잔고</div>
-                        <div class="sum" style="color:var(--a)" id="planSumA">-</div>
-                    </div>
-                    <p class="desc">기준일 당시 각 계좌의 실제 잔고를 입력하세요.</p>
-                    <div id="planListA"></div>
-                </div>
-                <div class="card">
-                    <div class="owner-head">
-                        <div class="name"><span class="dot dot-b"></span><span class="nB">남자친구</span> 계좌 잔고</div>
-                        <div class="sum" style="color:var(--b)" id="planSumB">-</div>
-                    </div>
-                    <p class="desc">기준일 당시 각 계좌의 실제 잔고를 입력하세요.</p>
-                    <div id="planListB"></div>
-                </div>
-            </div>
-            <div class="card" style="background:var(--peri-soft);border:none;">
-                <p class="desc" style="margin:0;color:var(--ink);">💡 여기서 입력한 잔고는 <b>계좌 · 카드 탭의 계좌 잔액과 동일</b>하게
-                    연동됩니다. 앞으로의 통장 예상 잔액은 이 기준일 잔고에서 출발해 수입/지출/상환/카드결제를 반영해 계산돼요.</p>
-            </div>
+        <div class="dashboard-grid lower-grid">
+          <article class="panel" id="recentPanel">
+            <div class="panel-heading"><div><p class="eyebrow">RECENT ACTIVITY</p><h3>최근 기록</h3></div><button class="text-btn" data-open-screen="records">기록 관리</button></div>
+            <div id="recentList" class="record-list compact-list"></div>
+          </article>
+          <article class="panel" id="attentionPanel">
+            <div class="panel-heading"><div><p class="eyebrow">NEEDS ATTENTION</p><h3>확인이 필요한 항목</h3></div></div>
+            <div id="attentionList" class="attention-list"></div>
+          </article>
         </div>
-        <!-- ============ 수입 · 지출 (월별) ============ -->
-        <div class="tab-panel" id="tab-flow">
-            <div class="ledger-manager">
-                <div class="lm-current">
-                    <span class="lm-icon">📒</span>
-                    <div class="lm-info">
-                        <div class="lm-label">지금 보고 있는 가계부</div>
-                        <select id="monthSelect" title="다른 달 가계부로 이동"></select>
-                    </div>
-                </div>
-                <div class="lm-actions">
-                    <button class="btn ghost sm" id="deleteMonth">🗑️ 이 달 삭제</button>
-                    <button class="btn primary sm" id="openCreateMonth">＋ 새 가계부 만들기</button>
-                </div>
-            </div>
-            <div class="lm-create" id="createPanel" style="display:none;">
-                <div class="lm-create-head">🆕 새 가계부 만들기</div>
-                <div class="lm-create-body">
-                    <select id="newYear"></select>
-                    <select id="newMonth"></select>
-                    <button class="btn primary sm" id="createMonth">이 달로 생성</button>
-                    <button class="btn ghost sm" id="cancelCreate">취소</button>
-                </div>
-                <div class="lm-create-hint">💡 고정 수입·고정 지출·<b>자동이체</b>는 <b>직전 가계부</b>에서 자동으로 이어받아요. (이미 있는 달은 새로 만들지 않고 그 달로 이동합니다)</div>
-            </div>
-            <div class="row-between" style="margin-bottom:14px;">
-                <h2 style="margin:0;font-size:17px;">📒 <span id="flowMonthLabel">2026년 8월</span> 수입 · 지출</h2>
-                <span class="pill pill-muted">이 달의 내역만 표시됩니다</span>
-            </div>
-            <!-- [v13] 계좌 간 이체 -->
-            <div class="card">
-                <div class="section-label">STEP 0</div>
-                <h2>🔄 <span id="transferMonthLabel">이번 달</span> 계좌 간 이체</h2>
-                <p class="desc">통장 간 이동(예: <b>소희 주거래 → 남친 주거래</b>)을 기록하면 <b>월 마감 통장 잔고</b>와 개인별 예상잔고에 반영돼요. (총자산은 변하지 않아요) · <b>자동</b>을 체크하면 다음 달 가계부 생성 시 자동으로 복사됩니다.</p>
-                <div id="transferList"></div>
-                <button class="btn-add" id="addTransfer">＋ 계좌 이체 추가</button>
-            </div>
-            <div class="card">
-                <div class="section-label">STEP 1</div>
-                <h2>💰 매월 고정 수입 (월급 등)</h2>
-                <p class="desc">담당자를 고르면 그 사람의 계좌만 나타납니다. <b>새 가계부 생성 시 지난달 고정 수입이 자동으로 복사</b>됩니다.</p>
-                <div id="incomeList"></div>
-                <button class="btn-add" id="addIncome">＋ 고정 수입 추가</button>
-            </div>
-            <div class="card">
-                <div class="section-label">STEP 2</div>
-                <h2>💸 기타 수입 (성과급 · 부수입 등)</h2>
-                <p class="desc"><b>1회성(특정 날짜)</b> 또는 <b>매월 반복</b>으로 등록하세요. 이 달에만 발생하는 수입이에요.</p>
-                <div id="extraIncomeList"></div>
-                <button class="btn-add" id="addExtraIncome">＋ 기타 수입 추가</button>
-            </div>
-            <div class="card">
-                <div class="section-label">STEP 3</div>
-                <h2>🧾 매월 고정 지출 (생활비 등)</h2>
-                <p class="desc">항목별 <b>카테고리 · 담당자 · 결제수단(카드/계좌)</b>을 매핑하세요. 카테고리는 아래 <b>지출 구성</b> 도넛에 반영돼요. <b>새 가계부 생성 시 지난달 고정 지출도 자동 복사</b>됩니다.</p>
-                <div id="expenseList"></div>
-                <button class="btn-add" id="addExpense">＋ 고정 지출 추가</button>
-            </div>
-            <div class="card">
-                <div class="section-label">STEP 4</div>
-                <h2>🧾 기타 지출 (카드 외 별도 지출)</h2>
-                <p class="desc">카드 고정지출을 제외한 <b>별도 지출</b>을 <b>1회성</b> 또는 <b>매월</b>으로 등록하세요. (경조사비, 세금, 여행 등)</p>
-                <div id="extraExpenseList"></div>
-                <button class="btn-add" id="addExtraExpense">＋ 기타 지출 추가</button>
-            </div>
-            <div class="card">
-                <div class="section-label">STEP 5</div>
-                <h2>💳 <span id="cardLedgerMonth">이번 달</span> 카드 세부내역 (가계부)</h2>
-                <p class="desc"><b>당월에 사용한 카드 사용액</b>을 사용일·카테고리 기준으로 기록하세요. 신용카드는 <b>이번 달 사용분이 다음 달 결제일</b>에 연결 계좌에서 출금되고, 이번 달 통장에서는 <b>지난달 사용분</b>이 결제됩니다. <b>고정지출로 걸린 금액은 상단 합계에 자동 포함</b>돼요.</p>
-                <div id="cardLedgers"></div>
-            </div>
-            <div class="card">
-                <div class="section-label">STEP 6</div>
-                <h2>📈 <span id="investMonthLabel">이번 달</span> 증권·투자 계좌 관리</h2>
-                <p class="desc">계좌 유형이 <b>주식·연금</b>인 계좌의 <b>투자원금·현재 평가액</b>을 입력하면 <b>평가손익</b>이 자동 계산돼요. 평가액이 곧 자산 잔액이며, <b>월 마감 시 이 값으로 순자산에 반영·스냅샷</b>됩니다.</p>
-                <div id="investList"></div>
-            </div>
-            <div class="grid2">
-                <div class="card">
-                    <h2>📊 <span id="flowMonthLabel3">이번 달</span> 지출 구성 <span class="pill pill-muted">카테고리별</span></h2>
-                    <p class="desc">카테고리 조각을 클릭하면 그 카테고리의 <b>항목·금액·담당</b>이 아래에 표시돼요.</p>
-                    <div class="chart-box"><canvas id="expenseChart"></canvas></div>
-                    <div class="bd-panel" id="expenseDetail" style="display:none;"></div>
-                </div>
-                <div class="card">
-                    <h2>🙋 담당자별 월 부담</h2>
-                    <p class="desc"><b>생활비 부담</b>과 <b>대출 상환 포함 부담</b>을 막대 2개로 나눠 보여줘요 (공동 항목은 반씩 나눔). 막대를 클릭하면 세부내역이 보여요.</p>
-                    <div class="chart-box"><canvas id="burdenChart"></canvas></div>
-                    <div class="bd-note" id="burdenTotalNote"></div>
-                    <div class="bd-panel" id="burdenDetail" style="display:none;"></div>
-                </div>
-            </div>
-            <div class="card" id="monthCloseCard">
-                <div class="row-between" style="margin-bottom:6px;">
-                    <h2 style="margin:0;">🏦 <span id="mcMonthLabel">이번 달</span> 통장별 예상 잔고</h2>
-                    <span class="pill pill-muted" id="mcStatus">진행 중</span>
-                </div>
-                <p class="desc">현재(기준) 잔고에서 이 달의 <b>수입(＋)·지출(－)</b>을 반영하고, <b>카드는 연결된 결제 계좌</b>에서(신용카드는 지난달 사용분), <b>대출 상환은 지정한 출금 계좌</b>에서, <b>계좌 이체는 출금→입금 계좌</b>로 빠져나간 결과예요. 입력을 바꾸면 아래 잔고가 실시간으로 다시 계산됩니다.</p>
-                <div id="mcBalanceList"></div>
-                <div class="mc-actions">
-                    <button id="closeMonthBtn">🎉 월 마감 완료!</button>
-                    <button class="btn ghost" id="undoCloseBtn" style="display:none;">↩️ 마감 취소</button>
-                </div>
-                <div class="mc-hint" id="mcHint"></div>
-            </div>
+      </section>
+
+      <section class="screen" id="records" data-screen="records" aria-labelledby="recordsTitle">
+        <div class="screen-heading">
+          <div><p class="eyebrow">RECORDS</p><h2 id="recordsTitle">거래 기록</h2><p class="muted">카드와 계좌 사용 내역을 목적 중심으로 관리합니다.</p></div>
+          <button class="primary-btn large" id="openQuickEntryRecords" type="button">＋ 지출 기록</button>
         </div>
-        <!-- ============ 캘린더 (독립 탭) ============ -->
-        <div class="tab-panel" id="tab-calendar">
-            <div class="card">
-                <div class="cal-head">
-                    <div class="cal-title" id="calTitle">2026년 10월</div>
-                    <div class="cal-nav">
-                        <button class="btn icon" id="calPrev">‹</button>
-                        <button class="btn" id="calToday">오늘</button>
-                        <button class="btn icon" id="calNext">›</button>
-                    </div>
-                </div>
-                <div class="cal-neg-warn" id="calNegWarn" style="display:none;"></div>
-                <div class="row-between" style="margin-bottom:12px;">
-                    <div style="display:flex;gap:14px;font-size:12px;color:var(--sub);flex-wrap:wrap;">
-                        <span><span class="dot" style="background:var(--plus)"></span>유입(＋)</span>
-                        <span><span class="dot" style="background:var(--minus)"></span>지출(−)</span>
-                        <span><span class="dot" style="background:var(--peri)"></span>🔄 계좌이체</span>
-                        <span><span class="dot" style="background:var(--gold)"></span>⚠️ 마이너스 예상일</span>
-                        <span style="color:var(--sub)">날짜를 클릭하면 상세 내역·잔액이 아래에 표시돼요</span>
-                    </div>
-                    <div style="font-size:13px;font-weight:800;">이번 달 순흐름 <span id="calMonthNet">-</span></div>
-                </div>
-                <div class="cal-grid" id="calDow"></div>
-                <div class="cal-grid" id="calBody" style="margin-top:6px;"></div>
-                <div class="day-detail" id="dayDetail" style="display:none;"></div>
-            </div>
-            <div class="card">
-                <h2>🗓️ 다가오는 현금 일정</h2>
-                <p class="desc">앞으로의 +/− 흐름 (상환·수입·지출·주택자금·이체)</p>
-                <div id="upcomingList"></div>
-            </div>
+        <div class="toolbar-row">
+          <div class="segmented" id="recordFilters" role="group" aria-label="거래 필터">
+            <button class="segment active" type="button" data-filter="all">전체</button>
+            <button class="segment" type="button" data-filter="J">공동</button>
+            <button class="segment" type="button" data-filter="A">나</button>
+            <button class="segment" type="button" data-filter="B">상대방</button>
+            <button class="segment" type="button" data-filter="settlement">정산 대기</button>
+          </div>
+          <label class="field-inline"><span>월</span><select id="recordMonthSelect" aria-label="거래 월"></select></label>
         </div>
-        <!-- ============ 자산 · 부채 (그룹) ============ -->
-        <div class="tab-panel" id="tab-assets">
-            <div class="subtabs" id="assetSubtabs">
-                <button class="subtab-btn active" data-sub="accounts">🏦 계좌 · 카드</button>
-                <button class="subtab-btn" data-sub="loans">🏦 대출 · 차용</button>
-                <button class="subtab-btn" data-sub="house">🏠 주택 자금</button>
-            </div>
-            <div class="subtab-panel active" id="tab-accounts">
-                <div class="card">
-                    <div class="section-label">STEP 1</div>
-                    <h2>호칭</h2>
-                    <div class="grid2">
-                        <label class="field"><span class="lbl"><span class="dot dot-a"></span>본인 호칭</span><input type="text"
-                                id="nameA" value="소희" /></label>
-                        <label class="field"><span class="lbl"><span class="dot dot-b"></span>상대 호칭</span><input type="text"
-                                id="nameB" value="남자친구" /></label>
-                    </div>
-                </div>
-                <div class="grid2">
-                    <div class="card">
-                        <div class="owner-head">
-                            <div class="name"><span class="dot dot-a"></span><span class="nA">소희</span> 계좌</div>
-                            <div class="sum" style="color:var(--a)" id="accSumA">-</div>
-                        </div>
-                        <p class="desc">예금·주식·청약·현금 등 잔액이 자산으로 집계됩니다. (주식·연금은 「가계부」 탭에서 원금·손익 관리)</p>
-                        <div id="accListA"></div>
-                        <button class="btn-add" data-add-acc="A">＋ 계좌 추가</button>
-                    </div>
-                    <div class="card">
-                        <div class="owner-head">
-                            <div class="name"><span class="dot dot-b"></span><span class="nB">남자친구</span> 계좌</div>
-                            <div class="sum" style="color:var(--b)" id="accSumB">-</div>
-                        </div>
-                        <p class="desc">예금·주식·청약·현금 등 잔액이 자산으로 집계됩니다. (주식·연금은 「가계부」 탭에서 원금·손익 관리)</p>
-                        <div id="accListB"></div>
-                        <button class="btn-add" data-add-acc="B">＋ 계좌 추가</button>
-                    </div>
-                </div>
-                <div class="card">
-                    <h2>💳 카드 & 계좌 매핑</h2>
-                    <p class="desc">각 카드가 어느 <b>결제 계좌</b>에서 빠져나가는지 연결하세요. 신용카드는 <b>카드별 결제일</b>에 연결 계좌에서 <b>지난달 사용분</b>이 합산 출금됩니다. (체크카드는 결제일 0으로 두면 당월 즉시 출금) · <b>카드 사용내역은 「가계부」 탭에서 관리합니다.</b></p>
-                    <div class="cardhead" id="cardHead"></div>
-                    <div id="cardList"></div>
-                    <button class="btn-add" id="addCard">＋ 카드 추가</button>
-                </div>
-            </div>
-            <div class="subtab-panel" id="tab-loans">
-                <div class="row-between" style="margin-bottom:12px;">
-                    <h2 style="font-size:17px;margin:0;">🏦 대출 · 차용</h2>
-                    <div style="display:flex;gap:8px;align-items:center;">
-                        <span class="pill pill-bank" id="loanTotalPill">총 부채 -</span>
-                        <button class="btn primary sm" id="openAddLoan">＋ 대출 등록</button>
-                    </div>
-                </div>
-                <p class="desc" style="margin:-4px 0 14px;color:var(--sub);font-size:12.5px;">금리변동·거치기간·중도상환·원리금체증식을 반영해 월
-                    상환액과 총이자를 계산합니다. <b>상세보기</b>로 날짜별 원금·이자 상환 예정을 확인하세요.</p>
-                <div id="loanList"></div>
-            </div>
-            <div class="subtab-panel" id="tab-house">
-                <div class="card">
-                    <div class="section-label">STEP 1</div>
-                    <h2>주택별 담당자 · 예산 · 현재 자산가치</h2>
-                    <p class="desc">각 주택의 담당자와 보유 예산을 지정하고, <b>현재 시세(자산가치)</b>를 입력하면 상단 총자산·순자산에 반영됩니다.</p>
-                    <div class="grid2">
-                        <div>
-                            <label class="field"><span class="lbl">🏠 주택 A 이름</span><input type="text" id="houseA"
-                                    value="" placeholder="예: 첫 번째 집" /></label>
-                            <div class="grid2">
-                                <label class="field"><span class="lbl">담당자</span><select id="houseAOwner">
-                                        <option value="A">본인</option>
-                                        <option value="B">상대</option>
-                                        <option value="J">공동</option>
-                                    </select></label>
-                                <label class="field"><span class="lbl">보유 예산 (원)</span><input type="text"
-                                        inputmode="numeric" class="comma" id="budgetA" value="" /></label>
-                            </div>
-                            <label class="field"><span class="lbl">🏡 현재 주택 자산가치 (원)</span><input type="text"
-                                    inputmode="numeric" class="comma" id="houseAValue" value="" /></label>
-                        </div>
-                        <div>
-                            <label class="field"><span class="lbl">🏠 주택 B 이름</span><input type="text" id="houseB"
-                                    value="" placeholder="예: 두 번째 집" /></label>
-                            <div class="grid2">
-                                <label class="field"><span class="lbl">담당자</span><select id="houseBOwner">
-                                        <option value="A">본인</option>
-                                        <option value="B" selected>상대</option>
-                                        <option value="J">공동</option>
-                                    </select></label>
-                                <label class="field"><span class="lbl">보유 예산 (원)</span><input type="text"
-                                        inputmode="numeric" class="comma" id="budgetB" value="" /></label>
-                            </div>
-                            <label class="field"><span class="lbl">🏡 현재 주택 자산가치 (원)</span><input type="text"
-                                    inputmode="numeric" class="comma" id="houseBValue" value="" /></label>
-                        </div>
-                    </div>
-                    <div class="note-strip" id="houseAssetNote"></div>
-                </div>
-                <div class="card">
-                    <div class="section-label">STEP 2</div>
-                    <h2>주택별 자금 흐름</h2>
-                    <p class="desc"><b style="color:var(--minus)">지불은 음수</b>, <b style="color:var(--plus)">유입은 양수</b>. 월급/저축
-                        유입도 항목으로 넣으면 시점별 잔여예산에 반영됩니다.</p>
-                    <div class="grid2">
-                        <div class="card" style="background:var(--a-soft);border:none;">
-                            <h2 style="font-size:14.5px;"><span class="dot dot-a"></span><span id="hLabelA">주택 A</span></h2>
-                            <div id="cfListA" style="margin-top:12px;"></div>
-                            <button class="btn-add" id="addCfA">＋ 항목 추가</button>
-                        </div>
-                        <div class="card" style="background:var(--b-soft);border:none;">
-                            <h2 style="font-size:14.5px;"><span class="dot dot-b"></span><span id="hLabelB">주택 B</span></h2>
-                            <div id="cfListB" style="margin-top:12px;"></div>
-                            <button class="btn-add" id="addCfB">＋ 항목 추가</button>
-                        </div>
-                    </div>
-                </div>
-                <button class="btn-primary" id="calcHouse">💡 주택 자금 시뮬레이션</button>
-                <div id="houseResults" style="display:none;">
-                    <div class="grid2" style="margin-top:20px;">
-                        <div class="card">
-                            <h2>📌 <span class="nA">소희</span> · <span id="rHouseA">주택 A</span></h2>
-                            <div class="kpi" style="background:var(--a-soft);border:none;margin-bottom:10px;">
-                                <div class="k">최종 잔여 예산</div>
-                                <div class="v" id="rBalA">-</div>
-                                <div class="s" id="rBalADesc">-</div>
-                            </div>
-                            <table style="width:100%;border-collapse:collapse;font-size:12.5px;" id="ledgerA"></table>
-                        </div>
-                        <div class="card">
-                            <h2>📌 <span class="nB">남자친구</span> · <span id="rHouseB">주택 B</span></h2>
-                            <div class="kpi" style="background:var(--b-soft);border:none;margin-bottom:10px;">
-                                <div class="k">최종 잔여 예산</div>
-                                <div class="v" id="rBalB">-</div>
-                                <div class="s" id="rBalBDesc">-</div>
-                            </div>
-                            <table style="width:100%;border-collapse:collapse;font-size:12.5px;" id="ledgerB"></table>
-                        </div>
-                    </div>
-                    <div class="card">
-                        <h2>📅 날짜별 잔여 예산 흐름</h2>
-                        <div class="chart-box"><canvas id="houseFlowChart"></canvas></div>
-                    </div>
-                </div>
-            </div>
-        </div><!-- /자산·부채 그룹 끝 -->
-        <!-- ============ 성장 · 목표 ============ -->
-        <div class="tab-panel" id="tab-growth">
-            <div class="card">
-                <div class="row-between" style="margin-bottom:6px;">
-                    <h2 style="margin:0;">💪 재무 건강 대시보드</h2>
-                    <span class="pill pill-muted" id="ghMonthLabel">이번 달 기준</span>
-                </div>
-                <p class="desc">지금 보고 있는 <b>가계부 월</b>의 수입·지출·상환을 기준으로 계산돼요. 게이지 색이 초록이면 건강, 노랑은 주의, 분홍은 개선이 필요해요.</p>
-                <div class="gauge-grid" id="healthGrid"></div>
-            </div>
-            <div class="card">
-                <div class="row-between" style="margin-bottom:6px;">
-                    <h2 style="margin:0;">🎯 공동 목표</h2>
-                    <button class="btn primary sm" id="addGoal">＋ 목표 추가</button>
-                </div>
-                <p class="desc">결혼자금·전세보증금·내집마련 같은 <b>함께 모으는 목표</b>를 등록하세요. 목표일을 넣으면 <b>매월 필요 저축액</b>까지 계산되고, 안 넣으면 진행률만 표시돼요. 계좌를 연동하면 잔고가 자동 반영됩니다.</p>
-                <div id="goalList"></div>
-            </div>
-            <div class="card">
-                <h2>📈 월별 순자산 추이</h2>
-                <p class="desc">합산 + 개인별 순자산이 매달 어떻게 자라는지 보여줘요.</p>
-                <div class="chart-box"><canvas id="nwTrendChart"></canvas></div>
-                <div class="bd-note" id="nwTrendNote"></div>
-            </div>
-            <div class="card">
-                <h2>⚖️ 월별 자산 · 부채 추이</h2>
-                <p class="desc">총자산과 총부채의 규모 변화를 나란히 보여줘요.</p>
-                <div class="chart-box"><canvas id="adTrendChart"></canvas></div>
-            </div>
-        </div>
-        <footer>참고용 자금 계획 도구이며 법률·세무 효력은 없습니다. 큰 거래는 전문가 상담을 권장합니다. · Renewal v13 · 계좌이체</footer>
-    </div>
-    <!-- 대출 등록/수정 모달 -->
-    <div class="modal-bg" id="loanModal">
-        <div class="modal">
-            <h3 id="loanModalTitle">🏦 대출 등록</h3>
-            <div class="grid3">
-                <label class="field"><span class="lbl">대출명</span><input type="text" id="lName"
-                        placeholder="예: 주택담보대출" /></label>
-                <label class="field"><span class="lbl">명의</span><select id="lOwner">
-                        <option value="A">본인</option>
-                        <option value="B">상대</option>
-                        <option value="J">공동</option>
-                    </select></label>
-                <label class="field"><span class="lbl">대출 방식</span><select id="lKind">
-                        <option value="bank">은행 대출</option>
-                        <option value="family">부모님 차용</option>
-                    </select></label>
-            </div>
-            <div class="grid4">
-                <label class="field"><span class="lbl">대출 원금 (원)</span><input type="text" inputmode="numeric"
-                        class="comma" id="lPrincipal" value="" /></label>
-                <label class="field"><span class="lbl">연 금리 (%)</span><input type="number" id="lRate" value="4.2"
-                        step="0.1" /></label>
-                <label class="field"><span class="lbl">대출 기간 (개월)</span><input type="number" id="lTerm"
-                        value="360" /></label>
-                <label class="field"><span class="lbl">상환방식</span><select id="lRepay">
-                        <option value="eq">원리금균등</option>
-                        <option value="pr">원금균등</option>
-                        <option value="io">만기일시(이자 매월납부)</option>
-                        <option value="iod">만기일시(이자 후불 · 만기일괄)</option>
-                        <option value="graduate">원리금체증식(자동)</option>
-                        <option value="custom">기타(직접 입력)</option>
-                    </select></label>
-            </div>
-            <div class="grid4">
-                <label class="field"><span class="lbl">첫 상환일</span><input type="date" id="lStart"
-                        value="2026-10-25" /></label>
-                <label class="field"><span class="lbl">매월 상환일 (일)</span><input type="number" id="lPayDay" value="25"
-                        min="1" max="31" /></label>
-                <label class="field"><span class="lbl">거치기간 (개월)</span><input type="number" id="lGrace" value="0"
-                        min="0" /></label>
-                <label class="field" id="lGrowthWrap" style="display:none;"><span class="lbl">연 체증률 (%)</span><input
-                        type="number" id="lGrowth" value="1.5" step="0.1" /></label>
-            </div>
-            <label class="field"><span class="lbl">💸 상환 출금 계좌 <span
-                        style="color:var(--sub);font-weight:500;">(이 통장에서 매월 상환액이 빠져나가요)</span></span><select
-                    id="lWithdrawAcc"></select></label>
-            <div class="subgrid" id="lCustomWrap" style="display:none;background:var(--peri-soft);border-color:var(--peri);">
-                <div class="row-between" style="margin-bottom:8px;">
-                    <b style="font-size:13px;">✍️ 기타(직접 입력) · 상환 스케줄</b>
-                    <button class="btn ghost sm" id="addCustomRepay">＋ 회차 추가</button>
-                </div>
-                <div class="desc" style="margin:0 0 10px;">상환 월(YYYY-MM)과 그 달의 <b>원금·이자</b>를 직접 입력하세요. 회차를 추가하면 <b>자동으로 다음 달</b>이 채워져요. (실제 상환일은 위 「매월 상환일」을 사용)</div>
-                <div class="cr-head"><div>상환 월</div><div>원금 (원)</div><div>이자 (원)</div><div></div></div>
-                <div id="customRepayList"></div>
-            </div>
-            <div id="customHint" class="desc" style="display:none;margin-top:-8px;"></div>
-            <label class="field"><span class="lbl">금리 유형</span>
-                <select id="lRateType">
-                    <option value="fixed">고정금리</option>
-                    <option value="variable">변동금리</option>
-                </select>
-            </label>
-            <div class="subgrid" id="rateChangeWrap" style="display:none;">
-                <div class="row-between" style="margin-bottom:8px;">
-                    <b style="font-size:13px;">📈 금리 변동 일정</b>
-                    <button class="btn ghost sm" id="addRateChange">＋ 변동 추가</button>
-                </div>
-                <div id="rateChangeList"></div>
-                <div class="desc" style="margin:0;">몇 개월차부터 금리가 몇 %로 바뀌는지 등록하세요.</div>
-            </div>
-            <div class="subgrid">
-                <div class="row-between" style="margin-bottom:8px;">
-                    <b style="font-size:13px;">💸 중도상환 내역</b>
-                    <button class="btn ghost sm" id="addPrepay">＋ 중도상환 추가</button>
-                </div>
-                <div id="prepayList"></div>
-                <div class="desc" style="margin:0;">중도상환한 시점(개월차)과 금액을 등록하면 이후 이자·잔액이 재계산됩니다.</div>
-            </div>
-            <div class="subgrid" style="background:var(--bg-tint);border:none;">
-                <div style="font-size:12.5px;color:var(--sub);">예상 월 상환액 <b id="previewPay"
-                        style="color:var(--ink);font-size:14px;">-</b> · 총이자 <b id="previewInt"
-                        style="color:var(--ink);">-</b></div>
-            </div>
-            <div style="display:flex;gap:10px;margin-top:8px;">
-                <button class="btn ghost" id="cancelLoan" style="flex:1;">취소</button>
-                <button class="btn primary" id="saveLoan" style="flex:2;">저장</button>
-            </div>
-        </div>
-    </div>
-    <!-- 대출 상세보기(상환 스케줄) 팝업 -->
-    <div class="modal-bg" id="schedModal">
-        <div class="modal">
-            <div class="row-between" style="margin-bottom:6px;">
-                <h3 id="schedTitle" style="margin:0;">📅 상환 스케줄</h3>
-                <button class="btn ghost sm" id="closeSched">닫기</button>
-            </div>
-            <div id="schedSummary" class="sched-summary"></div>
-            <div class="sched-filter">
-                <label style="font-size:12px;color:var(--sub);font-weight:700;">보기</label>
-                <select id="schedRange">
-                    <option value="12">앞으로 12개월</option>
-                    <option value="24">앞으로 24개월</option>
-                    <option value="all">전체 기간</option>
-                </select>
-            </div>
-            <div class="sched-table-wrap">
-                <table class="sched-table" id="schedTable"></table>
-            </div>
-        </div>
-    </div>
-    <!-- 공동 목표 등록/수정 모달 -->
-    <div class="modal-bg" id="goalModal">
-        <div class="modal">
-            <h3 id="goalModalTitle">🎯 목표 추가</h3>
-            <div class="grid2">
-                <label class="field"><span class="lbl">목표 이름</span><input type="text" id="gName"
-                        placeholder="예: 결혼자금 · 전세보증금" /></label>
-                <label class="field"><span class="lbl">목표 금액 (원)</span><input type="text" inputmode="numeric"
-                        class="comma" id="gTarget" value="" /></label>
-            </div>
-            <div class="grid2">
-                <label class="field"><span class="lbl">🗓️ 목표일 <span style="color:var(--sub);font-weight:500;">(선택 · 비우면 진행률만)</span></span><input
-                        type="date" id="gDate" /></label>
-                <label class="field"><span class="lbl">💰 현재 모은 금액 (원) <span
-                            style="color:var(--sub);font-weight:500;">(아래 계좌 연동 시 무시)</span></span><input type="text"
-                        inputmode="numeric" class="comma" id="gSaved" value="" /></label>
-            </div>
-            <div class="subgrid" style="background:var(--peri-soft);border-color:var(--peri);">
-                <div class="lbl" style="margin-bottom:8px;color:var(--ink);font-weight:700;">🔗 연동 계좌 <span
-                        style="color:var(--sub);font-weight:500;">(체크하면 그 계좌들의 잔고 합이 '현재 모은 금액'이 돼요)</span></div>
-                <div id="gAccList" class="gacc-list"></div>
-            </div>
-            <div style="display:flex;gap:10px;margin-top:8px;">
-                <button class="btn ghost" id="cancelGoal" style="flex:1;">취소</button>
-                <button class="btn primary" id="saveGoal" style="flex:2;">저장</button>
-            </div>
-        </div>
-    </div>
-    <!-- 리소스 로더: CSS(styles·glass) → 라이브러리(Chart) → firebase-config.js(선택) → app.js → animations.js -->
-    <script>
-        (function () {
-            function addCss(href) { var l = document.createElement("link"); l.rel = "stylesheet"; l.href = href; document.head.appendChild(l); }
-            function addScript(src, optional) {
-                return new Promise(function (resolve) {
-                    var s = document.createElement("script"); s.src = src; s.async = false;
-                    s.onload = resolve;
-                    s.onerror = function () { if (optional) { console.warn("선택 리소스 로드 실패(무시): " + src); resolve(); } else { console.error("로드 실패: " + src); resolve(); } };
-                    document.head.appendChild(s);
-                });
-            }
-            addCss("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css");
-            addCss("styles.css");
-            addCss("glass.css");
-            var seq = [
-                ["https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js", false],
-                ["https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js", true],
-                ["https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js", true],
-                ["https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js", true],
-                ["firebase-config.js", true],
-                ["app.js", false],
-                ["animations.js", true]
-            ];
-            (function next(i) { if (i >= seq.length) return; addScript(seq[i][0], seq[i][1]).then(function () { next(i + 1); }); })(0);
-        })();
-    </script>
-    <script>
-        if ("serviceWorker" in navigator) {
-            window.addEventListener("load", function () {
-                navigator.serviceWorker.register("sw.js")
-                    .then(function (reg) { console.log("✅ PWA 서비스워커 등록됨:", reg.scope); })
-                    .catch(function (err) { console.warn("서비스워커 등록 실패(무시 가능):", err); });
-            });
-        }
-        window.addEventListener("beforeinstallprompt", function (e) {
-            e.preventDefault();
-            window.deferredInstallPrompt = e;
-            console.log("💡 이 앱은 홈 화면에 설치할 수 있어요.");
-        });
-    </script>
+        <div class="notice" id="migrationNotice" hidden></div>
+        <div class="panel table-panel"><div class="table-head"><span>날짜·항목</span><span>사용 목적</span><span>결제 수단</span><span class="align-right">금액</span></div><div id="recordList" class="record-table"></div></div>
+      </section>
+
+      <section class="screen" id="settlements" data-screen="settlements" aria-labelledby="settlementsTitle">
+        <div class="screen-heading"><div><p class="eyebrow">SETTLEMENTS</p><h2 id="settlementsTitle">정산과 월 마감</h2><p class="muted">개인 지출이 실제로 처리되었는지 확인합니다.</p></div><button class="outline-btn" id="settlementMonthAction" type="button">마감 안내</button></div>
+        <div class="settlement-summary" id="settlementSummary"></div>
+        <div class="panel"><div class="panel-heading"><div><p class="eyebrow">REVIEW QUEUE</p><h3>정산 검토 목록</h3></div><span class="pill neutral" id="settlementCount">0건</span></div><div id="settlementList" class="settlement-list"></div></div>
+        <div class="panel month-close-panel"><div class="panel-heading"><div><p class="eyebrow">MONTH CLOSE</p><h3 id="monthCloseTitle">월 마감</h3></div><span class="pill" id="monthCloseState">진행 중</span></div><div id="monthCloseBody"></div></div>
+      </section>
+
+      <section class="screen" id="assets" data-screen="assets" aria-labelledby="assetsTitle">
+        <div class="screen-heading"><div><p class="eyebrow">ASSETS</p><h2 id="assetsTitle">자산과 결제 수단</h2><p class="muted">관리할 계좌와 카드의 역할을 명확히 설정합니다.</p></div><button class="outline-btn" id="addAccountBtn" type="button">＋ 계좌 추가</button></div>
+        <div class="asset-grid"><article class="panel"><div class="panel-heading"><div><p class="eyebrow">ACCOUNTS</p><h3>관리 계좌</h3></div><span class="pill neutral" id="accountTotal">0원</span></div><div id="accountList" class="asset-list"></div></article><article class="panel"><div class="panel-heading"><div><p class="eyebrow">CARDS</p><h3>카드 설정</h3></div><button class="text-btn" id="addCardBtn" type="button">카드 추가</button></div><div id="cardList" class="asset-list"></div></article></div>
+        <div class="asset-grid"><article class="panel"><div class="panel-heading"><div><p class="eyebrow">LIABILITIES</p><h3>대출·차용</h3></div><button class="text-btn" id="addLoanBtn" type="button">대출 추가</button></div><div id="loanList" class="asset-list"></div></article><article class="panel"><div class="panel-heading"><div><p class="eyebrow">GOALS</p><h3>공동 목표</h3></div><button class="text-btn" id="addGoalBtn" type="button">목표 추가</button></div><div id="goalList" class="asset-list"></div></article></div>
+        <article class="panel full-span"><div class="panel-heading"><div><p class="eyebrow">HOUSING</p><h3>주택 자금</h3></div><span class="pill neutral">기존 기록 보존</span></div><div id="houseList" class="house-grid"></div></article>
+        <div class="panel privacy-panel"><div class="privacy-icon">◌</div><div><h3>비공개 용돈 계좌</h3><p class="muted">잔액과 거래 내역은 저장하지 않습니다. 카드에 용돈 카드와 용돈 주인만 지정하면 개인 지출을 자동으로 처리합니다.</p></div></div>
+      </section>
+
+      <section class="screen" id="analytics" data-screen="analytics" aria-labelledby="analyticsTitle">
+        <div class="screen-heading"><div><p class="eyebrow">ANALYTICS</p><h2 id="analyticsTitle">분석과 추이</h2><p class="muted">그래프의 막대와 도넛을 클릭하면 세부 내역이 열립니다.</p></div><label class="field-inline"><span>기준</span><select id="analyticsMonthSelect" aria-label="분석 기준 월"></select></label></div>
+        <div class="analytics-grid"><article class="panel chart-panel"><div class="panel-heading"><div><p class="eyebrow">ASSET MIX</p><h3>자산 구성</h3></div></div><div class="chart-wrap"><canvas id="chartAssets" aria-label="자산 구성 차트"></canvas></div></article><article class="panel chart-panel"><div class="panel-heading"><div><p class="eyebrow">NET WORTH</p><h3>월별 순자산 추이</h3></div></div><div class="chart-wrap wide"><canvas id="chartTrend" aria-label="월별 순자산 추이 차트"></canvas></div></article></div>
+        <div class="panel"><div class="panel-heading"><div><p class="eyebrow">DETAIL</p><h3>분석 상세</h3></div></div><div id="analyticsDetail" class="detail-empty">그래프의 항목을 클릭하면 관련 내역이 표시됩니다.</div></div>
+      </section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="주요 메뉴">
+      <button class="nav-item active" type="button" data-open-screen="dashboard"><span aria-hidden="true">⌂</span><span>홈</span></button>
+      <button class="nav-item" type="button" data-open-screen="records"><span aria-hidden="true">＋</span><span>기록</span></button>
+      <button class="nav-item" type="button" data-open-screen="settlements"><span aria-hidden="true">↔</span><span>정산</span><span id="navBadge" class="nav-badge" hidden>0</span></button>
+      <button class="nav-item" type="button" data-open-screen="assets"><span aria-hidden="true">▣</span><span>자산</span></button>
+      <button class="nav-item" type="button" data-open-screen="analytics"><span aria-hidden="true">◒</span><span>분석</span></button>
+    </nav>
+  </div>
+
+  <dialog class="modal" id="quickEntry">
+    <form method="dialog" id="quickEntryForm">
+      <div class="modal-heading"><div><p class="eyebrow">QUICK ENTRY</p><h2>지출 기록</h2></div><button class="icon-btn" value="cancel" aria-label="닫기">×</button></div>
+      <div class="amount-field"><span>금액</span><input id="entryAmount" name="amount" inputmode="numeric" autocomplete="off" placeholder="0" required><b>원</b></div>
+      <div class="form-grid"><label class="field"><span>항목</span><input id="entryItem" name="item" placeholder="예: 친구들과 저녁" required></label><label class="field"><span>카테고리</span><select id="entryCategory" name="category"><option>식비</option><option>주거/공과</option><option>교통</option><option>통신</option><option>데이트/여가</option><option>쇼핑</option><option>의료</option><option>교육</option><option>경조사</option><option>저축/투자</option><option>기타</option></select></label><label class="field"><span>사용일</span><input id="entryDate" name="date" type="date" required></label><label class="field"><span>결제 수단</span><select id="entryPayment" name="payment"></select></label></div>
+      <fieldset class="purpose-field"><legend>누구를 위한 지출인가요?</legend><div class="purpose-options"><label><input type="radio" name="usageOwner" value="J" checked><span>공동</span></label><label><input type="radio" name="usageOwner" value="A"><span id="purposeA">나</span></label><label><input type="radio" name="usageOwner" value="B"><span id="purposeB">상대방</span></label></div></fieldset>
+      <div class="entry-preview" id="entryPreview">금액과 결제 수단을 입력하면 처리 방법을 안내합니다.</div>
+      <div class="modal-actions"><button class="outline-btn" value="cancel">취소</button><button class="primary-btn" id="saveEntryBtn" value="default">저장</button></div>
+    </form>
+  </dialog>
+
+  <dialog class="modal detail-modal" id="detailDialog"><div class="modal-heading"><div><p class="eyebrow">DETAIL</p><h2 id="detailTitle">상세 내역</h2></div><button class="icon-btn" id="closeDetail" type="button" aria-label="닫기">×</button></div><div id="detailBody"></div></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="firebase-config.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>
