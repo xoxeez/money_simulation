@@ -97,7 +97,7 @@ python -m http.server 8000
 `app.js`, `domain.mjs`, `styles.css`를 변경할 때마다 `sw.js`의 `CACHE` 값을 올리세요.
 
 ```js
-const CACHE = "sohak-planner-v12";
+const CACHE = "sohak-planner-v13";
 ```
 
 이렇게 해야 이미 설치된 PWA가 새 앱 셸을 받아옵니다.
