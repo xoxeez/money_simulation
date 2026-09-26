@@ -20,7 +20,7 @@ firebase-config.js
 
 ## Firebase 사용
 
-`firebase-config.js`는 기본적으로 `window.firebaseConfig = null` 상태입니다. 기존 `firebase-config.js`의 실제 설정을 새 파일에 덮어쓰고, 필요한 경우 기존 `window.DOC_PATH`도 함께 복사하세요.
+`firebase-config.js`에는 Firebase 프로젝트 설정과 Firestore 문서 경로가 들어 있습니다. 설정 파일은 이전 앱과의 호환을 위해 기존 `firebaseConfig` 및 `DOC_PATH` 바인딩을 유지하면서, 새 앱이 사용하는 `window.firebaseConfig`와 `window.DOC_PATH`에도 값을 노출합니다. 다른 Firebase 프로젝트를 사용할 경우 이 파일의 설정과 문서 경로를 함께 바꾸세요.
 
 Firebase 설정이 없으면 자동으로 localStorage 모드로 동작합니다. 기존 데이터는 다음 순서로 확인합니다.
 
@@ -28,7 +28,7 @@ Firebase 설정이 없으면 자동으로 localStorage 모드로 동작합니다
 2. `coupleV8`
 3. `coupleV7`
 
-마이그레이션 후에는 `sohakPlannerV2:lastBackup`에 변환 직전 데이터가 저장됩니다.
+기존 `coupleV8` 또는 `coupleV7` 데이터는 새 구조로 마이그레이션됩니다. Firebase에서 읽은 원본 문서는 최초 로드 시 `sohakPlannerV2:cloudBackup`에도 보관하고, 변환된 데이터는 `sohakPlannerV2`에 저장합니다.
 
 상단의 `백업` 버튼으로 현재 데이터를 JSON 파일로 저장하고, `복원` 버튼으로 백업 파일을 다시 불러올 수 있습니다.
 
