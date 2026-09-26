@@ -102,9 +102,27 @@ export function migrateLegacyData(raw = {}, { today = localYmd() } = {}) {
   const source = clone(raw) || {};
   const nameA = String(source.nameA || "나").trim() || "나";
   const nameB = String(source.nameB || "상대방").trim() || "상대방";
+  const sourceLedgers = source.ledgers && typeof source.ledgers === "object" && !Array.isArray(source.ledgers) ? source.ledgers : {};
+  const isMonthKey = (key) => {
+    const match = /^(\d{4})-(\d{2})$/.exec(String(key || ""));
+    return !!match && Number(match[2]) >= 1 && Number(match[2]) <= 12;
+  };
+  const fallbackMonth = isMonthKey(source.currentMonth) ? source.currentMonth : String(today).slice(0, 7);
+  const ledgerFields = ["incomes", "expenses", "extraIncomes", "extraExpenses", "cardTxns", "transfers"];
+  const hasMonthlyLedgers = Object.keys(sourceLedgers).some(isMonthKey);
+  const hasFlatLedgerData = ledgerFields.some((key) => Array.isArray(source[key]));
+  const monthKeys = [
+    ...(Array.isArray(source.months) ? source.months : []),
+    ...Object.keys(sourceLedgers),
+    ...(isMonthKey(source.currentMonth) ? [source.currentMonth] : [])
+  ];
+  if (!hasMonthlyLedgers && hasFlatLedgerData) monthKeys.push(fallbackMonth);
+  const months = [...new Set(monthKeys.filter(isMonthKey))].sort();
+  if (!months.length) months.push(fallbackMonth);
   const unresolved = Array.isArray(source.migrationAudit?.usageOwnerUnresolved) ? clone(source.migrationAudit.usageOwnerUnresolved) : [];
   const unresolvedKeys = new Set(unresolved.map((item) => `${item.source}:${item.monthKey}:${item.sourceId}:${item.original}`));
   const resolvedKeys = new Set();
+  const invalidLedgerKeys = Object.keys(sourceLedgers).filter((key) => !isMonthKey(key));
   const data = {
     ...source,
     nameA,
@@ -116,18 +134,23 @@ export function migrateLegacyData(raw = {}, { today = localYmd() } = {}) {
     cards: Array.isArray(source.cards) ? source.cards.map(normalizeCard) : [],
     loans: Array.isArray(source.loans) ? source.loans : [],
     goals: Array.isArray(source.goals) ? source.goals : [],
-    months: Array.isArray(source.months) ? [...source.months] : Object.keys(source.ledgers || {}),
+    months,
     ledgers: {},
     migrationAudit: {
       ...(source.migrationAudit || {}),
-      usageOwnerUnresolved: unresolved
+      usageOwnerUnresolved: unresolved,
+      unmappedLedgers: {
+        ...(source.migrationAudit?.unmappedLedgers || {}),
+        ...Object.fromEntries(invalidLedgerKeys.map((key) => [key, sourceLedgers[key]]))
+      }
     }
   };
-  data.months = [...new Set(data.months.filter((key) => /^\d{4}-\d{2}$/.test(key)))].sort();
-  if (!data.months.length) data.months = [String(today).slice(0, 7)];
 
   for (const monthKey of data.months) {
-    const ledger = normalizeLedger(source.ledgers?.[monthKey]);
+    const flatLedger = !hasMonthlyLedgers && monthKey === fallbackMonth
+      ? Object.fromEntries(ledgerFields.map((key) => [key, Array.isArray(source[key]) ? source[key] : []]))
+      : {};
+    const ledger = normalizeLedger(sourceLedgers[monthKey] || flatLedger);
     for (const tx of ledger.cardTxns) {
       const rawOwner = tx.usageOwnerOriginal || tx.usageOwner || tx.owner;
       const ownerResult = normalizeLegacyOwner(rawOwner, { nameA, nameB });
@@ -172,6 +195,23 @@ export function migrateLegacyData(raw = {}, { today = localYmd() } = {}) {
       ledger.closeSnapshot = { version: 1, source: "legacy", capturedAt: source.updatedAt || new Date().toISOString(), monthKey };
     }
     data.ledgers[monthKey] = ledger;
+  }
+  const schemaVersion = Number(source.schemaVersion) || 0;
+  if (schemaVersion < SCHEMA_VERSION && !data.migrationAudit.importSummary) {
+    const count = (field) => data.months.reduce((total, monthKey) => total + data.ledgers[monthKey][field].length, 0);
+    data.migrationAudit.importSummary = {
+      sourceFormat: hasMonthlyLedgers ? "monthly-ledger" : hasFlatLedgerData ? "flat-ledger" : "legacy-empty",
+      monthCount: data.months.length,
+      accountCount: data.accounts.length,
+      cardCount: data.cards.length,
+      loanCount: data.loans.length,
+      goalCount: data.goals.length,
+      incomeCount: count("incomes") + count("extraIncomes"),
+      expenseCount: count("expenses") + count("extraExpenses"),
+      cardTransactionCount: count("cardTxns"),
+      transferCount: count("transfers"),
+      unmappedLedgerCount: Object.keys(data.migrationAudit.unmappedLedgers).length
+    };
   }
   data.migrationAudit.usageOwnerUnresolved = unresolved.filter((item) => !resolvedKeys.has(`${item.source}:${item.monthKey}:${item.sourceId}:${item.original}`));
   for (const monthKey of data.months) {
