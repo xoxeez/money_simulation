@@ -4,9 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#f4f7fb">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="소학행 플래너">
   <meta name="description" content="두 사람이 함께 쓰는 자산·가계부 플래너">
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="favicon-32.png" type="image/png">
+  <link rel="apple-touch-icon" href="icon-192.png">
   <link rel="stylesheet" href="styles.css">
   <title>소학행 자산 플래너</title>
 </head>
@@ -24,6 +27,17 @@
       <div class="top-actions">
         <span id="saveStatus" class="save-status" role="status">저장 준비 중</span>
         <button class="icon-btn" id="themeBtn" type="button" aria-label="테마 전환">☾</button>
+        <button class="outline-btn install-app-btn" id="installAppBtn" type="button">앱 설치</button>
+        <div class="mobile-more-wrap">
+          <button class="icon-btn mobile-more-toggle" id="mobileMoreBtn" type="button" aria-label="추가 메뉴" aria-controls="mobileMoreMenu" aria-expanded="false">⋯</button>
+          <div class="mobile-more-menu" id="mobileMoreMenu" role="menu" hidden>
+            <button type="button" role="menuitem" data-trigger-action="installAppBtn">앱 설치 / 홈 화면에 추가</button>
+            <button type="button" role="menuitem" data-trigger-action="saveBtn">지금 저장</button>
+            <button type="button" role="menuitem" data-trigger-action="loadBtn">클라우드 불러오기</button>
+            <button type="button" role="menuitem" data-trigger-action="exportBtn">백업 파일 받기</button>
+            <button type="button" role="menuitem" data-trigger-action="importBtn">백업 복원</button>
+          </div>
+        </div>
         <button class="outline-btn" id="exportBtn" type="button">백업</button>
         <button class="outline-btn" id="importBtn" type="button">복원</button>
         <input id="importFile" type="file" accept="application/json" hidden>
@@ -45,17 +59,17 @@
 
         <div class="month-toolbar compact-toolbar">
           <label class="field-inline"><span>기준 월</span><select id="monthSelect" aria-label="기준 월"></select></label>
-          <button class="outline-btn small" id="closeMonthBtn" type="button">이번 달 마감</button>
+          <button class="outline-btn small" id="closeMonthBtn" type="button" data-open-screen="settlements">이번 달 마감</button>
         </div>
 
         <div class="kpi-grid" id="dashboardKpis"></div>
         <div class="dashboard-grid">
           <article class="panel chart-panel">
-            <div class="panel-heading"><div><p class="eyebrow">MONTHLY SPENDING</p><h3>이번 달 지출</h3></div><button class="text-btn" data-open-screen="records">전체 보기</button></div>
+            <div class="panel-heading"><div><p class="eyebrow">MONTHLY SPENDING</p><h3>이번 달 지출</h3></div><button class="text-btn" type="button" data-open-screen="records">전체 보기</button></div>
             <div class="chart-wrap"><canvas id="chartExpense" aria-label="이번 달 지출 카테고리 차트"></canvas></div>
           </article>
           <article class="panel chart-panel">
-            <div class="panel-heading"><div><p class="eyebrow">PERSONAL LOAD</p><h3>담당자별 부담</h3></div><button class="text-btn" data-open-screen="settlements">정산 보기</button></div>
+            <div class="panel-heading"><div><p class="eyebrow">PERSONAL LOAD</p><h3>담당자별 부담</h3></div><button class="text-btn" type="button" data-open-screen="settlements">정산 보기</button></div>
             <div class="chart-wrap"><canvas id="chartBurden" aria-label="담당자별 부담 차트"></canvas></div>
           </article>
         </div>
@@ -70,7 +84,7 @@
         </article>
         <div class="dashboard-grid lower-grid">
           <article class="panel" id="recentPanel">
-            <div class="panel-heading"><div><p class="eyebrow">RECENT ACTIVITY</p><h3>최근 기록</h3></div><button class="text-btn" data-open-screen="records">기록 관리</button></div>
+            <div class="panel-heading"><div><p class="eyebrow">RECENT ACTIVITY</p><h3>최근 기록</h3></div><button class="text-btn" type="button" data-open-screen="records">기록 관리</button></div>
             <div id="recentList" class="record-list compact-list"></div>
           </article>
           <article class="panel" id="attentionPanel">
@@ -109,10 +123,10 @@
       </section>
 
       <section class="screen" id="settlements" data-screen="settlements" aria-labelledby="settlementsTitle">
-        <div class="screen-heading"><div><p class="eyebrow">SETTLEMENTS</p><h2 id="settlementsTitle">정산과 월 마감</h2><p class="muted">개인 지출이 실제로 처리되었는지 확인합니다.</p></div><button class="outline-btn" id="settlementMonthAction" type="button">마감 안내</button></div>
+        <div class="screen-heading"><div><p class="eyebrow">SETTLEMENTS</p><h2 id="settlementsTitle">정산과 월 마감</h2><p class="muted">개인 지출이 실제로 처리되었는지 확인합니다.</p></div><button class="outline-btn" id="settlementMonthAction" type="button" data-open-screen="settlements">마감 안내</button></div>
         <div class="settlement-summary" id="settlementSummary"></div>
         <div class="panel"><div class="panel-heading"><div><p class="eyebrow">REVIEW QUEUE</p><h3>정산 검토 목록</h3></div><span class="pill neutral" id="settlementCount">0건</span></div><div id="settlementList" class="settlement-list"></div></div>
-        <div class="panel month-close-panel"><div class="panel-heading"><div><p class="eyebrow">MONTH CLOSE</p><h3 id="monthCloseTitle">월 마감</h3></div><span class="pill" id="monthCloseState">진행 중</span></div><div id="monthCloseBody"></div></div>
+        <div class="panel month-close-panel"><div class="panel-heading"><div><p class="eyebrow">MONTH CLOSE</p><h3 id="monthCloseTitle">월 마감 체크리스트</h3></div><span class="pill" id="monthCloseState">진행 중</span></div><div id="monthCloseBody"></div></div>
       </section>
 
       <section class="screen" id="assets" data-screen="assets" aria-labelledby="assetsTitle">
@@ -142,19 +156,19 @@
 
   <dialog class="modal" id="quickEntry">
     <form method="dialog" id="quickEntryForm">
-      <div class="modal-heading"><div><p class="eyebrow">CASH FLOW</p><h2 id="entryDialogTitle">거래 추가</h2></div><button class="icon-btn" value="cancel" aria-label="닫기">×</button></div>
+      <div class="modal-heading"><div><p class="eyebrow">CASH FLOW</p><h2 id="entryDialogTitle">거래 추가</h2></div><button class="icon-btn" type="button" data-close-dialog aria-label="닫기">×</button></div>
       <div class="amount-field"><span>금액</span><input id="entryAmount" name="amount" inputmode="numeric" autocomplete="off" placeholder="0" required><b>원</b></div>
       <div class="form-grid"><label class="field"><span>구분</span><select id="entryKind" name="kind"><option value="expense">지출</option><option value="income">수입</option><option value="transfer">계좌 이체</option></select></label><label class="field"><span>주기</span><select id="entryFrequency" name="frequency"><option value="once">1회성</option><option value="monthly">매월 정기</option></select></label><label class="field"><span>항목</span><input id="entryItem" name="item" placeholder="예: 친구들과 저녁" required></label><label class="field" id="entryCategoryField"><span>카테고리</span><select id="entryCategory" name="category"><option>식비</option><option>주거/공과</option><option>교통</option><option>통신</option><option>데이트/여가</option><option>쇼핑</option><option>의료</option><option>교육</option><option>경조사</option><option>저축/투자</option><option>기타</option></select></label><label class="field" id="entryDateField"><span>거래일</span><input id="entryDate" name="date" type="date" required></label><label class="field" id="entryDayField" hidden><span>매월 실행일</span><input id="entryDay" name="day" type="number" min="1" max="31" value="1" inputmode="numeric"></label><label class="field" id="entryPaymentField"><span id="entryPaymentLabel">결제 수단</span><select id="entryPayment" name="payment"></select></label><label class="field" id="entryTransferToField" hidden><span>받는 계좌</span><select id="entryTransferTo" name="toAccount"></select></label></div>
       <fieldset class="purpose-field" id="entryPurposeField"><legend id="entryPurposeLegend">누구를 위한 지출인가요?</legend><div class="purpose-options"><label><input type="radio" name="usageOwner" value="J" checked><span>공동</span></label><label><input type="radio" name="usageOwner" value="A"><span id="purposeA">나</span></label><label><input type="radio" name="usageOwner" value="B"><span id="purposeB">상대방</span></label></div></fieldset>
       <div class="occurrence-actions" id="entryOccurrenceActions" hidden></div>
       <div class="entry-preview" id="entryPreview">유형과 계좌를 선택하면 거래 처리 방법을 안내합니다.</div>
-      <div class="modal-actions"><button class="outline-btn danger-action" id="deleteEntryBtn" type="button" hidden>삭제</button><span class="modal-actions-spacer"></span><button class="outline-btn" value="cancel">취소</button><button class="primary-btn" id="saveEntryBtn" value="default">저장</button></div>
+      <div class="modal-actions"><button class="outline-btn danger-action" id="deleteEntryBtn" type="button" hidden>삭제</button><span class="modal-actions-spacer"></span><button class="outline-btn" type="button" data-close-dialog>취소</button><button class="primary-btn" id="saveEntryBtn" type="submit">저장</button></div>
     </form>
   </dialog>
 
   <dialog class="modal loan-editor-modal" id="loanEditorDialog">
     <form method="dialog" id="loanEditorForm">
-      <div class="modal-heading"><div><p class="eyebrow">LOAN SETTINGS</p><h2 id="loanEditorTitle">대출 등록</h2></div><button class="icon-btn" value="cancel" aria-label="닫기">×</button></div>
+      <div class="modal-heading"><div><p class="eyebrow">LOAN SETTINGS</p><h2 id="loanEditorTitle">대출 등록</h2></div><button class="icon-btn" type="button" data-close-dialog aria-label="닫기">×</button></div>
       <div class="form-grid loan-form-grid">
         <label class="field"><span>대출명</span><input id="loanName" required placeholder="예: 주택담보대출"></label>
         <label class="field"><span>명의</span><select id="loanOwner"><option value="J">공동</option><option value="A">나</option><option value="B">상대방</option></select></label>
@@ -183,12 +197,12 @@
         <div class="loan-repeat-head"><span>상환 회차</span><span>추가 상환액</span><span></span></div><div id="loanPrepaymentRows" class="loan-repeat-list"></div>
       </div>
       <div class="loan-preview" id="loanPreview"></div>
-      <div class="modal-actions"><span class="modal-actions-spacer"></span><button class="outline-btn" value="cancel">취소</button><button class="primary-btn" id="saveLoanBtn" type="button">저장</button></div>
+      <div class="modal-actions"><span class="modal-actions-spacer"></span><button class="outline-btn" type="button" data-close-dialog>취소</button><button class="primary-btn" id="saveLoanBtn" type="button">저장</button></div>
     </form>
   </dialog>
 
   <dialog class="modal loan-schedule-modal" id="loanScheduleDialog">
-    <div class="modal-heading"><div><p class="eyebrow">REPAYMENT SCHEDULE</p><h2 id="loanScheduleTitle">대출 상환 일정</h2></div><button class="icon-btn" id="closeLoanSchedule" type="button" aria-label="닫기">×</button></div>
+    <div class="modal-heading"><div><p class="eyebrow">REPAYMENT SCHEDULE</p><h2 id="loanScheduleTitle">대출 상환 일정</h2></div><button class="icon-btn" type="button" data-close-dialog aria-label="닫기">×</button></div>
     <div class="loan-schedule-summary" id="loanScheduleSummary"></div>
     <div class="loan-schedule-toolbar"><span class="muted">상환 월의 원금과 이자를 따로 확인하고 실제 납부액을 기록합니다.</span><label class="field-inline"><span>표시</span><select id="loanScheduleRange"><option value="12">선택 월부터 12회</option><option value="24">선택 월부터 24회</option><option value="all">전체 일정</option></select></label></div>
     <div class="loan-schedule-table-wrap"><table class="loan-schedule-table"><thead><tr><th>회차 / 날짜</th><th>상환액</th><th>원금</th><th>이자</th><th>중도상환</th><th>잔여원금</th><th>실제 내역</th></tr></thead><tbody id="loanScheduleRows"></tbody></table></div>
@@ -196,16 +210,25 @@
 
   <dialog class="modal" id="loanPaymentDialog">
     <form method="dialog" id="loanPaymentForm">
-      <div class="modal-heading"><div><p class="eyebrow">ACTUAL REPAYMENT</p><h2 id="loanPaymentTitle">대출 납부 기록</h2></div><button class="icon-btn" value="cancel" aria-label="닫기">×</button></div>
+      <div class="modal-heading"><div><p class="eyebrow">ACTUAL REPAYMENT</p><h2 id="loanPaymentTitle">대출 납부 기록</h2></div><button class="icon-btn" type="button" data-close-dialog aria-label="닫기">×</button></div>
       <div class="loan-payment-note" id="loanPaymentExpected"></div>
       <label class="field"><span>실제 납부일</span><input id="loanPaymentDate" type="date" required></label>
       <div class="form-grid"><label class="field"><span>실제 상환 원금</span><input id="loanPaymentPrincipal" inputmode="numeric" required></label><label class="field"><span>실제 납부 이자</span><input id="loanPaymentInterest" inputmode="numeric" required></label></div>
       <label class="field"><span>출금 계좌</span><select id="loanPaymentAccount"></select></label>
-      <div class="modal-actions"><button class="outline-btn danger-action" id="deleteLoanPaymentBtn" type="button" hidden>납부 기록 삭제</button><span class="modal-actions-spacer"></span><button class="outline-btn" value="cancel">취소</button><button class="primary-btn" id="saveLoanPaymentBtn" type="button">납부 기록 저장</button></div>
+      <div class="modal-actions"><button class="outline-btn danger-action" id="deleteLoanPaymentBtn" type="button" hidden>납부 기록 삭제</button><span class="modal-actions-spacer"></span><button class="outline-btn" type="button" data-close-dialog>취소</button><button class="primary-btn" id="saveLoanPaymentBtn" type="button">납부 기록 저장</button></div>
     </form>
   </dialog>
 
-  <dialog class="modal detail-modal" id="detailDialog"><div class="modal-heading"><div><p class="eyebrow">DETAIL</p><h2 id="detailTitle">상세 내역</h2></div><button class="icon-btn" id="closeDetail" type="button" aria-label="닫기">×</button></div><div id="detailBody"></div></dialog>
+  <dialog class="modal" id="cardPaymentDialog">
+    <form method="dialog" id="cardPaymentForm" novalidate>
+      <div class="modal-heading"><div><p class="eyebrow">CARD REPAYMENT</p><h2 id="cardPaymentTitle">카드 결제 기록</h2></div><button class="icon-btn" type="button" data-close-dialog aria-label="닫기">×</button></div>
+      <div id="cardPaymentExpected" class="loan-payment-note"></div>
+      <div class="form-grid"><label class="field"><span>실제 결제 금액</span><input id="cardPaymentAmount" type="text" inputmode="numeric" required></label><label class="field"><span>결제일</span><input id="cardPaymentDate" type="date" required></label></div>
+      <label class="field"><span>출금 계좌</span><select id="cardPaymentAccount" required></select></label>
+      <div class="modal-actions"><button class="outline-btn danger-action" id="deleteCardPaymentBtn" type="button" hidden>기록 삭제</button><span class="modal-actions-spacer"></span><button class="outline-btn" type="button" data-close-dialog>취소</button><button class="primary-btn" id="saveCardPaymentBtn" type="button">결제 기록 저장</button></div>
+    </form>
+  </dialog>
+  <dialog class="modal detail-modal" id="detailDialog"><div class="modal-heading"><div><p class="eyebrow">DETAIL</p><h2 id="detailTitle">상세 내역</h2></div><button class="icon-btn" type="button" data-close-dialog aria-label="닫기">×</button></div><div id="detailBody"></div></dialog>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
