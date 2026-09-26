@@ -59,6 +59,15 @@
             <div class="chart-wrap"><canvas id="chartBurden" aria-label="담당자별 부담 차트"></canvas></div>
           </article>
         </div>
+        <article class="panel forecast-panel" aria-labelledby="forecastTitle">
+          <div class="panel-heading forecast-heading">
+            <div><p class="eyebrow">ACCOUNT CASH FLOW</p><h3 id="forecastTitle">앞으로의 계좌 잔액 예상</h3><p class="muted panel-subcopy">현재 등록된 계좌 잔액에서 오늘 이후의 수입·지출·카드 결제·대출 상환을 반영합니다. 실제 잔액은 변경하지 않습니다.</p></div>
+            <label class="field-inline"><span>예상 기간</span><select id="forecastHorizon" aria-label="계좌 잔액 예상 기간"><option value="30">30일</option><option value="90" selected>90일</option><option value="180">180일</option></select></label>
+          </div>
+          <div id="forecastSummary" class="forecast-summary"></div>
+          <div id="forecastAccounts" class="forecast-accounts"></div>
+          <div id="forecastEvents" class="forecast-events"></div>
+        </article>
         <div class="dashboard-grid lower-grid">
           <article class="panel" id="recentPanel">
             <div class="panel-heading"><div><p class="eyebrow">RECENT ACTIVITY</p><h3>최근 기록</h3></div><button class="text-btn" data-open-screen="records">기록 관리</button></div>

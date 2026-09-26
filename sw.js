@@ -1,4 +1,4 @@
-const CACHE = "sohak-planner-v8";
+const CACHE = "sohak-planner-v9";
 const APP_SHELL = ["./", "./index.html", "./app.js", "./domain.mjs", "./styles.css", "./manifest.json", "./firebase-config.js"];
 
 self.addEventListener("install", (event) => {

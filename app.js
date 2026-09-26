@@ -18,7 +18,7 @@ const COLORS = ["#2868d7", "#159e9b", "#7659c9", "#e28c43", "#bd4c65", "#6f8ea9"
 const CATEGORIES = ["식비", "주거/공과", "교통", "통신", "데이트/여가", "쇼핑", "의료", "교육", "경조사", "저축/투자", "기타"];
 const LOAN_REPAY_LABELS = { eq: "원리금균등", pr: "원금균등", io: "만기일시·이자 매월", iod: "만기일시·이자 만기", graduate: "원리금체증식", custom: "월별 직접입력" };
 const LOAN_KIND_LABELS = { bank: "은행 대출", family: "가족·지인 차용" };
-const state = { data: null, screen: "dashboard", selectedMonth: CURRENT_MONTH, recordFilter: "all", recordTypeFilter: "all", settlementTransferId: null, loanEditingId: null, loanDraft: null, loanScheduleId: null, loanPaymentContext: null, charts: {}, detail: null, analyticsDetail: null, cloudDb: null, saveTimer: null, housingCalculated: false, editingRecord: null };
+const state = { data: null, screen: "dashboard", selectedMonth: CURRENT_MONTH, forecastDays: 90, recordFilter: "all", recordTypeFilter: "all", settlementTransferId: null, loanEditingId: null, loanDraft: null, loanScheduleId: null, loanPaymentContext: null, charts: {}, detail: null, analyticsDetail: null, cloudDb: null, saveTimer: null, housingCalculated: false, editingRecord: null };
 const RECORD_TYPES = [
   ["all", "전체"], ["recurring-income", "정기 수입"], ["recurring-expense", "정기 지출"],
   ["once-income", "비정기 수입"], ["once-expense", "비정기 지출"], ["transfer", "계좌 이체"]
@@ -407,6 +407,142 @@ function cashflowRecords(monthKey = state.selectedMonth) {
 
 function daysInMonth(monthKey) { const [year, month] = monthKey.split("-").map(Number); return new Date(year, month, 0).getDate(); }
 
+function datePlusDays(value, days) {
+  const [year, month, day] = String(value).split("-").map(Number);
+  const date = new Date(year, month - 1, day + days);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function dateInMonth(monthKey, day) {
+  return `${monthKey}-${String(Math.min(Math.max(1, Number(day) || 1), daysInMonth(monthKey))).padStart(2, "0")}`;
+}
+
+function forecastableAccount(account) {
+  if (!account) return false;
+  const type = String(account.type || "");
+  return account.visibility !== "private" && account.fundingType !== "privateAllowance" && !account.isAllowance && !type.includes("용돈");
+}
+
+function buildCashflowForecast(days = 90) {
+  const endDate = datePlusDays(TODAY, days);
+  const endMonth = endDate.slice(0, 7);
+  const startMonth = previousMonthKey(CURRENT_MONTH);
+  const events = [];
+  const cardUsage = new Map();
+  const projectionAccounts = (state.data.accounts || []).filter(forecastableAccount);
+  const accountIds = new Set(projectionAccounts.map((account) => String(account.id)));
+
+  const addEvent = (event) => {
+    if (!event.date || event.date <= TODAY || event.date > endDate || parseAmount(event.amount) <= 0) return;
+    const deltas = {};
+    const unresolved = Object.keys(event.deltas || {}).some((accountId) => accountId && !accountIds.has(String(accountId)) && !accountById(accountId));
+    for (const [accountId, delta] of Object.entries(event.deltas || {})) {
+      const key = String(accountId || "");
+      if (accountIds.has(key) && parseAmount(delta) !== 0) deltas[key] = (deltas[key] || 0) + parseAmount(delta);
+    }
+    events.push({ ...event, deltas, unlinked: Boolean(event.unlinked || unresolved) });
+  };
+
+  let monthKey = startMonth;
+  while (monthKey <= endMonth) {
+    for (const record of cashflowRecords(monthKey)) {
+      if (["skipped", "notOccurred"].includes(record.status)) continue;
+      const date = /^\d{4}-\d{2}-\d{2}$/.test(String(record.date || "")) ? record.date : dateInMonth(monthKey, 1);
+      if (record.kind === "expense" && record.payment?.type === "card") {
+        const cardId = String(record.payment.id || "");
+        if (!cardId) continue;
+        const key = `${cardId}@${monthKey}`;
+        const group = cardUsage.get(key) || { cardId, monthKey, amount: 0, count: 0 };
+        group.amount += parseAmount(record.amount);
+        group.count += 1;
+        cardUsage.set(key, group);
+        continue;
+      }
+      if (monthKey < CURRENT_MONTH) continue;
+      if (record.kind === "transfer") {
+        const amount = parseAmount(record.amount);
+        const deltas = {};
+        const fromId = String(record.fromAccountId || ""); const toId = String(record.toAccountId || "");
+        deltas[fromId] = (deltas[fromId] || 0) - amount;
+        deltas[toId] = (deltas[toId] || 0) + amount;
+        addEvent({ id: `transfer:${record.id}`, date, title: record.item || "계좌 이체", kind: "transfer", amount, detail: record.paymentLabel || "계좌 간 이동", status: record.status, unlinked: !fromId || !toId, deltas });
+        continue;
+      }
+      if (record.kind === "income" || record.kind === "expense") {
+        const amount = parseAmount(record.amount);
+        const isIncome = record.kind === "income";
+        const accountId = String(record.payment?.id || "");
+        const account = accountById(accountId);
+        if (accountId && account && !forecastableAccount(account)) continue;
+        const kind = isIncome ? "income" : (record.source === "loanPlan" || record.source === "loanPayment" ? "loan" : "expense");
+        const detail = kind === "loan" ? `원금 ${fmt(record.principal || 0)} · 이자 ${fmt(record.interest || 0)}` : (record.paymentLabel || (account ? account.name : "출금 계좌 미설정"));
+        addEvent({ id: `${record.source || record.kind}:${record.id}`, date, title: record.item || (isIncome ? "수입" : "지출"), kind, amount, detail, status: record.status, accountLabel: account?.name || (accountId ? "연결 계좌 확인 필요" : "계좌 미지정"), deltas: accountId ? { [accountId]: isIncome ? amount : -amount } : {} });
+      }
+    }
+    monthKey = nextMonthKey(monthKey);
+  }
+
+  for (const group of cardUsage.values()) {
+    const card = cardById(group.cardId);
+    if (!card || group.amount <= 0) continue;
+    const fundingType = card.fundingType || (card.isAllowance ? "privateAllowance" : (card.acc || card.fundingAccountId ? "managed" : "external"));
+    if (fundingType !== "managed") continue;
+    const accountId = String(card.fundingAccountId || card.acc || "");
+    const account = accountById(accountId);
+    if (account && !forecastableAccount(account)) continue;
+    const payDay = Number(card.payDay) || 0;
+    const debitCard = ["체크", "check", "debit"].includes(String(card.kind || "").toLowerCase());
+    if (!debitCard && payDay <= 0) continue;
+    const dueMonth = debitCard ? group.monthKey : nextMonthKey(group.monthKey);
+    const dueDate = dateInMonth(dueMonth, debitCard ? (payDay || 1) : payDay);
+    const description = `${monthLabel(group.monthKey)} 사용분 · ${group.count}건`;
+    addEvent({ id: `card-settlement:${group.cardId}@${group.monthKey}`, date: dueDate, title: `${card.name || "카드"} 결제`, kind: "card", amount: group.amount, detail: description, status: "planned", accountLabel: account?.name || (accountId ? "연결 계좌 확인 필요" : "결제 계좌 미설정"), deltas: accountId ? { [accountId]: -group.amount } : {} });
+  }
+
+  events.sort((a, b) => a.date.localeCompare(b.date) || a.title.localeCompare(b.title, "ko"));
+  const balances = new Map(projectionAccounts.map((account) => [String(account.id), parseAmount(account.amt)]));
+  for (const event of events) {
+    event.balanceUpdates = [];
+    for (const [accountId, delta] of Object.entries(event.deltas)) {
+      const before = balances.get(accountId) || 0;
+      const after = before + delta;
+      balances.set(accountId, after);
+      event.balanceUpdates.push({ accountId, name: accountById(accountId)?.name || "계좌", before, after });
+    }
+  }
+  const accounts = projectionAccounts.map((account) => {
+    const start = parseAmount(account.amt);
+    const projected = balances.get(String(account.id)) ?? start;
+    return { id: account.id, name: account.name || "이름 없는 계좌", owner: account.owner, start, projected, delta: projected - start };
+  });
+  const income = events.filter((event) => event.kind === "income").reduce((sum, event) => sum + event.amount, 0);
+  const outflow = events.filter((event) => ["expense", "loan", "card"].includes(event.kind)).reduce((sum, event) => sum + event.amount, 0);
+  return { startDate: TODAY, endDate, days, events, accounts, income, outflow, net: income - outflow, unlinkedCount: events.filter((event) => event.unlinked || !event.balanceUpdates.length).length };
+}
+
+function forecastDateLabel(value) {
+  const [year, month, day] = String(value).split("-").map(Number);
+  return year === Number(TODAY.slice(0, 4)) ? `${month}월 ${day}일` : `${year}년 ${month}월 ${day}일`;
+}
+
+function renderCashflowForecast() {
+  const days = Number($("forecastHorizon")?.value || state.forecastDays) || 90;
+  state.forecastDays = days;
+  const forecast = buildCashflowForecast(days);
+  $("forecastSummary").innerHTML = [
+    ["예상 수입", forecast.income, "income"], ["예상 출금", forecast.outflow, "expense"], ["순변화", forecast.net, forecast.net >= 0 ? "income" : "expense"]
+  ].map(([label, value, kind]) => `<div class="forecast-stat"><span>${label}</span><strong class="${kind}">${value > 0 && label === "순변화" ? "+" : ""}${fmt(value)}</strong></div>`).join("");
+  $("forecastAccounts").innerHTML = forecast.accounts.length ? forecast.accounts.map((account) => `<div class="forecast-account"><div><b>${esc(account.name)}</b><small>${esc(ownerName(account.owner))} · 기준 잔액 ${fmt(account.start)}</small></div><strong class="${account.delta >= 0 ? "income" : "expense"}">${fmt(account.projected)}</strong><small class="forecast-delta">${account.delta > 0 ? "+" : ""}${fmt(account.delta)}</small></div>`).join("") : `<div class="empty">예상할 관리 계좌가 없습니다. 자산 화면에서 관리 계좌를 등록해주세요.</div>`;
+  const rangeLabel = `${forecastDateLabel(forecast.startDate)} 이후 · ${forecastDateLabel(forecast.endDate)}까지`;
+  const rows = forecast.events.map((event) => {
+    const sign = event.kind === "income" ? "+" : event.kind === "transfer" ? "↔" : "−";
+    const kindLabel = ({ income: "수입", expense: "지출", loan: "대출 상환", card: "카드 결제", transfer: "계좌 이체" })[event.kind];
+    const impacts = event.balanceUpdates.length ? event.balanceUpdates.map((update) => `<span>${esc(update.name)} ${fmt(update.before)} → ${fmt(update.after)}</span>`).join("") : `<span>${esc(event.accountLabel || "계좌 연결 확인 필요")}</span>`;
+    return `<div class="forecast-event"><div class="forecast-event-date">${esc(forecastDateLabel(event.date))}<small>${esc(kindLabel)}</small></div><div class="forecast-event-main"><b>${esc(event.title)}</b><small>${esc(event.detail || "")}</small><div class="forecast-event-balances">${impacts}</div></div><strong class="forecast-event-amount ${event.kind === "income" ? "income" : event.kind === "transfer" ? "transfer" : "expense"}">${sign}${event.kind === "transfer" ? "" : fmt(event.amount)}</strong></div>`;
+  }).join("");
+  $("forecastEvents").innerHTML = `<div class="forecast-event-heading"><b>${esc(rangeLabel)} · ${forecast.events.length}건</b>${forecast.unlinkedCount ? `<span class="forecast-warning">계좌가 연결되지 않은 항목 ${forecast.unlinkedCount}건</span>` : ""}</div>${rows ? `<div class="forecast-event-list">${rows}</div>` : `<div class="empty">이 기간에 예정된 현금 흐름이 없습니다.</div>`}`;
+}
+
 function monthReviews(monthKey = state.selectedMonth) { return (state.data.settlementReviews || []).filter((item) => item.monthKey === monthKey); }
 function pendingReviews(monthKey = state.selectedMonth) { return monthReviews(monthKey).filter((item) => !["confirmed", "excluded"].includes(item.status)); }
 function totalExpenses(monthKey = state.selectedMonth) { return allRecords(monthKey).reduce((sum, record) => sum + record.amount, 0); }
@@ -476,6 +612,7 @@ function renderDashboardCharts() {
 
 function renderDashboard() {
   updateMonthSelects(); renderKpis(); renderDashboardCharts();
+  renderCashflowForecast();
   const recent = cashflowRecords().slice(0, 5);
   $("recentList").innerHTML = recent.length ? recent.map(recordHtml).join("") : `<div class="empty">아직 기록이 없습니다.</div>`;
   const pending = pendingReviews();
@@ -661,9 +798,16 @@ function renderAssets() {
   $("accountTotal").textContent = fmt(accountTotal());
   $("accountList").innerHTML = accounts.length ? accounts.map((account) => `<div class="asset-row"><div class="asset-icon">▣</div><div class="asset-main"><div class="asset-title">${esc(account.name || "이름 없는 계좌")}</div><div class="asset-sub">${esc(ownerName(account.owner))} · ${esc(account.type || "예금")}</div></div><div class="asset-total">${fmt(account.amt)}</div></div>`).join("") : `<div class="empty">관리할 계좌를 추가해주세요.</div>`;
   const cards = state.data.cards || [];
-  $("cardList").innerHTML = cards.length ? cards.map((card) => { const accountOptions = accounts.map((account) => `<option value="${esc(account.id)}" ${String(card.fundingAccountId || card.acc || "") === String(account.id) ? "selected" : ""}>${esc(account.name)}</option>`).join(""); const fundingType = card.fundingType || (card.isAllowance ? "privateAllowance" : "managed"); return `<div class="asset-row card-setting-row"><div class="asset-icon">▰</div><div class="asset-main"><div class="asset-title">${esc(card.name || "이름 없는 카드")}</div><div class="asset-sub">${esc(ownerName(card.owner))} · <span class="pill ${fundingType === "privateAllowance" ? "success" : "neutral"}">${fundingType === "privateAllowance" ? "용돈 카드" : "관리 카드"}</span></div></div><div class="card-controls"><select data-card-id="${esc(card.id)}" data-card-key="fundingType" aria-label="카드 자금 성격"><option value="managed" ${fundingType === "managed" ? "selected" : ""}>관리 계좌</option><option value="privateAllowance" ${fundingType === "privateAllowance" ? "selected" : ""}>비공개 용돈</option><option value="external" ${fundingType === "external" ? "selected" : ""}>외부 계좌</option></select><select data-card-id="${esc(card.id)}" data-card-key="owner" aria-label="카드 소유자"><option value="A" ${card.owner === "A" ? "selected" : ""}>${esc(ownerName("A"))}</option><option value="B" ${card.owner === "B" ? "selected" : ""}>${esc(ownerName("B"))}</option></select>${fundingType === "managed" ? `<select data-card-id="${esc(card.id)}" data-card-key="fundingAccountId" aria-label="연결 계좌"><option value="">연결 계좌 선택</option>${accountOptions}</select>` : ""}<button type="button" data-card-delete="${esc(card.id)}" aria-label="카드 삭제">×</button></div></div>`; }).join("") : `<div class="empty">카드를 추가해주세요.</div>`;
-  $("cardList").querySelectorAll("[data-card-key]").forEach((control) => control.addEventListener("change", () => { const card = cardById(control.dataset.cardId); if (!card) return; card[control.dataset.cardKey] = control.value; if (control.dataset.cardKey === "fundingType" && control.value === "privateAllowance") card.allowanceOwner = card.owner; queueSave(); renderAssets(); renderRecords(); toast("카드 설정을 저장했습니다."); }));
-  $("cardList").querySelectorAll("[data-card-delete]").forEach((button) => button.addEventListener("click", () => { state.data.cards = state.data.cards.filter((card) => card.id !== button.dataset.cardDelete); queueSave(); renderAssets(); toast("카드를 삭제했습니다."); }));
+  $("cardList").innerHTML = cards.length ? cards.map((card) => {
+    const accountOptions = accounts.map((account) => `<option value="${esc(account.id)}" ${String(card.fundingAccountId || card.acc || "") === String(account.id) ? "selected" : ""}>${esc(account.name)}</option>`).join("");
+    const fundingType = card.fundingType || (card.isAllowance ? "privateAllowance" : "managed");
+    const cardKind = ["체크", "debit", "check"].includes(String(card.kind || "").toLowerCase()) ? "체크" : "신용";
+    const payDay = Math.min(31, Math.max(0, Number(card.payDay) || 0));
+    const cardSummary = `${cardKind} · ${payDay ? `매월 ${payDay}일 결제` : "결제일 미설정"}`;
+    return `<div class="asset-row card-setting-row"><div class="asset-icon">▰</div><div class="asset-main"><div class="asset-title">${esc(card.name || "이름 없는 카드")}</div><div class="asset-sub">${esc(ownerName(card.owner))} · <span class="pill ${fundingType === "privateAllowance" ? "success" : "neutral"}">${fundingType === "privateAllowance" ? "용돈 카드" : fundingType === "external" ? "외부 카드" : "관리 카드"}</span><span class="pill neutral">${esc(cardSummary)}</span></div></div><div class="card-controls"><div class="card-settings-grid"><select data-card-id="${esc(card.id)}" data-card-key="fundingType" aria-label="카드 자금 성격"><option value="managed" ${fundingType === "managed" ? "selected" : ""}>관리 계좌</option><option value="privateAllowance" ${fundingType === "privateAllowance" ? "selected" : ""}>비공개 용돈</option><option value="external" ${fundingType === "external" ? "selected" : ""}>외부 계좌</option></select><select data-card-id="${esc(card.id)}" data-card-key="owner" aria-label="카드 소유자"><option value="A" ${card.owner === "A" ? "selected" : ""}>${esc(ownerName("A"))}</option><option value="B" ${card.owner === "B" ? "selected" : ""}>${esc(ownerName("B"))}</option></select>${fundingType === "managed" ? `<select data-card-id="${esc(card.id)}" data-card-key="fundingAccountId" aria-label="연결 계좌"><option value="">연결 계좌 선택</option>${accountOptions}</select>` : ""}<select data-card-id="${esc(card.id)}" data-card-key="kind" aria-label="카드 종류"><option value="신용" ${cardKind === "신용" ? "selected" : ""}>신용카드</option><option value="체크" ${cardKind === "체크" ? "selected" : ""}>체크카드</option></select><input type="number" min="0" max="31" value="${payDay}" data-card-id="${esc(card.id)}" data-card-key="payDay" aria-label="매월 결제일 (일)" title="매월 결제일 (체크카드도 지정일 기준)"><button type="button" data-card-delete="${esc(card.id)}" aria-label="카드 삭제">×</button></div></div>`;
+  }).join("") : `<div class="empty">카드를 추가해주세요.</div>`;
+  $("cardList").querySelectorAll("[data-card-key]").forEach((control) => control.addEventListener("change", () => { const card = cardById(control.dataset.cardId); if (!card) return; const key = control.dataset.cardKey; card[key] = key === "payDay" ? Math.min(31, Math.max(0, Number(control.value) || 0)) : control.value; if (key === "fundingAccountId") card.acc = control.value; if (key === "fundingType" && control.value === "privateAllowance") card.allowanceOwner = card.owner; queueSave(); renderAssets(); renderRecords(); renderDashboard(); toast("카드 설정을 저장했습니다."); }));
+  $("cardList").querySelectorAll("[data-card-delete]").forEach((button) => button.addEventListener("click", () => { state.data.cards = state.data.cards.filter((card) => card.id !== button.dataset.cardDelete); queueSave(); renderAssets(); renderDashboard(); toast("카드를 삭제했습니다."); }));
   renderLoansAndGoals();
   renderHousing();
   renderHousingCashFlows();
@@ -1419,6 +1563,7 @@ function bindEvents() {
   $("monthSelect").addEventListener("change", (event) => { state.selectedMonth = event.target.value; state.analyticsDetail = null; renderAll(); });
   $("recordMonthSelect").addEventListener("change", (event) => { state.selectedMonth = event.target.value; state.analyticsDetail = null; renderAll(); });
   $("analyticsMonthSelect").addEventListener("change", (event) => { state.selectedMonth = event.target.value; state.analyticsDetail = null; renderAnalytics(); });
+  $("forecastHorizon").addEventListener("change", (event) => { state.forecastDays = Number(event.target.value) || 90; renderCashflowForecast(); });
   $("recordFilters").addEventListener("click", (event) => { const button = event.target.closest("[data-filter]"); if (!button) return; state.recordFilter = button.dataset.filter; document.querySelectorAll("#recordFilters .segment").forEach((item) => item.classList.toggle("active", item === button)); renderRecords(); });
   $("recordTypeTabs").addEventListener("click", (event) => { const tab = event.target.closest("[data-record-type]"); if (!tab) return; state.recordTypeFilter = tab.dataset.recordType; renderRecords(); });
   $("recordTypeTabs").addEventListener("keydown", (event) => { if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return; const tabs = [...$("recordTypeTabs").querySelectorAll("[data-record-type]")]; const current = tabs.indexOf(event.target.closest("[data-record-type]")); if (current < 0) return; event.preventDefault(); const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (current + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length; tabs[next].click(); tabs[next].focus(); });
