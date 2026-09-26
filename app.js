@@ -322,11 +322,12 @@ function allRecords(monthKey = state.selectedMonth) {
   }
   for (const rule of state.data.cashflowRules || []) {
     if (rule.kind !== "expense" || !ruleAppliesInMonth(rule, monthKey)) continue;
-    if (ledger.cashflowOccurrences?.[rule.id]?.status !== "actual") continue;
+    const occurrence = ledger.cashflowOccurrences?.[rule.id];
+    if (occurrence?.status !== "actual") continue;
     const day = String(Math.min(Number(rule.day) || 1, daysInMonth(monthKey))).padStart(2, "0");
     const payment = rule.payment || { type: "account", id: rule.accountId || "" };
     const id = `${rule.id}@${monthKey}`;
-    records.push({ id, sourceTransactionId: id, monthKey, date: `${monthKey}-${day}`, item: rule.name || "정기 지출", category: rule.category || "기타", amount: parseAmount(rule.amount), usageOwner: rule.usageOwner || "J", payment, paymentLabel: paymentLabel(payment), source: "cashflowRule", ruleId: rule.id, ruleStartMonth: rule.startMonth || monthKey, kind: "expense", frequency: "monthly" });
+    records.push({ id, sourceTransactionId: id, monthKey, date: `${monthKey}-${day}`, item: rule.name || "정기 지출", category: rule.category || "기타", amount: parseAmount(occurrence.amount ?? rule.amount), ruleAmount: parseAmount(rule.amount), usageOwner: rule.usageOwner || "J", payment, paymentLabel: paymentLabel(payment), source: "cashflowRule", ruleId: rule.id, ruleStartMonth: rule.startMonth || monthKey, kind: "expense", frequency: "monthly" });
   }
   return records.filter((record) => record.amount > 0).sort((a, b) => String(b.date).localeCompare(String(a.date)));
 }
@@ -355,23 +356,26 @@ function cashflowRecords(monthKey = state.selectedMonth) {
     const day = String(Math.min(Number(rule.day) || 1, daysInMonth(monthKey))).padStart(2, "0");
     const id = `${rule.id}@${monthKey}`;
     if (rule.kind === "income") {
+      const occurrence = ledger.cashflowOccurrences?.[rule.id];
       const payment = { type: "account", id: rule.accountId || "" };
-      records.push({ id, monthKey, date: `${monthKey}-${day}`, item: rule.name || "정기 수입", category: "수입", amount: parseAmount(rule.amount), usageOwner: rule.usageOwner || "J", payment, paymentLabel: paymentLabel(payment), source: "cashflowRule", ruleId: rule.id, ruleStartMonth: rule.startMonth || monthKey, kind: "income", frequency: "monthly", status: ledger.cashflowOccurrences?.[rule.id]?.status || "planned" });
+      records.push({ id, monthKey, date: `${monthKey}-${day}`, item: rule.name || "정기 수입", category: "수입", amount: parseAmount(occurrence?.status === "actual" ? occurrence.amount ?? rule.amount : rule.amount), ruleAmount: parseAmount(rule.amount), usageOwner: rule.usageOwner || "J", payment, paymentLabel: paymentLabel(payment), source: "cashflowRule", ruleId: rule.id, ruleStartMonth: rule.startMonth || monthKey, kind: "income", frequency: "monthly", status: occurrence?.status || "planned" });
     } else {
       const from = accountById(rule.fromAccountId); const to = accountById(rule.toAccountId);
-      records.push({ id, monthKey, date: `${monthKey}-${day}`, item: rule.name || "정기 이체", category: "계좌 이체", amount: parseAmount(rule.amount), usageOwner: "J", paymentLabel: `${from?.name || "출금 계좌 선택"} → ${to?.name || "입금 계좌 선택"}`, source: "cashflowRule", ruleId: rule.id, ruleStartMonth: rule.startMonth || monthKey, kind: "transfer", frequency: "monthly", status: ledger.cashflowOccurrences?.[rule.id]?.status || "planned", fromAccountId: rule.fromAccountId || "", toAccountId: rule.toAccountId || "" });
+      const occurrence = ledger.cashflowOccurrences?.[rule.id];
+      records.push({ id, monthKey, date: `${monthKey}-${day}`, item: rule.name || "정기 이체", category: "계좌 이체", amount: parseAmount(occurrence?.status === "actual" ? occurrence.amount ?? rule.amount : rule.amount), ruleAmount: parseAmount(rule.amount), usageOwner: "J", paymentLabel: `${from?.name || "출금 계좌 선택"} → ${to?.name || "입금 계좌 선택"}`, source: "cashflowRule", ruleId: rule.id, ruleStartMonth: rule.startMonth || monthKey, kind: "transfer", frequency: "monthly", status: occurrence?.status || "planned", fromAccountId: rule.fromAccountId || "", toAccountId: rule.toAccountId || "" });
     }
   }
   for (const rule of state.data.cashflowRules || []) {
     if (rule.kind !== "expense" || !ruleAppliesInMonth(rule, monthKey)) continue;
     const id = `${rule.id}@${monthKey}`;
     const existing = records.find((record) => record.id === id);
-    const status = ledger.cashflowOccurrences?.[rule.id]?.status || "planned";
-    if (existing) existing.status = status;
+    const occurrence = ledger.cashflowOccurrences?.[rule.id];
+    const status = occurrence?.status || "planned";
+    if (existing) { existing.status = status; existing.ruleAmount = parseAmount(rule.amount); existing.amount = parseAmount(status === "actual" ? occurrence.amount ?? rule.amount : rule.amount); }
     else {
       const day = String(Math.min(Number(rule.day) || 1, daysInMonth(monthKey))).padStart(2, "0");
       const payment = rule.payment || { type: "account", id: rule.accountId || "" };
-      records.push({ id, sourceTransactionId: id, monthKey, date: `${monthKey}-${day}`, item: rule.name || "정기 지출", category: rule.category || "기타", amount: parseAmount(rule.amount), usageOwner: rule.usageOwner || "J", payment, paymentLabel: paymentLabel(payment), source: "cashflowRule", ruleId: rule.id, ruleStartMonth: rule.startMonth || monthKey, kind: "expense", frequency: "monthly", status });
+      records.push({ id, sourceTransactionId: id, monthKey, date: `${monthKey}-${day}`, item: rule.name || "정기 지출", category: rule.category || "기타", amount: parseAmount(status === "actual" ? occurrence.amount ?? rule.amount : rule.amount), ruleAmount: parseAmount(rule.amount), usageOwner: rule.usageOwner || "J", payment, paymentLabel: paymentLabel(payment), source: "cashflowRule", ruleId: rule.id, ruleStartMonth: rule.startMonth || monthKey, kind: "expense", frequency: "monthly", status });
     }
   }
   return records.filter((record) => record.amount > 0).sort((a, b) => String(b.date).localeCompare(String(a.date)));
@@ -722,7 +726,7 @@ function openEditEntry(record) {
   $("entryKind").value = record.kind || "expense";
   $("entryFrequency").value = record.frequency || "once";
   $("entryKind").disabled = true; $("entryFrequency").disabled = true;
-  $("entryAmount").value = inputNumber(record.amount); $("entryItem").value = record.item || "";
+  $("entryAmount").value = inputNumber(record.ruleAmount ?? record.amount); $("entryItem").value = record.item || "";
   $("entryCategory").value = CATEGORIES.includes(record.category) ? record.category : "기타";
   $("entryDate").value = record.date || dateInSelectedMonth();
   $("entryDay").value = Number(String(record.date || "").slice(-2)) || 1;
@@ -735,7 +739,8 @@ function openEditEntry(record) {
   occurrenceActions.hidden = record.source !== "cashflowRule";
   if (record.source === "cashflowRule") {
     const status = state.data.ledgers[record.monthKey]?.cashflowOccurrences?.[record.ruleId]?.status || "planned";
-    occurrenceActions.innerHTML = `<div><b>${esc(monthLabel(record.monthKey))} 회차</b><span>${status === "actual" ? "완료로 처리됨" : status === "skipped" ? "이번 달은 건너뜀" : "아직 예정 상태입니다. 실제 처리했거나 발생하지 않은 경우 표시해주세요."}</span></div><div class="occurrence-buttons">${status === "planned" ? `<button type="button" data-occurrence-status="actual">이번 달 완료</button><button type="button" data-occurrence-status="skipped">이번 달 건너뛰기</button>` : `<button type="button" data-occurrence-status="planned">${status === "actual" ? "완료 취소" : "건너뛰기 취소"}</button>`}</div>`;
+    const occurrenceAmount = state.data.ledgers[record.monthKey]?.cashflowOccurrences?.[record.ruleId]?.amount ?? record.amount;
+    occurrenceActions.innerHTML = `<div><b>${esc(monthLabel(record.monthKey))} 회차</b><span>${status === "actual" ? "완료로 처리됨 · 실제 금액을 수정할 수 있습니다." : status === "skipped" ? "이번 달은 건너뜀" : "예정 금액을 확인하고 실제 처리 또는 건너뛰기를 선택해주세요."}</span><label class="occurrence-amount">실제 금액<input id="entryOccurrenceAmount" type="number" min="1" step="1" inputmode="numeric" value="${esc(occurrenceAmount)}"></label></div><div class="occurrence-buttons">${status === "skipped" ? `<button type="button" data-occurrence-status="planned">건너뛰기 취소</button>` : `<button type="button" data-occurrence-status="actual">${status === "actual" ? "실제 금액 저장" : "실제 처리 완료"}</button>${status === "planned" ? `<button type="button" data-occurrence-status="skipped">이번 달 건너뛰기</button>` : `<button type="button" data-occurrence-status="planned">완료 취소</button>`}`}</div>`;
   } else occurrenceActions.innerHTML = "";
   updateEntryFields(); $("quickEntry").showModal(); setTimeout(() => $("entryAmount").focus(), 30);
 }
@@ -747,7 +752,11 @@ function setOccurrenceStatus(status) {
   if (ledger.closed) { toast("마감된 월은 먼저 마감을 해제해주세요."); return; }
   if (!ledger.cashflowOccurrences || typeof ledger.cashflowOccurrences !== "object") ledger.cashflowOccurrences = {};
   if (status === "planned") delete ledger.cashflowOccurrences[record.ruleId];
-  else ledger.cashflowOccurrences[record.ruleId] = { status, updatedAt: new Date().toISOString() };
+  else {
+    const amount = parseAmount($("entryOccurrenceAmount")?.value);
+    if (status === "actual" && amount <= 0) { toast("실제 처리 금액을 입력해주세요."); return; }
+    ledger.cashflowOccurrences[record.ruleId] = { status, ...(status === "actual" ? { amount } : {}), updatedAt: new Date().toISOString() };
+  }
   $("quickEntry").close(); state.editingRecord = null; queueSave(); renderAll();
   toast(status === "actual" ? "이번 달 항목을 실제 처리로 표시했습니다." : status === "skipped" ? "이번 달 항목을 건너뛰기로 표시했습니다." : "이번 달 항목을 예정으로 되돌렸습니다.");
 }
@@ -803,7 +812,8 @@ function ensureCashflowRuleReviews(monthKey) {
     if (rule.payment?.type !== "card") continue;
     eligible.add(id);
     const day = String(Math.min(Number(rule.day) || 1, daysInMonth(monthKey))).padStart(2, "0");
-    syncSettlementForExpense({ id, source: "cashflowRule", amount: parseAmount(rule.amount), usageOwner: rule.usageOwner || "J", payment: rule.payment, item: rule.name, date: `${monthKey}-${day}`, category: rule.category || "기타" }, monthKey);
+    const occurrenceAmount = monthLedger.cashflowOccurrences?.[rule.id]?.amount ?? rule.amount;
+    syncSettlementForExpense({ id, source: "cashflowRule", amount: parseAmount(occurrenceAmount), usageOwner: rule.usageOwner || "J", payment: rule.payment, item: rule.name, date: `${monthKey}-${day}`, category: rule.category || "기타" }, monthKey);
   }
   state.data.settlementReviews = (state.data.settlementReviews || []).filter((item) => item.source !== "cashflowRule" || item.monthKey !== monthKey || eligible.has(item.sourceTransactionId));
 }
@@ -856,7 +866,8 @@ function saveEditedRecord(record, fields) {
     if (activeRule.kind === "expense" && activeRule.payment?.type === "card") {
       const id = `${activeRule.id}@${record.monthKey}`;
       const day = String(Math.min(Number(activeRule.day) || 1, daysInMonth(record.monthKey))).padStart(2, "0");
-      syncSettlementForExpense({ id, source: "cashflowRule", amount: parseAmount(activeRule.amount), usageOwner: activeRule.usageOwner || "J", payment: activeRule.payment, item: activeRule.name, date: `${record.monthKey}-${day}`, category: activeRule.category || "기타" }, record.monthKey, true);
+      const occurrenceAmount = state.data.ledgers[record.monthKey]?.cashflowOccurrences?.[activeRule.id]?.amount ?? activeRule.amount;
+      syncSettlementForExpense({ id, source: "cashflowRule", amount: parseAmount(occurrenceAmount), usageOwner: activeRule.usageOwner || "J", payment: activeRule.payment, item: activeRule.name, date: `${record.monthKey}-${day}`, category: activeRule.category || "기타" }, record.monthKey, true);
     }
     return true;
   }
@@ -884,6 +895,7 @@ function saveEditedRecord(record, fields) {
 }
 
 function deleteCashflowRecord(record) {
+  if (state.data.ledgers[record.monthKey]?.closed) { toast("마감된 월은 먼저 마감을 해제해주세요."); return; }
   if (!confirm(`‘${record.item}’ 기록을 삭제할까요? 연결된 정산 검토도 함께 삭제됩니다.`)) return;
   if (record.source === "cashflowRule") {
     const rule = (state.data.cashflowRules || []).find((item) => item.id === record.ruleId);
