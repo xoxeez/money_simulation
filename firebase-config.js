@@ -12,5 +12,9 @@ const firebaseConfig = {
   measurementId: "G-DF94T7V2JW"
 };
 
+// Keep the legacy bindings above and expose the same values to the v2 module.
+window.firebaseConfig = firebaseConfig;
+
 // Firestore 문서 경로 (원하면 변경 가능): 컬렉션 / 문서
 const DOC_PATH = ["money-simulation", "main"];
+window.DOC_PATH = DOC_PATH;

@@ -145,29 +145,63 @@ function queueSave() {
 }
 
 async function initCloud() {
-  if (!window.firebase || !window.firebaseConfig?.projectId) return;
+  if (!window.firebase || !window.firebaseConfig?.projectId) {
+    setSaveStatus("Firebase 설정을 찾지 못해 로컬 저장 모드로 실행합니다", "warning");
+    return;
+  }
   try {
     if (!window.firebase.apps.length) window.firebase.initializeApp(window.firebaseConfig);
     const auth = window.firebase.auth();
     await auth.signInAnonymously();
     state.cloudDb = window.firebase.firestore();
-    const path = Array.isArray(window.DOC_PATH) ? window.DOC_PATH : ["coupleFund", "main"];
-    const snap = await state.cloudDb.collection(path[0]).doc(path[1]).get();
-    if (snap.exists) {
-      state.data = ensureData(snap.data());
-      state.selectedMonth = state.data.currentMonth || allMonths().at(-1) || CURRENT_MONTH;
-      renderAll();
-      setSaveStatus("Firebase에서 불러옴", "ok");
-    }
+    await loadCloud();
   } catch (error) {
     setSaveStatus("로컬 저장 모드", "warning");
+  }
+}
+
+function cloudDocumentPath() {
+  return Array.isArray(window.DOC_PATH) ? window.DOC_PATH : ["coupleFund", "main"];
+}
+
+async function loadCloud(showToast = false) {
+  if (!state.cloudDb) {
+    if (showToast) {
+      loadLocal();
+      renderAll();
+      toast("Firebase에 연결되지 않아 이 기기의 데이터를 불러왔습니다.");
+    }
+    return;
+  }
+  try {
+    const path = cloudDocumentPath();
+    const snap = await state.cloudDb.collection(path[0]).doc(path[1]).get();
+    if (!snap.exists) {
+      setSaveStatus("Firebase에 저장된 데이터가 없습니다", "warning");
+      if (showToast) toast("Firebase에 저장된 데이터가 없습니다.");
+      return;
+    }
+    const raw = snap.data();
+    if (!localStorage.getItem("sohakPlannerV2:cloudBackup")) {
+      try { localStorage.setItem("sohakPlannerV2:cloudBackup", JSON.stringify(raw)); } catch { /* keep loading if backup storage is full */ }
+    }
+    state.data = ensureData(raw);
+    const months = allMonths();
+    state.selectedMonth = months.includes(state.data.currentMonth) ? state.data.currentMonth : (months.at(-1) || CURRENT_MONTH);
+    saveLocal(false);
+    renderAll();
+    setSaveStatus("Firebase에서 불러옴", "ok");
+    if (showToast) toast("Firebase 데이터를 불러왔습니다.");
+  } catch (error) {
+    setSaveStatus("Firebase 불러오기 실패 · 로컬 데이터 유지", "warning");
+    if (showToast) toast("Firebase 데이터를 불러오지 못했습니다.");
   }
 }
 
 async function saveCloud() {
   if (!state.cloudDb) return;
   try {
-    const path = Array.isArray(window.DOC_PATH) ? window.DOC_PATH : ["coupleFund", "main"];
+    const path = cloudDocumentPath();
     await state.cloudDb.collection(path[0]).doc(path[1]).set({ ...state.data, currentMonth: state.selectedMonth, updatedAt: new Date().toISOString() });
     setSaveStatus("Firebase 저장됨", "ok");
   } catch { setSaveStatus("Firebase 저장 실패 · 로컬 저장됨", "warning"); }
@@ -544,7 +578,7 @@ function bindEvents() {
   ["entryAmount", "entryItem", "entryPayment"].forEach((id) => $(id).addEventListener("input", updateEntryPreview));
   $("entryPayment").addEventListener("change", updateEntryPreview); document.querySelectorAll('input[name="usageOwner"]').forEach((input) => input.addEventListener("change", updateEntryPreview));
   $("saveBtn").addEventListener("click", async () => { saveLocal(true); await saveCloud(); });
-  $("loadBtn").addEventListener("click", () => { loadLocal(); renderAll(); toast("저장된 데이터를 불러왔습니다."); });
+  $("loadBtn").addEventListener("click", async () => { await loadCloud(true); });
   $("exportBtn").addEventListener("click", exportBackup);
   $("importBtn").addEventListener("click", () => $("importFile").click());
   $("importFile").addEventListener("change", (event) => importBackup(event.target.files?.[0]));
