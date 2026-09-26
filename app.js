@@ -830,6 +830,25 @@ function findCollectionRecord(record) {
   return index >= 0 && index < collection.length ? { collection, index, item: collection[index], collectionName, ledger } : null;
 }
 
+function clearOwnerAudit(record) {
+  if (!record.usageOwnerOriginal) return;
+  const auditSource = record.source === "cardTxn" ? "cardTxn" : ["accountExpense", "fixedExpense"].includes(record.source) ? "expense" : record.source;
+  const ids = new Set([String(record.id)]);
+  const ledger = state.data.ledgers[record.monthKey];
+  if (auditSource === "expense" && ledger) {
+    const index = (ledger.expenses || []).findIndex((item) => String(item.id || "") === String(record.id));
+    if (index >= 0) ids.add(`${record.monthKey}:expense:${index}`);
+  }
+  const audits = state.data.migrationAudit?.usageOwnerUnresolved || [];
+  const matches = audits.filter((item) => item.source === auditSource && item.monthKey === record.monthKey && item.original === record.usageOwnerOriginal);
+  state.data.migrationAudit.usageOwnerUnresolved = audits.filter((item) => !(
+    item.source === auditSource && item.monthKey === record.monthKey && item.original === record.usageOwnerOriginal && (ids.has(String(item.sourceId)) || matches.length === 1)
+  ));
+  if (ledger) for (const collection of [ledger.incomes, ledger.expenses, ledger.extraIncomes, ledger.extraExpenses, ledger.cardTxns, ledger.transfers]) {
+    for (const item of collection || []) if (String(item.id || "") === String(record.id)) delete item.usageOwnerOriginal;
+  }
+}
+
 function removeRuleOccurrences(ruleId, fromMonth = "0000-00") {
   for (const [monthKey, ledger] of Object.entries(state.data.ledgers || {})) {
     if (monthKey >= fromMonth && ledger.cashflowOccurrences) delete ledger.cashflowOccurrences[ruleId];
@@ -891,6 +910,7 @@ function saveEditedRecord(record, fields) {
       if (reviewIndex >= 0 && state.data.settlementReviews[reviewIndex].status !== "confirmed") state.data.settlementReviews.splice(reviewIndex, 1);
     }
   }
+  clearOwnerAudit(record);
   return true;
 }
 
@@ -910,6 +930,7 @@ function deleteCashflowRecord(record) {
   } else {
     const found = findCollectionRecord(record);
     if (!found) { toast("기록을 찾을 수 없습니다."); return; }
+    clearOwnerAudit(record);
     found.collection.splice(found.index, 1);
     state.data.settlementReviews = (state.data.settlementReviews || []).filter((item) => item.sourceTransactionId !== record.id);
   }
