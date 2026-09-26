@@ -3,6 +3,7 @@ import {
   buildHousingSeries,
   calculateHousingLedger,
   createCloseSnapshot,
+  calculateLoanSchedule,
   deriveSettlementForTransaction,
   listMonthTransactions,
   migrateLegacyData,
@@ -15,7 +16,9 @@ const TODAY = (() => { const date = new Date(); const pad = (value) => String(va
 const CURRENT_MONTH = TODAY.slice(0, 7);
 const COLORS = ["#2868d7", "#159e9b", "#7659c9", "#e28c43", "#bd4c65", "#6f8ea9", "#8d63bc", "#a2b85b"];
 const CATEGORIES = ["식비", "주거/공과", "교통", "통신", "데이트/여가", "쇼핑", "의료", "교육", "경조사", "저축/투자", "기타"];
-const state = { data: null, screen: "dashboard", selectedMonth: CURRENT_MONTH, recordFilter: "all", recordTypeFilter: "all", settlementTransferId: null, charts: {}, detail: null, analyticsDetail: null, cloudDb: null, saveTimer: null, housingCalculated: false, editingRecord: null };
+const LOAN_REPAY_LABELS = { eq: "원리금균등", pr: "원금균등", io: "만기일시·이자 매월", iod: "만기일시·이자 만기", graduate: "원리금체증식", custom: "월별 직접입력" };
+const LOAN_KIND_LABELS = { bank: "은행 대출", family: "가족·지인 차용" };
+const state = { data: null, screen: "dashboard", selectedMonth: CURRENT_MONTH, recordFilter: "all", recordTypeFilter: "all", settlementTransferId: null, loanEditingId: null, loanDraft: null, loanScheduleId: null, loanPaymentContext: null, charts: {}, detail: null, analyticsDetail: null, cloudDb: null, saveTimer: null, housingCalculated: false, editingRecord: null };
 const RECORD_TYPES = [
   ["all", "전체"], ["recurring-income", "정기 수입"], ["recurring-expense", "정기 지출"],
   ["once-income", "비정기 수입"], ["once-expense", "비정기 지출"], ["transfer", "계좌 이체"]
@@ -42,7 +45,7 @@ function ownerClass(owner) { return owner === "A" ? "person-a" : owner === "B" ?
 function toast(message) { const el = $("toast"); el.textContent = message; el.classList.add("show"); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.remove("show"), 2600); }
 function setSaveStatus(text, kind = "") { const el = $("saveStatus"); el.textContent = text; el.dataset.kind = kind; }
 function currentLedger() { return state.data.ledgers[state.selectedMonth] || (state.data.ledgers[state.selectedMonth] = blankLedger()); }
-function blankLedger() { return { incomes: [], expenses: [], extraIncomes: [], extraExpenses: [], cardTxns: [], transfers: [], settlementReviews: [], cashflowOccurrences: {} }; }
+function blankLedger() { return { incomes: [], expenses: [], extraIncomes: [], extraExpenses: [], cardTxns: [], transfers: [], loanPayments: [], settlementReviews: [], cashflowOccurrences: {} }; }
 function allMonths() {
   const months = new Set([...(state.data.months || []), ...Object.keys(state.data.ledgers || {})]);
   if (state.data.cashflowRules?.length) {
@@ -86,6 +89,7 @@ function ensureData(raw) {
   data.nameB ||= "상대방";
   data.accounts ||= [];
   data.cards ||= [];
+  data.loans ||= [];
   data.cfA ||= [];
   data.cfB ||= [];
   data.settlementReviews ||= [];
@@ -93,7 +97,7 @@ function ensureData(raw) {
   for (const key of data.months) {
     const ledger = data.ledgers[key] = { ...blankLedger(), ...(data.ledgers[key] || {}) };
     if (!ledger.cashflowOccurrences || typeof ledger.cashflowOccurrences !== "object") ledger.cashflowOccurrences = {};
-    for (const collection of ["incomes", "extraIncomes", "extraExpenses", "transfers"]) {
+    for (const collection of ["incomes", "extraIncomes", "extraExpenses", "transfers", "loanPayments"]) {
       ledger[collection].forEach((item, index) => { if (!item.id) item.id = `${key}:${collection}:${index}`; });
     }
     ledger.cardTxns.forEach((item, index) => { if (!item.id) item.id = `${key}:card:${index}`; });
@@ -333,6 +337,14 @@ function allRecords(monthKey = state.selectedMonth) {
     const id = `${rule.id}@${monthKey}`;
     records.push({ id, sourceTransactionId: id, monthKey, date: `${monthKey}-${day}`, item: rule.name || "정기 지출", category: rule.category || "기타", amount: parseAmount(occurrence.amount ?? rule.amount), ruleAmount: parseAmount(rule.amount), usageOwner: rule.usageOwner || "J", payment, paymentLabel: paymentLabel(payment), source: "cashflowRule", ruleId: rule.id, ruleStartMonth: rule.startMonth || monthKey, kind: "expense", frequency: "monthly" });
   }
+  for (const [index, paymentRecord] of (ledger.loanPayments || []).entries()) {
+    const loan = (state.data.loans || []).find((item) => item.id === paymentRecord.loanId);
+    const payment = { type: "account", id: paymentRecord.accountId || paymentRecord.acc || loan?.acc || "" };
+    const date = paymentRecord.date || `${monthKey}-${String(Math.min(Number(loan?.payDay) || 25, daysInMonth(monthKey))).padStart(2, "0")}`;
+    const principal = parseAmount(paymentRecord.principal);
+    const interest = parseAmount(paymentRecord.interest);
+    records.push({ id: paymentRecord.id || `${monthKey}:loan:${index}`, monthKey, date, item: `${paymentRecord.loanName || loan?.name || "대출"} 상환`, category: "대출 상환", amount: principal + interest, principal, interest, loanId: paymentRecord.loanId, payment, paymentLabel: paymentLabel(payment), source: "loanPayment", sourceIndex: index, kind: "expense", frequency: "monthly", status: "actual", usageOwner: loan?.owner || paymentRecord.owner || "J" });
+  }
   return records.filter((record) => record.amount > 0).sort((a, b) => String(b.date).localeCompare(String(a.date)));
 }
 
@@ -381,6 +393,14 @@ function cashflowRecords(monthKey = state.selectedMonth) {
       const payment = rule.payment || { type: "account", id: rule.accountId || "" };
       records.push({ id, sourceTransactionId: id, monthKey, date: `${monthKey}-${day}`, item: rule.name || "정기 지출", category: rule.category || "기타", amount: parseAmount(status === "actual" ? occurrence.amount ?? rule.amount : rule.amount), ruleAmount: parseAmount(rule.amount), usageOwner: rule.usageOwner || "J", payment, paymentLabel: paymentLabel(payment), source: "cashflowRule", ruleId: rule.id, ruleStartMonth: rule.startMonth || monthKey, kind: "expense", frequency: "monthly", status });
     }
+  }
+  const recordedLoanIds = new Set((ledger.loanPayments || []).map((item) => item.loanId));
+  for (const loan of state.data.loans || []) {
+    if (recordedLoanIds.has(loan.id)) continue;
+    const row = calculateLoanSchedule(loan, { today: TODAY }).sched.find((item) => item.ym === monthKey);
+    if (!row || parseAmount(row.totalPay) <= 0) continue;
+    const payment = { type: "account", id: loan.acc || loan.accountId || "" };
+    records.push({ id: `loan-plan:${loan.id}@${monthKey}`, monthKey, date: row.date, item: `${loan.name || "대출"} 상환`, category: "대출 상환", amount: row.totalPay, principal: row.principal + row.prepayment, interest: row.interest, loanId: loan.id, payment, paymentLabel: paymentLabel(payment), source: "loanPlan", scheduleRow: row, kind: "expense", frequency: "monthly", status: "planned", usageOwner: loan.owner || "J" });
   }
   return records.filter((record) => record.amount > 0).sort((a, b) => String(b.date).localeCompare(String(a.date)));
 }
@@ -469,8 +489,9 @@ function recordHtml(record) {
   const kind = record.kind || "expense";
   const signs = { expense: "－", income: "＋", transfer: "↔" };
   const labels = { expense: "지출", income: "수입", transfer: "이체" };
-  const occurrenceLabel = record.status === "actual" ? " · 완료" : record.status === "skipped" ? " · 건너뜀" : record.source === "cashflowRule" ? " · 예정" : "";
-  return `<button class="record-row ${record.status === "skipped" ? "record-skipped" : ""}" type="button" data-record-id="${esc(record.id)}" data-record-kind="${kind}"><div class="record-main"><div class="record-title">${esc(record.item)}</div><div class="record-sub">${esc(record.date)} · ${labels[kind]}${kind === "expense" ? ` · ${esc(record.category)}` : ""}${record.frequency === "monthly" ? " · 매월" : ""}${occurrenceLabel}</div></div><span class="pill ${ownerClass(record.usageOwner)} record-purpose"${auditTitle}>${kind === "transfer" ? "계좌 이동" : `${esc(ownerName(record.usageOwner))}${auditLabel}`}</span><div class="record-meta"><div class="record-sub">${esc(record.paymentLabel || paymentLabel(record.payment))}</div></div><div class="record-amount ${kind}">${signs[kind]}${fmt(record.amount)}</div></button>`;
+  const occurrenceLabel = record.status === "actual" ? " · 완료" : record.status === "skipped" ? " · 건너뜀" : record.status === "planned" ? " · 예정" : "";
+  const loanBreakdown = ["loanPayment", "loanPlan"].includes(record.source) ? ` · 원금 ${fmt(record.principal)} + 이자 ${fmt(record.interest)}` : "";
+  return `<button class="record-row ${record.status === "skipped" ? "record-skipped" : ""}" type="button" data-record-id="${esc(record.id)}" data-record-kind="${kind}"><div class="record-main"><div class="record-title">${esc(record.item)}</div><div class="record-sub">${esc(record.date)} · ${labels[kind]}${kind === "expense" ? ` · ${esc(record.category)}` : ""}${record.frequency === "monthly" ? " · 매월" : ""}${occurrenceLabel}${loanBreakdown}</div></div><span class="pill ${ownerClass(record.usageOwner)} record-purpose"${auditTitle}>${kind === "transfer" ? "계좌 이동" : `${esc(ownerName(record.usageOwner))}${auditLabel}`}</span><div class="record-meta"><div class="record-sub">${esc(record.paymentLabel || paymentLabel(record.payment))}</div></div><div class="record-amount ${kind}">${signs[kind]}${fmt(record.amount)}</div></button>`;
 }
 
 function recordTypeMatches(record, type = state.recordTypeFilter) {
@@ -510,7 +531,7 @@ function renderRecords() {
   $("recordList").setAttribute("role", "tabpanel");
   $("recordList").setAttribute("aria-labelledby", $("recordTypeTabs").querySelector('[aria-selected="true"]')?.id || "recordTabAll");
   $("recordList").innerHTML = records.length ? records.map(recordHtml).join("") : `<div class="empty">이 조건에 맞는 거래가 없습니다.</div>`;
-  $("recordList").querySelectorAll("[data-record-id]").forEach((el) => el.addEventListener("click", (event) => { event.stopPropagation(); const record = cashflowRecords().find((item) => String(item.id) === el.dataset.recordId); if (record) openEditEntry(record); }));
+  $("recordList").querySelectorAll("[data-record-id]").forEach((el) => el.addEventListener("click", (event) => { event.stopPropagation(); const record = cashflowRecords().find((item) => String(item.id) === el.dataset.recordId); if (record?.source === "loanPayment") openLoanPaymentDialog(record.loanId, null, record); else if (record?.source === "loanPlan") openLoanPaymentDialog(record.loanId, record.scheduleRow, null); else if (record) openEditEntry(record); }));
   const reviews = pendingReviews();
   const auditCount = state.data.migrationAudit?.usageOwnerUnresolved?.length || 0;
   const importSummary = state.data.migrationAudit?.importSummary;
@@ -588,14 +609,37 @@ function updateSettlement(id, status) {
   queueSave(); renderAll(); toast(status === "confirmed" ? "이체 완료로 표시했습니다." : "정산 상태를 변경했습니다.");
 }
 
+function loanRepaymentSummary(monthKey, snapshot = null) {
+  if (snapshot) {
+    if (!snapshot.summary?.loanRepayment) return { legacySnapshot: true, expectedCount: 0, expectedTotal: 0, actualCount: 0, actualTotal: 0, plan: [], missing: [] };
+    const saved = snapshot.summary?.loanRepayment || {};
+    return { expectedCount: Number(saved.expectedCount) || 0, expectedTotal: parseAmount(saved.expectedTotal), actualCount: Number(saved.actualCount) || 0, actualTotal: parseAmount(saved.total), plan: snapshot.loanRepaymentPlan || [], missing: [] };
+  }
+  const plan = (state.data.loans || []).flatMap((loan) => calculateLoanSchedule(loan, { today: TODAY }).sched.filter((row) => row.ym === monthKey && parseAmount(row.totalPay) > 0).map((row) => ({ loanId: loan.id, name: loan.name || "대출", row })));
+  const actual = state.data.ledgers[monthKey]?.loanPayments || [];
+  const actualLoanIds = new Set(actual.map((item) => item.loanId));
+  return {
+    expectedCount: plan.length,
+    expectedTotal: plan.reduce((sum, item) => sum + parseAmount(item.row.totalPay), 0),
+    actualCount: actual.length,
+    actualTotal: actual.reduce((sum, item) => sum + parseAmount(item.principal) + parseAmount(item.interest), 0),
+    plan,
+    missing: plan.filter((item) => !actualLoanIds.has(item.loanId))
+  };
+}
+
 function renderMonthClose() {
   const ledger = currentLedger();
   const closed = !!ledger.closed;
+  const loanSummary = loanRepaymentSummary(state.selectedMonth, closed ? ledger.closeSnapshot : null);
+  const loanCopy = loanSummary.legacySnapshot ? "이전 마감 스냅샷에는 대출 상환 비교 정보가 없습니다." : `대출 상환 예정 ${loanSummary.expectedCount}건 · ${fmt(loanSummary.expectedTotal)} / 실제 기록 ${loanSummary.actualCount}건 · ${fmt(loanSummary.actualTotal)}${loanSummary.missing?.length ? ` · 미기록 ${loanSummary.missing.length}건` : ""}`;
+  const loanReviewButton = !closed && loanSummary.missing?.length ? `<button class="outline-btn small" id="reviewLoanPaymentsBtn" type="button">대출 상환 확인</button>` : "";
   $("monthCloseState").textContent = closed ? "마감 완료" : "진행 중";
   $("monthCloseState").className = `pill ${closed ? "success" : "warning"}`;
-  $("monthCloseBody").innerHTML = closed ? `<p class="month-close-copy">${esc(monthLabel(state.selectedMonth))}은 마감 당시의 스냅샷으로 보존됩니다. 새 카드 설정은 이 월의 결과에 영향을 주지 않습니다.</p><button class="outline-btn small" id="reopenMonthBtn" type="button">마감 해제</button>` : `<p class="month-close-copy">정산 검토 ${pendingReviews().length}건을 확인한 뒤 이 달의 결과를 고정할 수 있습니다. 마감 후에는 거래가 읽기 전용이 됩니다.</p><button class="primary-btn small" id="closeSelectedMonthBtn" type="button">${esc(monthLabel(state.selectedMonth))} 마감하기</button>`;
+  $("monthCloseBody").innerHTML = closed ? `<p class="month-close-copy">${esc(monthLabel(state.selectedMonth))}은 마감 당시의 스냅샷으로 보존됩니다. ${esc(loanCopy)}</p><button class="outline-btn small" id="reopenMonthBtn" type="button">마감 해제</button>` : `<p class="month-close-copy">정산 검토 ${pendingReviews().length}건을 확인한 뒤 이 달의 결과를 고정할 수 있습니다. ${esc(loanCopy)} 마감 후에는 거래가 읽기 전용이 됩니다.</p>${loanReviewButton}<button class="primary-btn small" id="closeSelectedMonthBtn" type="button">${esc(monthLabel(state.selectedMonth))} 마감하기</button>`;
   $("closeSelectedMonthBtn")?.addEventListener("click", () => closeMonth(state.selectedMonth));
   $("reopenMonthBtn")?.addEventListener("click", () => reopenMonth(state.selectedMonth));
+  $("reviewLoanPaymentsBtn")?.addEventListener("click", () => openLoanSchedule(loanSummary.missing[0].loanId));
 }
 function closeMonth(monthKey) {
   const ledger = state.data.ledgers[monthKey];
@@ -626,9 +670,41 @@ function renderAssets() {
   if (state.housingCalculated) renderHousingResults(false);
 }
 
+function loanPaymentEntries(loanId) {
+  return Object.entries(state.data.ledgers || {}).flatMap(([monthKey, ledger]) => (ledger.loanPayments || []).filter((item) => item.loanId === loanId).map((item) => ({ ...item, monthKey })));
+}
+
+function loanBalanceAfterActuals(loan, baselineBalance, throughDate, schedule) {
+  let balance = parseAmount(baselineBalance);
+  for (const payment of loanPaymentEntries(loan.id)) {
+    const date = payment.date || `${payment.monthKey}-${String(Math.min(Number(loan.payDay) || 25, daysInMonth(payment.monthKey))).padStart(2, "0")}`;
+    if (date > throughDate) continue;
+    const scheduled = schedule.sched.find((row) => row.ym === payment.monthKey);
+    const plannedPrincipalIncluded = scheduled && scheduled.date <= throughDate ? parseAmount(scheduled.principal) + parseAmount(scheduled.prepayment) : 0;
+    balance += plannedPrincipalIncluded - parseAmount(payment.principal);
+  }
+  return Math.max(0, Math.min(parseAmount(loan.principal), balance));
+}
+
 function renderLoansAndGoals() {
   const loans = state.data.loans || [];
-  $("loanList").innerHTML = loans.length ? loans.map((loan) => `<div class="asset-row"><div class="asset-icon">−</div><div class="asset-main"><div class="asset-title">${esc(loan.name || "대출")}</div><div class="asset-sub">${esc(ownerName(loan.owner || "J"))} · ${esc(loan.repay || "상환 방식 미설정")} · ${loan.rate ? `${esc(loan.rate)}%` : "금리 미설정"}</div></div><div class="asset-total">${fmt(loan.remain ?? loan.principal ?? 0)}</div></div>`).join("") : `<div class="empty">등록된 대출이 없습니다.</div>`;
+  let debtTotal = 0;
+  const currentLedger = state.data.ledgers[state.selectedMonth] || blankLedger();
+  $("loanList").innerHTML = loans.length ? loans.map((loan) => {
+    const result = calculateLoanSchedule(loan, { today: TODAY });
+    const remain = loanBalanceAfterActuals(loan, result.remain, TODAY, result);
+    debtTotal += remain;
+    const planned = result.sched.find((row) => row.ym === state.selectedMonth);
+    const paid = (currentLedger.loanPayments || []).find((item) => item.loanId === loan.id);
+    const plannedLabel = planned && parseAmount(planned.totalPay) > 0 ? `이번 달 예정 ${fmt(planned.totalPay)} · 원금 ${fmt(planned.principal + planned.prepayment)} + 이자 ${fmt(planned.interest)}` : planned ? "이번 달 예정 납부 없음" : "이번 달 상환 일정 없음";
+    const paidLabel = paid ? ` · 실제 납부 ${fmt(parseAmount(paid.principal) + parseAmount(paid.interest))}` : "";
+    const rateLabel = loan.rateType === "variable" ? "변동금리" : `${Number(loan.rate) || 0}%`;
+    return `<div class="asset-row loan-row"><div class="asset-icon">−</div><div class="loan-main"><div class="asset-title">${esc(loan.name || "이름 없는 대출")}</div><div class="loan-sub">${esc(ownerName(loan.owner || "J"))} · ${esc(LOAN_KIND_LABELS[loan.kind] || "대출")} · ${esc(LOAN_REPAY_LABELS[loan.repay] || LOAN_REPAY_LABELS.eq)} · ${esc(rateLabel)}</div><div class="loan-current-month">${plannedLabel}${paidLabel}</div></div><div class="asset-total"><div>${fmt(remain)}</div><div class="loan-actions"><button type="button" data-loan-schedule="${esc(loan.id)}">상환 일정</button><button type="button" data-loan-edit="${esc(loan.id)}">수정</button><button type="button" data-loan-delete="${esc(loan.id)}">삭제</button></div></div></div>`;
+  }).join("") : `<div class="empty">등록된 대출이 없습니다.</div>`;
+  $("loanTotalPill").textContent = `현재 잔여 원금 ${fmt(debtTotal)}`;
+  $("loanList").querySelectorAll("[data-loan-schedule]").forEach((button) => button.addEventListener("click", () => openLoanSchedule(button.dataset.loanSchedule)));
+  $("loanList").querySelectorAll("[data-loan-edit]").forEach((button) => button.addEventListener("click", () => openLoanEditor(button.dataset.loanEdit)));
+  $("loanList").querySelectorAll("[data-loan-delete]").forEach((button) => button.addEventListener("click", () => deleteLoan(button.dataset.loanDelete)));
   const goals = state.data.goals || [];
   $("goalList").innerHTML = goals.length ? goals.map((goal) => { const target = parseAmount(goal.target); const saved = parseAmount(goal.saved); const percent = target > 0 ? Math.min(100, Math.round(saved / target * 100)) : 0; return `<div class="asset-row"><div class="asset-icon">◎</div><div class="asset-main"><div class="asset-title">${esc(goal.name || "공동 목표")}</div><div class="asset-sub">${goal.date ? esc(goal.date) : "목표일 미설정"} · ${percent}% 달성</div></div><div class="asset-total">${fmt(saved)} / ${fmt(target)}</div></div>`; }).join("") : `<div class="empty">등록된 목표가 없습니다.</div>`;
 }
@@ -711,12 +787,221 @@ function addCard() {
   queueSave(); renderAll(); toast("카드를 추가했습니다.");
 }
 function addLoan() {
-  const name = prompt("대출 이름을 입력하세요.", "주택담보대출"); if (!name) return;
-  const principal = prompt("대출 원금을 입력하세요.", "0");
-  const owner = prompt(`명의를 입력하세요. A=${ownerName("A")}, B=${ownerName("B")}, J=공동`, "J").toUpperCase();
-  state.data.loans.push({ id: `loan-${Date.now().toString(36)}`, name, owner: owner === "A" || owner === "B" ? owner : "J", principal: parseAmount(principal), remain: parseAmount(principal), rate: 0, repay: "eq" });
-  queueSave(); renderAll(); toast("대출을 추가했습니다.");
+  openLoanEditor();
 }
+
+function loanStartDate(loan = {}) {
+  const value = String(loan.start || loan.startDate || loan.startedAt || "");
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  if (/^\d{4}-\d{2}$/.test(value)) return `${value}-${String(Math.min(Number(loan.payDay) || 25, daysInMonth(value))).padStart(2, "0")}`;
+  if (/^\d{4}-\d{2}$/.test(String(loan.startMonth || ""))) return `${loan.startMonth}-${String(Math.min(Number(loan.payDay) || 25, daysInMonth(loan.startMonth))).padStart(2, "0")}`;
+  return dateInSelectedMonth();
+}
+
+function loanAccountOptions(selected = "") {
+  return `<option value="">출금 계좌 미지정</option>${(state.data.accounts || []).map((account) => `<option value="${esc(account.id)}" ${String(account.id) === String(selected) ? "selected" : ""}>${esc(account.name)} · ${esc(ownerName(account.owner))}</option>`).join("")}`;
+}
+
+function loanRepeatValues(containerId, kind) {
+  return [...$(containerId).querySelectorAll(".loan-repeat-row")].map((row) => {
+    const value = (key) => row.querySelector(`[data-loan-value="${key}"]`)?.value || "";
+    if (kind === "rate") return { month: Math.max(1, Number(value("month")) || 1), rate: Math.max(0, Number(value("rate")) || 0) };
+    if (kind === "prepayment") return { month: Math.max(1, Number(value("month")) || 1), amount: parseAmount(value("amount")) };
+    return { ym: value("ym"), principal: parseAmount(value("principal")), interest: parseAmount(value("interest")) };
+  });
+}
+
+function readLoanEditorDraft() {
+  const draft = state.loanDraft || {};
+  return {
+    ...draft,
+    name: $("loanName").value.trim(), owner: $("loanOwner").value, kind: $("loanKind").value,
+    principal: parseAmount($("loanPrincipal").value), rate: Math.max(0, Number($("loanRate").value) || 0),
+    rateType: $("loanRateType").value, term: Math.min(1200, Math.max(1, Number($("loanTerm").value) || 360)),
+    repay: $("loanRepay").value, start: $("loanStart").value, payDay: Math.min(31, Math.max(1, Number($("loanPayDay").value) || 25)),
+    grace: Math.max(0, Number($("loanGrace").value) || 0), growth: Math.max(0, Number($("loanGrowth").value) || 0),
+    acc: $("loanAccount").value, rateChanges: loanRepeatValues("loanRateRows", "rate"),
+    prepayments: loanRepeatValues("loanPrepaymentRows", "prepayment"), customRepays: loanRepeatValues("loanCustomRows", "custom")
+  };
+}
+
+function renderLoanRepeatRows() {
+  const draft = state.loanDraft || {};
+  $("loanRateRows").innerHTML = (draft.rateChanges || []).map((row, index) => `<div class="loan-repeat-row"><input type="number" min="1" step="1" data-loan-value="month" value="${esc(row.month || 1)}" aria-label="금리 적용 회차"><input type="number" min="0" max="100" step="0.01" data-loan-value="rate" value="${esc(row.rate ?? 0)}" aria-label="변경 금리"><button type="button" data-loan-remove="rate" data-index="${index}" aria-label="금리 삭제">×</button></div>`).join("") || `<div class="empty compact-empty">등록한 금리 변동이 없습니다.</div>`;
+  $("loanPrepaymentRows").innerHTML = (draft.prepayments || []).map((row, index) => `<div class="loan-repeat-row"><input type="number" min="1" step="1" data-loan-value="month" value="${esc(row.month || 1)}" aria-label="중도상환 회차"><input type="text" inputmode="numeric" data-loan-value="amount" value="${inputNumber(row.amount)}" aria-label="중도상환 금액"><button type="button" data-loan-remove="prepayment" data-index="${index}" aria-label="중도상환 삭제">×</button></div>`).join("") || `<div class="empty compact-empty">등록한 중도상환이 없습니다.</div>`;
+  $("loanCustomRows").innerHTML = (draft.customRepays || []).map((row, index) => `<div class="loan-repeat-row custom-loan-row"><input type="month" data-loan-value="ym" value="${esc(row.ym || state.selectedMonth)}" aria-label="상환 월"><input type="text" inputmode="numeric" data-loan-value="principal" value="${inputNumber(row.principal)}" aria-label="월별 원금"><input type="text" inputmode="numeric" data-loan-value="interest" value="${inputNumber(row.interest)}" aria-label="월별 이자"><button type="button" data-loan-remove="custom" data-index="${index}" aria-label="직접 입력 회차 삭제">×</button></div>`).join("") || `<div class="empty compact-empty">월별 원금과 이자를 추가해주세요.</div>`;
+  updateLoanEditorVisibility();
+  updateLoanPreview();
+}
+
+function updateLoanEditorVisibility() {
+  const custom = $("loanRepay").value === "custom";
+  const variable = $("loanRateType").value === "variable";
+  $("loanCustomSection").hidden = !custom;
+  $("loanRateSection").hidden = !variable;
+  $("loanGrowthField").hidden = $("loanRepay").value !== "graduate";
+}
+
+function updateLoanPreview() {
+  const preview = $("loanPreview");
+  if (!preview || !$("loanPrincipal").value) return;
+  const draft = readLoanEditorDraft();
+  const schedule = calculateLoanSchedule(draft, { today: TODAY });
+  const next = schedule.sched.find((row) => row.ym >= state.selectedMonth) || schedule.sched[0];
+  if (!next) { preview.textContent = "상환 일정을 계산할 수 없습니다. 대출 원금과 상환 기간을 확인해주세요."; return; }
+  const total = parseAmount(next.totalPay);
+  preview.innerHTML = `예상 ${monthLabel(next.ym)} 상환액 <b>${fmt(total)}</b> · 원금 ${fmt(next.principal)}${next.prepayment ? ` + 중도상환 ${fmt(next.prepayment)}` : ""} + 이자 ${fmt(next.interest)} · 전체 예상 이자 ${fmt(schedule.totalInterest)}`;
+}
+
+function openLoanEditor(id = "") {
+  const existing = id ? (state.data.loans || []).find((loan) => loan.id === id) : null;
+  state.loanEditingId = existing?.id || "";
+  state.loanDraft = existing ? deepClone(existing) : { name: "", owner: "A", kind: "bank", principal: 0, rate: 4.2, rateType: "fixed", term: 360, repay: "eq", start: dateInSelectedMonth(), payDay: 25, fixed: 0, grace: 0, growth: 1.5, acc: "", rateChanges: [], prepayments: [], customRepays: [] };
+  const loan = state.loanDraft;
+  $("loanEditorTitle").textContent = existing ? "대출 수정" : "대출 등록";
+  $("loanName").value = loan.name || ""; $("loanOwner").value = ["A", "B", "J"].includes(loan.owner) ? loan.owner : "J";
+  $("loanKind").value = loan.kind === "family" ? "family" : "bank"; $("loanPrincipal").value = inputNumber(loan.principal);
+  $("loanRate").value = Number(loan.rate) || 0; $("loanRateType").value = loan.rateType === "variable" ? "variable" : "fixed";
+  $("loanTerm").value = Number(loan.term) || 360; $("loanRepay").value = LOAN_REPAY_LABELS[loan.repay] ? loan.repay : "eq";
+  $("loanStart").value = loanStartDate(loan); $("loanPayDay").value = Number(loan.payDay) || 25;
+  $("loanGrace").value = Number(loan.grace) || 0; $("loanGrowth").value = Number(loan.growth) || 1.5;
+  $("loanAccount").innerHTML = loanAccountOptions(loan.acc || loan.accountId || "");
+  if (!Array.isArray(loan.rateChanges)) loan.rateChanges = [];
+  if (!Array.isArray(loan.prepayments)) loan.prepayments = [];
+  if (!Array.isArray(loan.customRepays)) loan.customRepays = [];
+  renderLoanRepeatRows(); $("loanEditorDialog").showModal();
+}
+
+function saveLoanEditor() {
+  const loan = readLoanEditorDraft();
+  if (!loan.name) { toast("대출명을 입력해주세요."); $("loanName").focus(); return; }
+  if (loan.principal <= 0) { toast("대출 원금을 입력해주세요."); $("loanPrincipal").focus(); return; }
+  if (loan.rate > 100) { toast("연 금리는 100% 이하로 입력해주세요."); $("loanRate").focus(); return; }
+  if (!loan.start) { toast("첫 상환일을 입력해주세요."); $("loanStart").focus(); return; }
+  if (loan.repay === "custom" && !loan.customRepays.some((row) => /^\d{4}-\d{2}$/.test(row.ym))) { toast("월별 직접 상환 일정을 한 건 이상 입력해주세요."); return; }
+  if (loan.repay === "custom" && new Set(loan.customRepays.map((row) => row.ym).filter(Boolean)).size !== loan.customRepays.filter((row) => row.ym).length) { toast("직접 입력 일정의 상환 월은 중복할 수 없습니다."); return; }
+  const index = (state.data.loans || []).findIndex((item) => item.id === state.loanEditingId);
+  const id = state.loanEditingId || `loan-${Date.now().toString(36)}`;
+  const existing = index >= 0 ? state.data.loans[index] : null;
+  const saved = { ...loan, id, remain: existing?.remain ?? loan.principal };
+  if (index >= 0) state.data.loans.splice(index, 1, saved); else state.data.loans.push(saved);
+  $("loanEditorDialog").close(); state.loanEditingId = null; state.loanDraft = null;
+  queueSave(); renderAll(); toast(existing ? "대출 정보를 수정했습니다." : "대출을 추가했습니다.");
+}
+
+function deleteLoan(id) {
+  const loan = (state.data.loans || []).find((item) => item.id === id);
+  if (!loan || !confirm(`${loan.name || "이 대출"} 정보를 삭제할까요? 기존 월별 납부 내역은 거래 기록에 보존됩니다.`)) return;
+  for (const [monthKey, ledger] of Object.entries(state.data.ledgers || {})) for (const payment of ledger.loanPayments || []) if (payment.loanId === id && !payment.loanName) payment.loanName = loan.name || "대출";
+  state.data.loans = state.data.loans.filter((item) => item.id !== id);
+  queueSave(); renderAll(); toast("대출 정보를 삭제했습니다.");
+}
+
+function openLoanSchedule(id) {
+  const loan = (state.data.loans || []).find((item) => item.id === id);
+  if (!loan) return;
+  state.loanScheduleId = id;
+  $("loanScheduleRange").value = "12";
+  renderLoanSchedule();
+  $("loanScheduleDialog").showModal();
+}
+
+function renderLoanSchedule() {
+  const loan = (state.data.loans || []).find((item) => item.id === state.loanScheduleId);
+  if (!loan) return;
+  const schedule = calculateLoanSchedule(loan, { today: TODAY });
+  const upcoming = schedule.sched.find((row) => row.ym >= state.selectedMonth && parseAmount(row.totalPay) > 0) || schedule.sched.find((row) => row.ym >= state.selectedMonth) || schedule.sched[0];
+  const allPaidRecords = Object.entries(state.data.ledgers || {}).flatMap(([monthKey, ledger]) => (ledger.loanPayments || []).filter((item) => item.loanId === loan.id).map((item) => ({ ...item, monthKey })));
+  const range = $("loanScheduleRange").value || "12";
+  const visibleRows = range === "all" ? schedule.sched : schedule.sched.filter((row) => row.ym >= state.selectedMonth).slice(0, Number(range) || 12);
+  $("loanScheduleTitle").textContent = `${loan.name || "대출"} 상환 일정`;
+  $("loanScheduleSummary").innerHTML = [
+    ["현재 잔여 원금", fmt(loanBalanceAfterActuals(loan, schedule.remain, TODAY, schedule))],
+    ["선택 월 다음 상환", upcoming && parseAmount(upcoming.totalPay) > 0 ? `${monthLabel(upcoming.ym)} · ${fmt(upcoming.totalPay)}` : "예정 상환 없음"],
+    ["전체 예상 이자", fmt(schedule.totalInterest)],
+    ["실제 납부 기록", `${allPaidRecords.length}건`]
+  ].map(([label, value]) => `<div class="loan-schedule-stat"><span>${esc(label)}</span><strong>${esc(value)}</strong></div>`).join("");
+  $("loanScheduleRows").innerHTML = visibleRows.length ? visibleRows.map((row) => {
+    const paid = allPaidRecords.find((item) => item.monthKey === row.ym) || allPaidRecords.find((item) => (item.date || "").slice(0, 7) === row.ym);
+    const paidTotal = paid ? parseAmount(paid.principal) + parseAmount(paid.interest) : 0;
+    const isClosed = !!state.data.ledgers[row.ym]?.closed;
+    const adjustedBalance = loanBalanceAfterActuals(loan, row.balance, row.date, schedule);
+    return `<tr class="${row.ym < CURRENT_MONTH ? "loan-row-past" : ""}"><td>${row.month}회차 · ${esc(row.date)}</td><td>${fmt(row.totalPay)}</td><td>${fmt(row.principal)}</td><td>${fmt(row.interest)}</td><td>${fmt(row.prepayment)}</td><td>${fmt(adjustedBalance)}</td><td>${paid ? `<span class="pill success">납부 ${fmt(paidTotal)}</span> ` : ""}<button type="button" data-loan-pay-month="${esc(row.ym)}" ${isClosed ? "disabled" : ""}>${paid ? "내역 수정" : parseAmount(row.totalPay) > 0 ? "납부 기록" : "중도상환 기록"}</button></td></tr>`;
+  }).join("") : `<tr><td colspan="7" class="empty">표시할 상환 회차가 없습니다.</td></tr>`;
+  $("loanScheduleRows").querySelectorAll("[data-loan-pay-month]").forEach((button) => button.addEventListener("click", () => {
+    const row = schedule.sched.find((item) => item.ym === button.dataset.loanPayMonth);
+    const paid = allPaidRecords.find((item) => item.monthKey === button.dataset.loanPayMonth) || allPaidRecords.find((item) => (item.date || "").slice(0, 7) === button.dataset.loanPayMonth);
+    openLoanPaymentDialog(loan.id, row, paid || null);
+  }));
+}
+
+function openLoanPaymentDialog(loanId, row = null, existingRecord = null) {
+  const monthKey = existingRecord?.monthKey || row?.ym || state.selectedMonth;
+  const loan = (state.data.loans || []).find((item) => item.id === loanId);
+  const returnToSchedule = $("loanScheduleDialog").open;
+  const ledger = ensureLedger(monthKey);
+  if (ledger.closed) { toast("마감된 월은 먼저 마감을 해제해주세요."); return; }
+  let saved = existingRecord ? (ledger.loanPayments || []).find((item) => String(item.id) === String(existingRecord.id)) : null;
+  if (!saved && existingRecord && Number.isInteger(existingRecord.sourceIndex)) saved = ledger.loanPayments?.[existingRecord.sourceIndex] || null;
+  if (!saved) saved = (ledger.loanPayments || []).find((item) => item.loanId === loanId) || null;
+  if (!loan && !saved) { toast("대출 정보 또는 기존 납부 기록을 찾을 수 없습니다."); return; }
+  if (state.selectedMonth !== monthKey) state.selectedMonth = monthKey;
+  state.loanPaymentContext = { monthKey, loanId, paymentId: saved?.id || "", returnToSchedule };
+  const scheduled = row || (loan ? calculateLoanSchedule(loan, { today: TODAY }).sched.find((item) => item.ym === monthKey) : null);
+  const expectedText = scheduled ? `예정 ${monthLabel(monthKey)} · 원금 ${fmt(scheduled.principal + scheduled.prepayment)} + 이자 ${fmt(scheduled.interest)} = ${fmt(scheduled.totalPay)}` : `예정 상환 일정 없음 · 대출 ${loan?.name || saved?.loanName || "기록"}`;
+  $("loanPaymentTitle").textContent = saved ? "대출 납부 내역 수정" : "대출 납부 기록";
+  $("loanPaymentExpected").textContent = expectedText;
+  $("loanPaymentDate").value = saved?.date || scheduled?.date || `${monthKey}-${String(Math.min(Number(loan?.payDay) || 25, daysInMonth(monthKey))).padStart(2, "0")}`;
+  $("loanPaymentPrincipal").value = inputNumber(saved?.principal ?? ((scheduled?.principal || 0) + (scheduled?.prepayment || 0)));
+  $("loanPaymentInterest").value = inputNumber(saved?.interest ?? (scheduled?.interest || 0));
+  $("loanPaymentAccount").innerHTML = loanAccountOptions(saved?.accountId || saved?.acc || existingRecord?.payment?.id || loan?.acc || "");
+  $("deleteLoanPaymentBtn").hidden = !saved;
+  renderAll();
+  if (returnToSchedule) $("loanScheduleDialog").close();
+  $("loanPaymentDialog").showModal();
+}
+
+function saveLoanPayment() {
+  const context = state.loanPaymentContext;
+  if (!context) return;
+  const ledger = ensureLedger(context.monthKey);
+  if (ledger.closed) { toast("마감된 월은 먼저 마감을 해제해주세요."); return; }
+  const principal = parseAmount($("loanPaymentPrincipal").value);
+  const interest = parseAmount($("loanPaymentInterest").value);
+  const date = $("loanPaymentDate").value;
+  if (principal < 0 || interest < 0 || principal + interest <= 0) { toast("실제 원금 또는 이자 금액을 입력해주세요."); return; }
+  if (!date || date.slice(0, 7) !== context.monthKey) { toast("납부일은 선택한 장부 월과 같아야 합니다."); return; }
+  const loan = (state.data.loans || []).find((item) => item.id === context.loanId);
+  const existing = ledger.loanPayments.find((item) => String(item.id) === String(context.paymentId)) || ledger.loanPayments.find((item) => item.loanId === context.loanId);
+  const saved = {
+    ...(existing || {}), id: existing?.id || `loan-payment-${Date.now().toString(36)}`,
+    loanId: context.loanId, loanName: loan?.name || existing?.loanName || "대출", owner: loan?.owner || existing?.owner || "J",
+    principal, interest, date, accountId: $("loanPaymentAccount").value || "",
+    createdAt: existing?.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString()
+  };
+  if (existing) Object.assign(existing, saved); else ledger.loanPayments.push(saved);
+  const returnToSchedule = context.returnToSchedule;
+  $("loanPaymentDialog").close(); state.loanPaymentContext = null;
+  state.recordTypeFilter = "recurring-expense";
+  queueSave(); renderAll();
+  if (returnToSchedule) openLoanSchedule(context.loanId); else setScreen("records");
+  toast("대출 납부 내역을 정기 지출에 기록했습니다.");
+}
+
+function deleteLoanPayment() {
+  const context = state.loanPaymentContext;
+  if (!context || !confirm("이 달의 대출 납부 기록을 삭제할까요?")) return;
+  const ledger = state.data.ledgers[context.monthKey];
+  if (!ledger || ledger.closed) { toast("마감된 월은 먼저 마감을 해제해주세요."); return; }
+  const index = (ledger.loanPayments || []).findIndex((item) => String(item.id) === String(context.paymentId));
+  if (index >= 0) ledger.loanPayments.splice(index, 1);
+  const returnToSchedule = context.returnToSchedule;
+  $("loanPaymentDialog").close(); state.loanPaymentContext = null;
+  queueSave(); renderAll();
+  if (returnToSchedule) openLoanSchedule(context.loanId);
+  toast("대출 납부 기록을 삭제했습니다.");
+}
+
 function addGoal() {
   const name = prompt("목표 이름을 입력하세요.", "여행 자금"); if (!name) return;
   const target = prompt("목표 금액을 입력하세요.", "0");
@@ -1140,6 +1425,40 @@ function bindEvents() {
   $("openQuickEntry").addEventListener("click", openQuickEntry); $("openQuickEntryRecords").addEventListener("click", openQuickEntry);
   $("quickEntryForm").addEventListener("submit", addTransactionFromForm);
   $("quickEntry").addEventListener("close", () => { state.settlementTransferId = null; });
+  $("loanEditorForm").addEventListener("submit", (event) => event.preventDefault());
+  $("loanPaymentForm").addEventListener("submit", (event) => event.preventDefault());
+  $("saveLoanBtn").addEventListener("click", saveLoanEditor);
+  $("loanEditorForm").addEventListener("input", () => { updateLoanEditorVisibility(); updateLoanPreview(); });
+  $("loanEditorForm").addEventListener("change", (event) => {
+    if (["loanRepay", "loanRateType"].includes(event.target.id)) updateLoanEditorVisibility();
+    if (event.target.id === "loanOwner") $("loanAccount").innerHTML = loanAccountOptions($("loanAccount").value);
+    if (event.target.id === "loanKind" && event.target.value === "family") {
+      $("loanRate").value = "0"; $("loanRateType").value = "fixed"; $("loanRepay").value = "custom"; updateLoanEditorVisibility();
+    }
+    updateLoanPreview();
+  });
+  $("addLoanRateRow").addEventListener("click", () => { state.loanDraft = readLoanEditorDraft(); state.loanDraft.rateChanges.push({ month: 60, rate: 5 }); renderLoanRepeatRows(); });
+  $("addLoanPrepaymentRow").addEventListener("click", () => { state.loanDraft = readLoanEditorDraft(); state.loanDraft.prepayments.push({ month: 12, amount: 10000000 }); renderLoanRepeatRows(); });
+  $("addLoanCustomRow").addEventListener("click", () => {
+    state.loanDraft = readLoanEditorDraft();
+    const previous = state.loanDraft.customRepays.at(-1)?.ym;
+    state.loanDraft.customRepays.push({ ym: previous ? nextMonthKey(previous) : String($("loanStart").value || dateInSelectedMonth()).slice(0, 7), principal: 0, interest: 0 });
+    renderLoanRepeatRows();
+  });
+  ["loanRateRows", "loanPrepaymentRows", "loanCustomRows"].forEach((id) => $(id).addEventListener("click", (event) => {
+    const button = event.target.closest("[data-loan-remove]"); if (!button) return;
+    state.loanDraft = readLoanEditorDraft();
+    const key = { rate: "rateChanges", prepayment: "prepayments", custom: "customRepays" }[button.dataset.loanRemove];
+    state.loanDraft[key].splice(Number(button.dataset.index), 1); renderLoanRepeatRows();
+  }));
+  $("loanScheduleRange").addEventListener("change", renderLoanSchedule);
+  $("closeLoanSchedule").addEventListener("click", () => $("loanScheduleDialog").close());
+  $("saveLoanPaymentBtn").addEventListener("click", saveLoanPayment);
+  $("deleteLoanPaymentBtn").addEventListener("click", deleteLoanPayment);
+  $("loanPaymentDialog").addEventListener("close", () => {
+    const context = state.loanPaymentContext; state.loanPaymentContext = null;
+    if (context?.returnToSchedule && state.data.loans.some((loan) => loan.id === context.loanId)) setTimeout(() => openLoanSchedule(context.loanId), 0);
+  });
   $("entryOccurrenceActions").addEventListener("click", (event) => { const button = event.target.closest("[data-occurrence-status]"); if (button) setOccurrenceStatus(button.dataset.occurrenceStatus); });
   ["entryAmount", "entryItem", "entryPayment"].forEach((id) => $(id).addEventListener("input", updateEntryPreview));
   $("entryPayment").addEventListener("change", () => { if ($("entryKind").value === "transfer") updateEntryFields(); else updateEntryPreview(); });

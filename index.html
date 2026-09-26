@@ -110,7 +110,7 @@
         <div class="screen-heading"><div><p class="eyebrow">ASSETS</p><h2 id="assetsTitle">자산과 결제 수단</h2><p class="muted">관리할 계좌와 카드의 역할을 명확히 설정합니다.</p></div><button class="outline-btn" id="addAccountBtn" type="button">＋ 계좌 추가</button></div>
         <article class="panel people-panel"><div class="panel-heading"><div><p class="eyebrow">PEOPLE</p><h3>두 사람 이름</h3><p class="muted panel-subcopy">거래의 ‘나’와 ‘상대방’ 대신 실제 이름을 표시합니다. 공동 사용 목적은 항상 공동으로 유지됩니다.</p></div><span class="pill neutral">표시 설정</span></div><div class="people-grid"><label class="field"><span>나</span><input id="nameAInput" type="text" maxlength="30" autocomplete="name" placeholder="이름 입력"></label><label class="field"><span>상대방</span><input id="nameBInput" type="text" maxlength="30" autocomplete="name" placeholder="이름 입력"></label></div><div id="ownerAuditNotice" class="notice owner-audit-notice" hidden></div></article>
         <div class="asset-grid"><article class="panel"><div class="panel-heading"><div><p class="eyebrow">ACCOUNTS</p><h3>관리 계좌</h3></div><span class="pill neutral" id="accountTotal">0원</span></div><div id="accountList" class="asset-list"></div></article><article class="panel"><div class="panel-heading"><div><p class="eyebrow">CARDS</p><h3>카드 설정</h3></div><button class="text-btn" id="addCardBtn" type="button">카드 추가</button></div><div id="cardList" class="asset-list"></div></article></div>
-        <div class="asset-grid"><article class="panel"><div class="panel-heading"><div><p class="eyebrow">LIABILITIES</p><h3>대출·차용</h3></div><button class="text-btn" id="addLoanBtn" type="button">대출 추가</button></div><div id="loanList" class="asset-list"></div></article><article class="panel"><div class="panel-heading"><div><p class="eyebrow">GOALS</p><h3>공동 목표</h3></div><button class="text-btn" id="addGoalBtn" type="button">목표 추가</button></div><div id="goalList" class="asset-list"></div></article></div>
+        <div class="asset-grid"><article class="panel"><div class="panel-heading"><div><p class="eyebrow">LIABILITIES</p><h3>대출·차용</h3><p class="muted panel-subcopy">상환 방식에 따른 월별 원금·이자 예정과 실제 납부 내역을 관리합니다.</p></div><div class="loan-heading-actions"><span class="pill neutral" id="loanTotalPill">총 부채 0원</span><button class="text-btn" id="addLoanBtn" type="button">대출 추가</button></div></div><div id="loanList" class="asset-list"></div></article><article class="panel"><div class="panel-heading"><div><p class="eyebrow">GOALS</p><h3>공동 목표</h3></div><button class="text-btn" id="addGoalBtn" type="button">목표 추가</button></div><div id="goalList" class="asset-list"></div></article></div>
         <article class="panel full-span"><div class="panel-heading"><div><p class="eyebrow">HOUSING</p><h3>주택 자금 시뮬레이션</h3><p class="muted panel-subcopy">과거 항목은 참고로 남기고, 오늘 이후의 유입·지출만 잔여 예산에 반영합니다.</p></div><span class="pill neutral">기존 기록 보존</span></div><div id="houseList" class="house-grid"></div><div class="housing-flow-grid"><div class="housing-flow-card"><div class="mini-heading"><h4 id="houseFlowTitleA">주택 A</h4><span class="pill person-a">A</span></div><div id="cfListA" class="housing-entry-list"></div><button class="outline-btn small" id="addCfA" type="button">＋ 자금 항목 추가</button></div><div class="housing-flow-card"><div class="mini-heading"><h4 id="houseFlowTitleB">주택 B</h4><span class="pill person-b">B</span></div><div id="cfListB" class="housing-entry-list"></div><button class="outline-btn small" id="addCfB" type="button">＋ 자금 항목 추가</button></div></div><button class="primary-btn" id="calcHousingBtn" type="button">주택 자금 시뮬레이션 실행</button><div id="housingResults" class="housing-results" hidden><div class="housing-result-grid"><article class="housing-result-card"><div class="mini-heading"><h4 id="resultHouseA">주택 A</h4></div><div class="housing-balance"><span>최종 잔여 예산</span><strong id="resultBalanceA">-</strong><small id="resultBalanceADesc">-</small></div><div id="housingLedgerA" class="housing-ledger"></div></article><article class="housing-result-card"><div class="mini-heading"><h4 id="resultHouseB">주택 B</h4></div><div class="housing-balance"><span>최종 잔여 예산</span><strong id="resultBalanceB">-</strong><small id="resultBalanceBDesc">-</small></div><div id="housingLedgerB" class="housing-ledger"></div></article></div><div class="housing-chart-wrap"><div class="mini-heading"><h4>날짜별 잔여 예산 흐름</h4><span class="muted">예정 항목 기준</span></div><div class="chart-wrap wide"><canvas id="houseFlowChart" aria-label="주택별 잔여 예산 흐름"></canvas></div></div></div></article>
         <div class="panel privacy-panel"><div class="privacy-icon">◌</div><div><h3>비공개 용돈 계좌</h3><p class="muted">잔액과 거래 내역은 저장하지 않습니다. 카드에 용돈 카드와 용돈 주인만 지정하면 개인 지출을 자동으로 처리합니다.</p></div></div>
       </section>
@@ -140,6 +140,59 @@
       <div class="occurrence-actions" id="entryOccurrenceActions" hidden></div>
       <div class="entry-preview" id="entryPreview">유형과 계좌를 선택하면 거래 처리 방법을 안내합니다.</div>
       <div class="modal-actions"><button class="outline-btn danger-action" id="deleteEntryBtn" type="button" hidden>삭제</button><span class="modal-actions-spacer"></span><button class="outline-btn" value="cancel">취소</button><button class="primary-btn" id="saveEntryBtn" value="default">저장</button></div>
+    </form>
+  </dialog>
+
+  <dialog class="modal loan-editor-modal" id="loanEditorDialog">
+    <form method="dialog" id="loanEditorForm">
+      <div class="modal-heading"><div><p class="eyebrow">LOAN SETTINGS</p><h2 id="loanEditorTitle">대출 등록</h2></div><button class="icon-btn" value="cancel" aria-label="닫기">×</button></div>
+      <div class="form-grid loan-form-grid">
+        <label class="field"><span>대출명</span><input id="loanName" required placeholder="예: 주택담보대출"></label>
+        <label class="field"><span>명의</span><select id="loanOwner"><option value="J">공동</option><option value="A">나</option><option value="B">상대방</option></select></label>
+        <label class="field"><span>대출 종류</span><select id="loanKind"><option value="bank">은행 대출</option><option value="family">가족·지인 차용</option></select></label>
+        <label class="field"><span>최초 대출 원금</span><input id="loanPrincipal" inputmode="numeric" required placeholder="0"></label>
+        <label class="field"><span>연 금리 (%)</span><input id="loanRate" type="number" min="0" max="100" step="0.01" value="4.2"></label>
+        <label class="field"><span>금리 유형</span><select id="loanRateType"><option value="fixed">고정금리</option><option value="variable">변동금리</option></select></label>
+        <label class="field"><span>상환 기간 (개월)</span><input id="loanTerm" type="number" min="1" max="1200" value="360"></label>
+        <label class="field"><span>상환 방식</span><select id="loanRepay"><option value="eq">원리금균등</option><option value="pr">원금균등</option><option value="io">만기일시 · 이자 매월 납부</option><option value="iod">만기일시 · 이자 만기 납부</option><option value="graduate">원리금체증식</option><option value="custom">월별 원금·이자 직접 입력</option></select></label>
+        <label class="field"><span>첫 상환일</span><input id="loanStart" type="date" required></label>
+        <label class="field"><span>매월 상환일</span><input id="loanPayDay" type="number" min="1" max="31" value="25"></label>
+        <label class="field"><span>거치기간 (개월)</span><input id="loanGrace" type="number" min="0" value="0"></label>
+        <label class="field" id="loanGrowthField" hidden><span>연 체증률 (%)</span><input id="loanGrowth" type="number" min="0" max="100" step="0.1" value="1.5"></label>
+        <label class="field"><span>상환 출금 계좌</span><select id="loanAccount"></select></label>
+      </div>
+      <div class="loan-subsection" id="loanCustomSection" hidden>
+        <div class="panel-heading"><div><h3>월별 직접 상환 일정</h3><p class="muted">월마다 실제 상환 원금과 이자를 입력합니다.</p></div><button class="outline-btn small" id="addLoanCustomRow" type="button">＋ 회차</button></div>
+        <div class="loan-repeat-head custom-loan-head"><span>상환 월</span><span>원금</span><span>이자</span><span></span></div><div id="loanCustomRows" class="loan-repeat-list"></div>
+      </div>
+      <div class="loan-subsection" id="loanRateSection">
+        <div class="panel-heading"><div><h3>금리 변동 일정</h3><p class="muted">변동금리 대출은 적용 회차와 연 금리를 추가합니다.</p></div><button class="outline-btn small" id="addLoanRateRow" type="button">＋ 금리</button></div>
+        <div class="loan-repeat-head"><span>적용 회차</span><span>연 금리 (%)</span><span></span></div><div id="loanRateRows" class="loan-repeat-list"></div>
+      </div>
+      <div class="loan-subsection">
+        <div class="panel-heading"><div><h3>중도상환</h3><p class="muted">회차와 추가 상환액을 등록하면 이후 잔액과 이자를 다시 계산합니다.</p></div><button class="outline-btn small" id="addLoanPrepaymentRow" type="button">＋ 중도상환</button></div>
+        <div class="loan-repeat-head"><span>상환 회차</span><span>추가 상환액</span><span></span></div><div id="loanPrepaymentRows" class="loan-repeat-list"></div>
+      </div>
+      <div class="loan-preview" id="loanPreview"></div>
+      <div class="modal-actions"><span class="modal-actions-spacer"></span><button class="outline-btn" value="cancel">취소</button><button class="primary-btn" id="saveLoanBtn" type="button">저장</button></div>
+    </form>
+  </dialog>
+
+  <dialog class="modal loan-schedule-modal" id="loanScheduleDialog">
+    <div class="modal-heading"><div><p class="eyebrow">REPAYMENT SCHEDULE</p><h2 id="loanScheduleTitle">대출 상환 일정</h2></div><button class="icon-btn" id="closeLoanSchedule" type="button" aria-label="닫기">×</button></div>
+    <div class="loan-schedule-summary" id="loanScheduleSummary"></div>
+    <div class="loan-schedule-toolbar"><span class="muted">상환 월의 원금과 이자를 따로 확인하고 실제 납부액을 기록합니다.</span><label class="field-inline"><span>표시</span><select id="loanScheduleRange"><option value="12">선택 월부터 12회</option><option value="24">선택 월부터 24회</option><option value="all">전체 일정</option></select></label></div>
+    <div class="loan-schedule-table-wrap"><table class="loan-schedule-table"><thead><tr><th>회차 / 날짜</th><th>상환액</th><th>원금</th><th>이자</th><th>중도상환</th><th>잔여원금</th><th>실제 내역</th></tr></thead><tbody id="loanScheduleRows"></tbody></table></div>
+  </dialog>
+
+  <dialog class="modal" id="loanPaymentDialog">
+    <form method="dialog" id="loanPaymentForm">
+      <div class="modal-heading"><div><p class="eyebrow">ACTUAL REPAYMENT</p><h2 id="loanPaymentTitle">대출 납부 기록</h2></div><button class="icon-btn" value="cancel" aria-label="닫기">×</button></div>
+      <div class="loan-payment-note" id="loanPaymentExpected"></div>
+      <label class="field"><span>실제 납부일</span><input id="loanPaymentDate" type="date" required></label>
+      <div class="form-grid"><label class="field"><span>실제 상환 원금</span><input id="loanPaymentPrincipal" inputmode="numeric" required></label><label class="field"><span>실제 납부 이자</span><input id="loanPaymentInterest" inputmode="numeric" required></label></div>
+      <label class="field"><span>출금 계좌</span><select id="loanPaymentAccount"></select></label>
+      <div class="modal-actions"><button class="outline-btn danger-action" id="deleteLoanPaymentBtn" type="button" hidden>납부 기록 삭제</button><span class="modal-actions-spacer"></span><button class="outline-btn" value="cancel">취소</button><button class="primary-btn" id="saveLoanPaymentBtn" type="button">납부 기록 저장</button></div>
     </form>
   </dialog>
 
