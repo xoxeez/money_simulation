@@ -76,9 +76,17 @@
           <div><p class="eyebrow">RECORDS</p><h2 id="recordsTitle">거래 기록</h2><p class="muted">수입·지출·계좌 이체를 기록하고, 항목을 눌러 수정할 수 있습니다.</p></div>
           <button class="primary-btn large" id="openQuickEntryRecords" type="button">＋ 거래 추가</button>
         </div>
+        <div class="record-type-tabs" id="recordTypeTabs" role="tablist" aria-label="거래 종류별 보기">
+          <button class="record-type-tab active" type="button" role="tab" aria-selected="true" aria-controls="recordList" tabindex="0" data-record-type="all"><span>전체</span><small data-type-count="all">0</small></button>
+          <button class="record-type-tab" type="button" role="tab" aria-selected="false" aria-controls="recordList" tabindex="-1" data-record-type="recurring-income"><span>정기 수입</span><small data-type-count="recurring-income">0</small></button>
+          <button class="record-type-tab" type="button" role="tab" aria-selected="false" aria-controls="recordList" tabindex="-1" data-record-type="recurring-expense"><span>정기 지출</span><small data-type-count="recurring-expense">0</small></button>
+          <button class="record-type-tab" type="button" role="tab" aria-selected="false" aria-controls="recordList" tabindex="-1" data-record-type="once-income"><span>비정기 수입</span><small data-type-count="once-income">0</small></button>
+          <button class="record-type-tab" type="button" role="tab" aria-selected="false" aria-controls="recordList" tabindex="-1" data-record-type="once-expense"><span>비정기 지출</span><small data-type-count="once-expense">0</small></button>
+          <button class="record-type-tab" type="button" role="tab" aria-selected="false" aria-controls="recordList" tabindex="-1" data-record-type="transfer"><span>계좌 이체</span><small data-type-count="transfer">0</small></button>
+        </div>
         <div class="toolbar-row">
-          <div class="segmented" id="recordFilters" role="group" aria-label="거래 필터">
-            <button class="segment active" type="button" data-filter="all">전체</button>
+          <div class="segmented" id="recordFilters" role="group" aria-label="사용 목적·정산 필터">
+            <button class="segment active" type="button" data-filter="all">모든 사용자</button>
             <button class="segment" type="button" data-filter="J">공동</button>
             <button class="segment" type="button" data-filter="A">나</button>
             <button class="segment" type="button" data-filter="B">상대방</button>
@@ -86,6 +94,7 @@
           </div>
           <label class="field-inline"><span>월</span><select id="recordMonthSelect" aria-label="거래 월"></select></label>
         </div>
+        <div class="record-summary" id="recordSummary" aria-live="polite"></div>
         <div class="notice" id="migrationNotice" hidden></div>
         <div class="panel table-panel"><div class="table-head"><span>날짜·항목</span><span>사용 목적</span><span>결제 수단·계좌</span><span class="align-right">금액</span></div><div id="recordList" class="record-table"></div></div>
       </section>
