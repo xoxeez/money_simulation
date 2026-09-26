@@ -15,7 +15,7 @@ const TODAY = (() => { const date = new Date(); const pad = (value) => String(va
 const CURRENT_MONTH = TODAY.slice(0, 7);
 const COLORS = ["#2868d7", "#159e9b", "#7659c9", "#e28c43", "#bd4c65", "#6f8ea9", "#8d63bc", "#a2b85b"];
 const CATEGORIES = ["식비", "주거/공과", "교통", "통신", "데이트/여가", "쇼핑", "의료", "교육", "경조사", "저축/투자", "기타"];
-const state = { data: null, screen: "dashboard", selectedMonth: CURRENT_MONTH, recordFilter: "all", charts: {}, detail: null, analyticsDetail: null, cloudDb: null, saveTimer: null, housingCalculated: false };
+const state = { data: null, screen: "dashboard", selectedMonth: CURRENT_MONTH, recordFilter: "all", charts: {}, detail: null, analyticsDetail: null, cloudDb: null, saveTimer: null, housingCalculated: false, editingRecord: null };
 
 function deepClone(value) { return value == null ? value : JSON.parse(JSON.stringify(value)); }
 function parseAmount(value) {
@@ -38,8 +38,27 @@ function ownerClass(owner) { return owner === "A" ? "person-a" : owner === "B" ?
 function toast(message) { const el = $("toast"); el.textContent = message; el.classList.add("show"); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.remove("show"), 2600); }
 function setSaveStatus(text, kind = "") { const el = $("saveStatus"); el.textContent = text; el.dataset.kind = kind; }
 function currentLedger() { return state.data.ledgers[state.selectedMonth] || (state.data.ledgers[state.selectedMonth] = blankLedger()); }
-function blankLedger() { return { incomes: [], expenses: [], extraIncomes: [], extraExpenses: [], cardTxns: [], transfers: [], settlementReviews: [] }; }
-function allMonths() { return [...new Set([...(state.data.months || []), ...Object.keys(state.data.ledgers || {})])].sort(); }
+function blankLedger() { return { incomes: [], expenses: [], extraIncomes: [], extraExpenses: [], cardTxns: [], transfers: [], settlementReviews: [], cashflowOccurrences: {} }; }
+function allMonths() {
+  const months = new Set([...(state.data.months || []), ...Object.keys(state.data.ledgers || {})]);
+  if (state.data.cashflowRules?.length) {
+    const [year, month] = CURRENT_MONTH.split("-").map(Number);
+    const horizonDate = new Date(year, month - 1 + 12, 1);
+    const horizon = `${horizonDate.getFullYear()}-${String(horizonDate.getMonth() + 1).padStart(2, "0")}`;
+    months.add(CURRENT_MONTH);
+    for (const rule of state.data.cashflowRules) {
+      let cursor = rule.startMonth || CURRENT_MONTH;
+      const end = rule.endMonth && rule.endMonth < horizon ? rule.endMonth : horizon;
+      while (cursor <= end) {
+        months.add(cursor); cursor = nextMonthKey(cursor);
+      }
+    }
+  }
+  return [...months].sort();
+}
+function nextMonthKey(key) { const [year, month] = key.split("-").map(Number); const next = new Date(year, month, 1); return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}`; }
+function previousMonthKey(key) { const [year, month] = key.split("-").map(Number); const previous = new Date(year, month - 2, 1); return `${previous.getFullYear()}-${String(previous.getMonth() + 1).padStart(2, "0")}`; }
+function ruleAppliesInMonth(rule, monthKey) { return monthKey >= (rule.startMonth || monthKey) && (!rule.endMonth || monthKey <= rule.endMonth); }
 function accountById(id) { return (state.data.accounts || []).find((item) => item.id === id); }
 function cardById(id) { return (state.data.cards || []).find((item) => item.id === id); }
 function paymentLabel(payment) {
@@ -66,7 +85,20 @@ function ensureData(raw) {
   data.cfA ||= [];
   data.cfB ||= [];
   data.settlementReviews ||= [];
-  for (const key of data.months) data.ledgers[key] = { ...blankLedger(), ...(data.ledgers[key] || {}) };
+  if (!Array.isArray(data.cashflowRules)) data.cashflowRules = [];
+  for (const key of data.months) {
+    const ledger = data.ledgers[key] = { ...blankLedger(), ...(data.ledgers[key] || {}) };
+    if (!ledger.cashflowOccurrences || typeof ledger.cashflowOccurrences !== "object") ledger.cashflowOccurrences = {};
+    for (const collection of ["incomes", "extraIncomes", "extraExpenses", "transfers"]) {
+      ledger[collection].forEach((item, index) => { if (!item.id) item.id = `${key}:${collection}:${index}`; });
+    }
+    ledger.cardTxns.forEach((item, index) => { if (!item.id) item.id = `${key}:card:${index}`; });
+    let legacyCardIndex = ledger.cardTxns.filter((item) => parseAmount(item.amount ?? item.amt) > 0).length;
+    ledger.expenses.forEach((item, index) => {
+      if (item.method === "card" && !item.id) item.id = `${key}:fixed:${legacyCardIndex++}`;
+      else if (!item.id) item.id = `${key}:expense:${index}`;
+    });
+  }
   const reviews = buildOpenMonthReviews(data);
   const reviewIds = new Set(data.settlementReviews.map((item) => item.sourceTransactionId));
   data.settlementReviews.push(...reviews.filter((item) => !reviewIds.has(item.sourceTransactionId)));
@@ -114,7 +146,7 @@ function storeSourceBackup(key, data, source = "legacy") {
 function storedDataCount(data) {
   if (!data || typeof data !== "object") return 0;
   const fields = ["incomes", "expenses", "extraIncomes", "extraExpenses", "cardTxns", "transfers"];
-  let count = ["accounts", "cards", "loans", "goals", "cfA", "cfB"].reduce((total, key) => total + (Array.isArray(data[key]) ? data[key].length : 0), 0);
+  let count = ["accounts", "cards", "loans", "goals", "cfA", "cfB", "cashflowRules"].reduce((total, key) => total + (Array.isArray(data[key]) ? data[key].length : 0), 0);
   const ledgers = data.ledgers && typeof data.ledgers === "object" ? Object.values(data.ledgers) : [];
   for (const ledger of ledgers) for (const key of fields) count += Array.isArray(ledger?.[key]) ? ledger[key].length : 0;
   if (!ledgers.length) for (const key of fields) count += Array.isArray(data[key]) ? data[key].length : 0;
@@ -276,19 +308,80 @@ async function saveCloud() {
 
 function allRecords(monthKey = state.selectedMonth) {
   const ledger = state.data.ledgers[monthKey] || blankLedger();
-  const records = listMonthTransactions(monthKey, state.data).map((record) => ({ ...record, paymentLabel: paymentLabel(record.payment) }));
+  const records = listMonthTransactions(monthKey, state.data).map((record) => ({ ...record, kind: "expense", frequency: record.source === "fixedExpense" && !String(record.id).startsWith("tx-") ? "monthly" : "once", paymentLabel: paymentLabel(record.payment) }));
   for (const expense of ledger.expenses || []) {
     if (expense.method === "card") continue;
     const day = String(Math.max(1, Number(expense.day) || 1)).padStart(2, "0");
-    records.push({ id: expense.id || `${monthKey}:expense:${records.length}`, sourceTransactionId: expense.id || `${monthKey}:expense:${records.length}`, monthKey, date: expense.date || `${monthKey}-${day}`, item: expense.name || "계좌 지출", category: expense.cat || "기타", amount: parseAmount(expense.amount ?? expense.amt), usageOwner: expense.usageOwner || expense.owner || "J", usageOwnerOriginal: expense.usageOwnerOriginal || "", payment: { type: "account", id: expense.acc || expense.ref || "" }, paymentLabel: paymentLabel({ type: "account", id: expense.acc || expense.ref || "" }), source: "accountExpense" });
+    records.push({ id: expense.id || `${monthKey}:expense:${records.length}`, sourceTransactionId: expense.id || `${monthKey}:expense:${records.length}`, sourceIndex: (ledger.expenses || []).indexOf(expense), monthKey, date: expense.date || `${monthKey}-${day}`, item: expense.name || "계좌 지출", category: expense.cat || "기타", amount: parseAmount(expense.amount ?? expense.amt), usageOwner: expense.usageOwner || expense.owner || "J", usageOwnerOriginal: expense.usageOwnerOriginal || "", payment: { type: "account", id: expense.acc || expense.ref || "" }, paymentLabel: paymentLabel({ type: "account", id: expense.acc || expense.ref || "" }), source: "accountExpense", kind: "expense", frequency: expense.freq || (String(expense.id || "").startsWith("tx-") ? "once" : "monthly") });
   }
   for (const extra of ledger.extraExpenses || []) {
     const date = extra.freq === "monthly" ? `${monthKey}-${String(Math.max(1, Number(extra.day) || 1)).padStart(2, "0")}` : (extra.date || `${monthKey}-01`);
     if (!date.startsWith(monthKey)) continue;
-    records.push({ id: extra.id || `${monthKey}:extra:${records.length}`, sourceTransactionId: extra.id || `${monthKey}:extra:${records.length}`, monthKey, date, item: extra.name || "기타 지출", category: extra.cat || "기타", amount: parseAmount(extra.amount ?? extra.amt), usageOwner: extra.usageOwner || extra.owner || "J", usageOwnerOriginal: extra.usageOwnerOriginal || "", payment: { type: "account", id: extra.acc || "" }, paymentLabel: "기타 지출", source: "extraExpense" });
+    const payment = extra.payment || { type: "account", id: extra.acc || "" };
+    records.push({ id: extra.id || `${monthKey}:extra:${records.length}`, sourceTransactionId: extra.id || `${monthKey}:extra:${records.length}`, sourceIndex: (ledger.extraExpenses || []).indexOf(extra), monthKey, date, item: extra.name || "기타 지출", category: extra.cat || "기타", amount: parseAmount(extra.amount ?? extra.amt), usageOwner: extra.usageOwner || extra.owner || "J", usageOwnerOriginal: extra.usageOwnerOriginal || "", payment, paymentLabel: paymentLabel(payment), source: "extraExpense", kind: "expense", frequency: extra.freq || "once" });
+  }
+  for (const rule of state.data.cashflowRules || []) {
+    if (rule.kind !== "expense" || !ruleAppliesInMonth(rule, monthKey)) continue;
+    const occurrence = ledger.cashflowOccurrences?.[rule.id];
+    if (occurrence?.status !== "actual") continue;
+    const day = String(Math.min(Number(rule.day) || 1, daysInMonth(monthKey))).padStart(2, "0");
+    const payment = rule.payment || { type: "account", id: rule.accountId || "" };
+    const id = `${rule.id}@${monthKey}`;
+    records.push({ id, sourceTransactionId: id, monthKey, date: `${monthKey}-${day}`, item: rule.name || "정기 지출", category: rule.category || "기타", amount: parseAmount(occurrence.amount ?? rule.amount), ruleAmount: parseAmount(rule.amount), usageOwner: rule.usageOwner || "J", payment, paymentLabel: paymentLabel(payment), source: "cashflowRule", ruleId: rule.id, ruleStartMonth: rule.startMonth || monthKey, kind: "expense", frequency: "monthly" });
   }
   return records.filter((record) => record.amount > 0).sort((a, b) => String(b.date).localeCompare(String(a.date)));
 }
+
+function cashflowRecords(monthKey = state.selectedMonth) {
+  const ledger = state.data.ledgers[monthKey] || blankLedger();
+  const records = allRecords(monthKey);
+  for (const [index, income] of (ledger.incomes || []).entries()) {
+    const date = income.date || `${monthKey}-${String(Math.min(Number(income.payDay) || 1, daysInMonth(monthKey))).padStart(2, "0")}`;
+    const payment = { type: "account", id: income.acc || "" };
+    records.push({ id: income.id || `${monthKey}:income:${index}`, monthKey, date, item: income.name || "정기 수입", category: "수입", amount: parseAmount(income.amount ?? income.amt), usageOwner: income.usageOwner || income.owner || "J", payment, paymentLabel: paymentLabel(payment), source: "legacyIncome", sourceIndex: index, kind: "income", frequency: "monthly" });
+  }
+  for (const [index, income] of (ledger.extraIncomes || []).entries()) {
+    const date = income.freq === "monthly" ? `${monthKey}-${String(Math.min(Number(income.day) || 1, daysInMonth(monthKey))).padStart(2, "0")}` : (income.date || `${monthKey}-01`);
+    if (!date.startsWith(monthKey)) continue;
+    const payment = { type: "account", id: income.acc || "" };
+    records.push({ id: income.id || `${monthKey}:extraIncome:${index}`, monthKey, date, item: income.name || "기타 수입", category: "수입", amount: parseAmount(income.amount ?? income.amt), usageOwner: income.usageOwner || income.owner || "J", payment, paymentLabel: paymentLabel(payment), source: "extraIncome", sourceIndex: index, kind: "income", frequency: income.freq || "once" });
+  }
+  for (const [index, transfer] of (ledger.transfers || []).entries()) {
+    const from = accountById(transfer.from); const to = accountById(transfer.to);
+    const day = String(Math.min(Number(transfer.day) || 1, daysInMonth(monthKey))).padStart(2, "0");
+    records.push({ id: transfer.id || `${monthKey}:transfer:${index}`, monthKey, date: transfer.date || `${monthKey}-${day}`, item: transfer.name || "계좌 이체", category: "계좌 이체", amount: parseAmount(transfer.amount ?? transfer.amt), usageOwner: "J", paymentLabel: `${from?.name || "출금 계좌 선택"} → ${to?.name || "입금 계좌 선택"}`, source: "transfer", sourceIndex: index, kind: "transfer", frequency: transfer.auto ? "monthly" : "once", fromAccountId: transfer.from || "", toAccountId: transfer.to || "" });
+  }
+  for (const rule of state.data.cashflowRules || []) {
+    if (!ruleAppliesInMonth(rule, monthKey) || rule.kind === "expense") continue;
+    const day = String(Math.min(Number(rule.day) || 1, daysInMonth(monthKey))).padStart(2, "0");
+    const id = `${rule.id}@${monthKey}`;
+    if (rule.kind === "income") {
+      const occurrence = ledger.cashflowOccurrences?.[rule.id];
+      const payment = { type: "account", id: rule.accountId || "" };
+      records.push({ id, monthKey, date: `${monthKey}-${day}`, item: rule.name || "정기 수입", category: "수입", amount: parseAmount(occurrence?.status === "actual" ? occurrence.amount ?? rule.amount : rule.amount), ruleAmount: parseAmount(rule.amount), usageOwner: rule.usageOwner || "J", payment, paymentLabel: paymentLabel(payment), source: "cashflowRule", ruleId: rule.id, ruleStartMonth: rule.startMonth || monthKey, kind: "income", frequency: "monthly", status: occurrence?.status || "planned" });
+    } else {
+      const from = accountById(rule.fromAccountId); const to = accountById(rule.toAccountId);
+      const occurrence = ledger.cashflowOccurrences?.[rule.id];
+      records.push({ id, monthKey, date: `${monthKey}-${day}`, item: rule.name || "정기 이체", category: "계좌 이체", amount: parseAmount(occurrence?.status === "actual" ? occurrence.amount ?? rule.amount : rule.amount), ruleAmount: parseAmount(rule.amount), usageOwner: "J", paymentLabel: `${from?.name || "출금 계좌 선택"} → ${to?.name || "입금 계좌 선택"}`, source: "cashflowRule", ruleId: rule.id, ruleStartMonth: rule.startMonth || monthKey, kind: "transfer", frequency: "monthly", status: occurrence?.status || "planned", fromAccountId: rule.fromAccountId || "", toAccountId: rule.toAccountId || "" });
+    }
+  }
+  for (const rule of state.data.cashflowRules || []) {
+    if (rule.kind !== "expense" || !ruleAppliesInMonth(rule, monthKey)) continue;
+    const id = `${rule.id}@${monthKey}`;
+    const existing = records.find((record) => record.id === id);
+    const occurrence = ledger.cashflowOccurrences?.[rule.id];
+    const status = occurrence?.status || "planned";
+    if (existing) { existing.status = status; existing.ruleAmount = parseAmount(rule.amount); existing.amount = parseAmount(status === "actual" ? occurrence.amount ?? rule.amount : rule.amount); }
+    else {
+      const day = String(Math.min(Number(rule.day) || 1, daysInMonth(monthKey))).padStart(2, "0");
+      const payment = rule.payment || { type: "account", id: rule.accountId || "" };
+      records.push({ id, sourceTransactionId: id, monthKey, date: `${monthKey}-${day}`, item: rule.name || "정기 지출", category: rule.category || "기타", amount: parseAmount(status === "actual" ? occurrence.amount ?? rule.amount : rule.amount), ruleAmount: parseAmount(rule.amount), usageOwner: rule.usageOwner || "J", payment, paymentLabel: paymentLabel(payment), source: "cashflowRule", ruleId: rule.id, ruleStartMonth: rule.startMonth || monthKey, kind: "expense", frequency: "monthly", status });
+    }
+  }
+  return records.filter((record) => record.amount > 0).sort((a, b) => String(b.date).localeCompare(String(a.date)));
+}
+
+function daysInMonth(monthKey) { const [year, month] = monthKey.split("-").map(Number); return new Date(year, month, 0).getDate(); }
 
 function monthReviews(monthKey = state.selectedMonth) { return (state.data.settlementReviews || []).filter((item) => item.monthKey === monthKey); }
 function pendingReviews(monthKey = state.selectedMonth) { return monthReviews(monthKey).filter((item) => !["confirmed", "excluded"].includes(item.status)); }
@@ -359,7 +452,7 @@ function renderDashboardCharts() {
 
 function renderDashboard() {
   updateMonthSelects(); renderKpis(); renderDashboardCharts();
-  const recent = allRecords().slice(0, 5);
+  const recent = cashflowRecords().slice(0, 5);
   $("recentList").innerHTML = recent.length ? recent.map(recordHtml).join("") : `<div class="empty">아직 기록이 없습니다.</div>`;
   const pending = pendingReviews();
   $("attentionList").innerHTML = pending.length ? pending.slice(0, 4).map((item) => `<button class="attention-item" type="button" data-settlement-id="${esc(item.id)}"><span>${esc(item.item || "개인 카드 사용")} · ${esc(ownerName(item.payerOwner))}</span><b>${fmt(item.amount)}</b></button>`).join("") : `<div class="empty">확인이 필요한 정산이 없습니다.</div>`;
@@ -369,14 +462,19 @@ function renderDashboard() {
 function recordHtml(record) {
   const auditLabel = record.usageOwnerOriginal ? " · 확인 필요" : "";
   const auditTitle = record.usageOwnerOriginal ? ` title="기존 표기: ${esc(record.usageOwnerOriginal)}"` : "";
-  return `<button class="record-row" type="button" data-record-id="${esc(record.id)}"><div class="record-main"><div class="record-title">${esc(record.item)}</div><div class="record-sub">${esc(record.date)} · ${esc(record.category)}</div></div><span class="pill ${ownerClass(record.usageOwner)} record-purpose"${auditTitle}>${esc(ownerName(record.usageOwner))}${auditLabel}</span><div class="record-meta"><div class="record-sub">${esc(record.paymentLabel || paymentLabel(record.payment))}</div></div><div class="record-amount">－${fmt(record.amount)}</div></button>`;
+  const kind = record.kind || "expense";
+  const signs = { expense: "－", income: "＋", transfer: "↔" };
+  const labels = { expense: "지출", income: "수입", transfer: "이체" };
+  const occurrenceLabel = record.status === "actual" ? " · 완료" : record.status === "skipped" ? " · 건너뜀" : record.source === "cashflowRule" ? " · 예정" : "";
+  return `<button class="record-row ${record.status === "skipped" ? "record-skipped" : ""}" type="button" data-record-id="${esc(record.id)}" data-record-kind="${kind}"><div class="record-main"><div class="record-title">${esc(record.item)}</div><div class="record-sub">${esc(record.date)} · ${labels[kind]}${kind === "expense" ? ` · ${esc(record.category)}` : ""}${record.frequency === "monthly" ? " · 매월" : ""}${occurrenceLabel}</div></div><span class="pill ${ownerClass(record.usageOwner)} record-purpose"${auditTitle}>${kind === "transfer" ? "계좌 이동" : `${esc(ownerName(record.usageOwner))}${auditLabel}`}</span><div class="record-meta"><div class="record-sub">${esc(record.paymentLabel || paymentLabel(record.payment))}</div></div><div class="record-amount ${kind}">${signs[kind]}${fmt(record.amount)}</div></button>`;
 }
 
 function renderRecords() {
+  ensureCashflowRuleReviews(state.selectedMonth);
   updateMonthSelects();
-  const records = allRecords().filter((record) => state.recordFilter === "all" || state.recordFilter === "settlement" ? (state.recordFilter === "settlement" ? pendingReviews().some((item) => item.sourceTransactionId === record.sourceTransactionId) : true) : record.usageOwner === state.recordFilter);
+  const records = cashflowRecords().filter((record) => state.recordFilter === "all" || state.recordFilter === "settlement" ? (state.recordFilter === "settlement" ? pendingReviews().some((item) => item.sourceTransactionId === (record.sourceTransactionId || record.id)) : true) : record.usageOwner === state.recordFilter);
   $("recordList").innerHTML = records.length ? records.map(recordHtml).join("") : `<div class="empty">이 조건에 맞는 거래가 없습니다.</div>`;
-  $("recordList").querySelectorAll("[data-record-id]").forEach((el) => el.addEventListener("click", () => { const record = allRecords().find((item) => item.id === el.dataset.recordId); if (record) openDetail(record.item, [record]); }));
+  $("recordList").querySelectorAll("[data-record-id]").forEach((el) => el.addEventListener("click", (event) => { event.stopPropagation(); const record = cashflowRecords().find((item) => String(item.id) === el.dataset.recordId); if (record) openEditEntry(record); }));
   const reviews = pendingReviews();
   const auditCount = state.data.migrationAudit?.usageOwnerUnresolved?.length || 0;
   const importSummary = state.data.migrationAudit?.importSummary;
@@ -562,38 +660,329 @@ function addGoal() {
   queueSave(); renderAll(); toast("목표를 추가했습니다.");
 }
 
-function fillPaymentOptions() {
-  const options = [];
-  for (const card of state.data.cards || []) options.push(`<option value="card:${esc(card.id)}">카드 · ${esc(card.name)} · ${esc(ownerName(card.owner))}</option>`);
-  for (const account of state.data.accounts || []) options.push(`<option value="account:${esc(account.id)}">계좌 · ${esc(account.name)} · ${esc(ownerName(account.owner))}</option>`);
-  $("entryPayment").innerHTML = options.length ? options.join("") : `<option value="unknown:">결제 수단을 먼저 추가하세요</option>`;
+function entryAccountOptions(selected = "") {
+  const accounts = state.data.accounts || [];
+  return accounts.length ? accounts.map((account) => `<option value="${esc(account.id)}" ${String(account.id) === String(selected) ? "selected" : ""}>계좌 · ${esc(account.name)} · ${esc(ownerName(account.owner))}</option>`).join("") : `<option value="">계좌를 먼저 추가하세요</option>`;
 }
-function openQuickEntry() { fillPaymentOptions(); $("entryDate").value = TODAY; $("entryAmount").value = ""; $("entryItem").value = ""; $("entryCategory").value = "식비"; document.querySelector('input[name="usageOwner"][value="J"]').checked = true; updateEntryPreview(); $("quickEntry").showModal(); setTimeout(() => $("entryAmount").focus(), 30); }
+
+function fillEntryOptions(kind, selectedPayment = "", selectedTo = "") {
+  const options = [];
+  if (kind === "expense") {
+    for (const card of state.data.cards || []) options.push({ value: `card:${card.id}`, label: `카드 · ${card.name} · ${ownerName(card.owner)}` });
+    for (const account of state.data.accounts || []) options.push({ value: `account:${account.id}`, label: `계좌 · ${account.name} · ${ownerName(account.owner)}` });
+  } else if (kind === "income") {
+    for (const account of state.data.accounts || []) options.push({ value: account.id, label: `입금 계좌 · ${account.name} · ${ownerName(account.owner)}` });
+  } else {
+    for (const account of state.data.accounts || []) options.push({ value: account.id, label: `출금 · ${account.name} · ${ownerName(account.owner)}` });
+  }
+  const payment = $("entryPayment");
+  payment.innerHTML = options.length ? options.map((item) => `<option value="${esc(item.value)}">${esc(item.label)}</option>`).join("") : `<option value="">${kind === "expense" ? "계좌 또는 카드를 먼저 추가하세요" : "계좌를 먼저 추가하세요"}</option>`;
+  if (options.some((item) => item.value === String(selectedPayment))) payment.value = String(selectedPayment);
+  if (kind === "transfer") {
+    const source = payment.value;
+    $("entryTransferTo").innerHTML = state.data.accounts?.length ? state.data.accounts.map((account) => `<option value="${esc(account.id)}" ${String(account.id) === String(selectedTo) ? "selected" : ""}>입금 · ${esc(account.name)} · ${esc(ownerName(account.owner))}</option>`).join("") : `<option value="">계좌를 먼저 추가하세요</option>`;
+    if (selectedTo && state.data.accounts.some((account) => String(account.id) === String(selectedTo))) $("entryTransferTo").value = String(selectedTo);
+    if (!$("entryTransferTo").value || $("entryTransferTo").value === source) {
+      const alternative = [...(state.data.accounts || [])].find((account) => String(account.id) !== source);
+      if (alternative) $("entryTransferTo").value = String(alternative.id);
+    }
+  }
+}
+
+function updateEntryFields() {
+  const kind = $("entryKind").value;
+  const monthly = $("entryFrequency").value === "monthly";
+  $("entryDateField").hidden = monthly;
+  $("entryDayField").hidden = !monthly;
+  $("entryCategoryField").hidden = kind !== "expense";
+  $("entryTransferToField").hidden = kind !== "transfer";
+  $("entryPurposeField").hidden = kind === "transfer";
+  $("entryPaymentLabel").textContent = kind === "income" ? "입금 계좌" : kind === "transfer" ? "보내는 계좌" : "결제 수단";
+  $("entryPurposeLegend").textContent = kind === "income" ? "누구의 수입인가요?" : "누구를 위한 지출인가요?";
+  fillEntryOptions(kind, $("entryPayment").value, $("entryTransferTo").value);
+  $("entryDialogTitle").textContent = state.editingRecord ? "거래 수정" : `${kind === "expense" ? "지출" : kind === "income" ? "수입" : "계좌 이체"} ${monthly ? "정기 항목" : "기록"}`;
+  updateEntryPreview();
+}
+
+function dateInSelectedMonth() {
+  const day = Math.min(Number(TODAY.slice(-2)) || 1, daysInMonth(state.selectedMonth));
+  return `${state.selectedMonth}-${String(day).padStart(2, "0")}`;
+}
+
+function openQuickEntry() {
+  state.editingRecord = null;
+  $("quickEntryForm").reset();
+  $("entryKind").disabled = false; $("entryFrequency").disabled = false;
+  $("entryOccurrenceActions").hidden = true; $("entryOccurrenceActions").innerHTML = "";
+  $("deleteEntryBtn").hidden = true; $("saveEntryBtn").textContent = "저장";
+  $("entryDate").value = dateInSelectedMonth(); $("entryDay").value = Number(dateInSelectedMonth().slice(-2));
+  $("entryAmount").value = ""; $("entryItem").value = ""; $("entryCategory").value = "식비";
+  document.querySelector('input[name="usageOwner"][value="J"]').checked = true;
+  updateEntryFields(); $("quickEntry").showModal(); setTimeout(() => $("entryAmount").focus(), 30);
+}
+
+function openEditEntry(record) {
+  state.editingRecord = deepClone(record);
+  $("entryKind").value = record.kind || "expense";
+  $("entryFrequency").value = record.frequency || "once";
+  $("entryKind").disabled = true; $("entryFrequency").disabled = true;
+  $("entryAmount").value = inputNumber(record.ruleAmount ?? record.amount); $("entryItem").value = record.item || "";
+  $("entryCategory").value = CATEGORIES.includes(record.category) ? record.category : "기타";
+  $("entryDate").value = record.date || dateInSelectedMonth();
+  $("entryDay").value = Number(String(record.date || "").slice(-2)) || 1;
+  const selected = record.kind === "transfer" ? record.fromAccountId : record.kind === "income" ? record.payment?.id : `${record.payment?.type || "account"}:${record.payment?.id || ""}`;
+  fillEntryOptions(record.kind || "expense", selected, record.toAccountId || "");
+  const owner = ["A", "B", "J"].includes(record.usageOwner) ? record.usageOwner : "J";
+  document.querySelector(`input[name="usageOwner"][value="${owner}"]`).checked = true;
+  $("deleteEntryBtn").hidden = false; $("saveEntryBtn").textContent = "수정 저장";
+  const occurrenceActions = $("entryOccurrenceActions");
+  occurrenceActions.hidden = record.source !== "cashflowRule";
+  if (record.source === "cashflowRule") {
+    const status = state.data.ledgers[record.monthKey]?.cashflowOccurrences?.[record.ruleId]?.status || "planned";
+    const occurrenceAmount = state.data.ledgers[record.monthKey]?.cashflowOccurrences?.[record.ruleId]?.amount ?? record.amount;
+    occurrenceActions.innerHTML = `<div><b>${esc(monthLabel(record.monthKey))} 회차</b><span>${status === "actual" ? "완료로 처리됨 · 실제 금액을 수정할 수 있습니다." : status === "skipped" ? "이번 달은 건너뜀" : "예정 금액을 확인하고 실제 처리 또는 건너뛰기를 선택해주세요."}</span><label class="occurrence-amount">실제 금액<input id="entryOccurrenceAmount" type="number" min="1" step="1" inputmode="numeric" value="${esc(occurrenceAmount)}"></label></div><div class="occurrence-buttons">${status === "skipped" ? `<button type="button" data-occurrence-status="planned">건너뛰기 취소</button>` : `<button type="button" data-occurrence-status="actual">${status === "actual" ? "실제 금액 저장" : "실제 처리 완료"}</button>${status === "planned" ? `<button type="button" data-occurrence-status="skipped">이번 달 건너뛰기</button>` : `<button type="button" data-occurrence-status="planned">완료 취소</button>`}`}</div>`;
+  } else occurrenceActions.innerHTML = "";
+  updateEntryFields(); $("quickEntry").showModal(); setTimeout(() => $("entryAmount").focus(), 30);
+}
+
+function setOccurrenceStatus(status) {
+  const record = state.editingRecord;
+  if (!record || record.source !== "cashflowRule") return;
+  const ledger = ensureLedger(record.monthKey);
+  if (ledger.closed) { toast("마감된 월은 먼저 마감을 해제해주세요."); return; }
+  if (!ledger.cashflowOccurrences || typeof ledger.cashflowOccurrences !== "object") ledger.cashflowOccurrences = {};
+  if (status === "planned") delete ledger.cashflowOccurrences[record.ruleId];
+  else {
+    const amount = parseAmount($("entryOccurrenceAmount")?.value);
+    if (status === "actual" && amount <= 0) { toast("실제 처리 금액을 입력해주세요."); return; }
+    ledger.cashflowOccurrences[record.ruleId] = { status, ...(status === "actual" ? { amount } : {}), updatedAt: new Date().toISOString() };
+  }
+  $("quickEntry").close(); state.editingRecord = null; queueSave(); renderAll();
+  toast(status === "actual" ? "이번 달 항목을 실제 처리로 표시했습니다." : status === "skipped" ? "이번 달 항목을 건너뛰기로 표시했습니다." : "이번 달 항목을 예정으로 되돌렸습니다.");
+}
+
 function updateEntryPreview() {
   const amountValue = parseAmount($("entryAmount").value);
+  const kind = $("entryKind").value;
+  const preview = $("entryPreview"); preview.className = "entry-preview";
+  if (!amountValue) { preview.textContent = "유형과 계좌를 선택하면 거래 처리 방법을 안내합니다."; return; }
+  if (kind === "income") { preview.textContent = $("entryPayment").value ? `${paymentLabel({ type: "account", id: $("entryPayment").value })}에 수입을 기록합니다.` : "수입이 입금될 계좌를 선택해주세요."; preview.classList.add("good"); return; }
+  if (kind === "transfer") {
+    const from = accountById($("entryPayment").value); const to = accountById($("entryTransferTo").value);
+    if (!from || !to || from.id === to.id) { preview.textContent = "서로 다른 출금 계좌와 입금 계좌를 선택해주세요."; preview.classList.add("warn"); return; }
+    preview.textContent = `${from.name}에서 ${to.name}(으)로 ${fmt(amountValue)} 이체를 기록합니다.`; preview.classList.add("good"); return;
+  }
   const payment = paymentFromValue($("entryPayment").value);
   const usageOwner = document.querySelector('input[name="usageOwner"]:checked')?.value || "J";
   const result = deriveSettlementForTransaction({ amount: amountValue, usageOwner, payment }, state.data.cards, state.data.accounts);
-  const preview = $("entryPreview"); preview.className = "entry-preview";
-  if (!amountValue) { preview.textContent = "금액과 결제 수단을 입력하면 처리 방법을 안내합니다."; return; }
-  if (result.kind === "joint") { preview.textContent = "공동 생활비로 기록됩니다."; preview.classList.add("good"); return; }
+  if (result.kind === "joint") { preview.textContent = "공동 생활비 지출로 기록됩니다."; preview.classList.add("good"); return; }
   if (result.kind === "coveredByAllowance") { preview.textContent = `${ownerName(usageOwner)}의 비공개 용돈으로 처리됩니다. 별도 이체가 필요하지 않습니다.`; preview.classList.add("good"); return; }
   if (result.kind === "reimburse") { preview.textContent = `${ownerName(usageOwner)}의 개인 지출입니다. 연결 계좌로 ${fmt(result.amount)} 이체할 항목이 생깁니다.`; preview.classList.add("warn"); return; }
   preview.textContent = "카드의 연결 계좌 또는 용돈 여부를 자산 화면에서 설정해주세요."; preview.classList.add("warn");
 }
+
+function ensureLedger(monthKey) {
+  if (!state.data.ledgers[monthKey]) state.data.ledgers[monthKey] = blankLedger();
+  if (!state.data.months.includes(monthKey)) state.data.months.push(monthKey);
+  state.data.months.sort();
+  return state.data.ledgers[monthKey];
+}
+
+function syncSettlementForExpense(tx, monthKey, forceReview = false) {
+  const result = deriveSettlementForTransaction(tx, state.data.cards, state.data.accounts);
+  const reviews = state.data.settlementReviews || (state.data.settlementReviews = []);
+  const index = reviews.findIndex((item) => item.sourceTransactionId === tx.id);
+  if (result.kind !== "reimburse") {
+    if (index >= 0 && reviews[index].status !== "confirmed") reviews.splice(index, 1);
+    return result;
+  }
+  const existing = index >= 0 ? reviews[index] : null;
+  const review = { ...(existing || {}), id: existing?.id || `settlement:${tx.id}`, sourceTransactionId: tx.id, monthKey, payerOwner: result.payerOwner, beneficiaryAccountId: result.beneficiaryAccountId, amount: result.amount, status: forceReview ? "review" : (existing?.status || "pending"), source: tx.source || existing?.source || "cashflow", item: tx.item, date: tx.date, category: tx.category, createdAt: existing?.createdAt || new Date().toISOString() };
+  if (index >= 0) reviews[index] = review; else reviews.push(review);
+  return result;
+}
+
+function ensureCashflowRuleReviews(monthKey) {
+  const monthLedger = state.data.ledgers[monthKey];
+  if (monthLedger?.closed) return;
+  const eligible = new Set();
+  for (const rule of state.data.cashflowRules || []) {
+    if (rule.kind !== "expense" || !ruleAppliesInMonth(rule, monthKey) || monthLedger?.cashflowOccurrences?.[rule.id]?.status !== "actual") continue;
+    const id = `${rule.id}@${monthKey}`;
+    if (rule.payment?.type !== "card") continue;
+    eligible.add(id);
+    const day = String(Math.min(Number(rule.day) || 1, daysInMonth(monthKey))).padStart(2, "0");
+    const occurrenceAmount = monthLedger.cashflowOccurrences?.[rule.id]?.amount ?? rule.amount;
+    syncSettlementForExpense({ id, source: "cashflowRule", amount: parseAmount(occurrenceAmount), usageOwner: rule.usageOwner || "J", payment: rule.payment, item: rule.name, date: `${monthKey}-${day}`, category: rule.category || "기타" }, monthKey);
+  }
+  state.data.settlementReviews = (state.data.settlementReviews || []).filter((item) => item.source !== "cashflowRule" || item.monthKey !== monthKey || eligible.has(item.sourceTransactionId));
+}
+
+function findCollectionRecord(record) {
+  const ledger = state.data.ledgers[record.monthKey]; if (!ledger) return null;
+  const collectionName = ({ legacyIncome: "incomes", extraIncome: "extraIncomes", extraExpense: "extraExpenses", accountExpense: "expenses", transfer: "transfers", cardTxn: "cardTxns", fixedExpense: "expenses" })[record.source];
+  if (!collectionName) return null;
+  const collection = ledger[collectionName] || [];
+  let index = collection.findIndex((item) => String(item.id || "") === String(record.id));
+  if (index < 0 && Number.isInteger(record.sourceIndex)) index = record.sourceIndex;
+  if (index < 0 && record.source === "cardTxn") index = Number(String(record.id).split(":card:").at(-1));
+  if (index < 0 && record.source === "fixedExpense") index = (ledger.cardTxns || []).filter((item) => parseAmount(item.amount ?? item.amt) > 0).length + (ledger.expenses || []).filter((item) => item.method === "card").findIndex((item) => String(item.id || "") === String(record.id));
+  return index >= 0 && index < collection.length ? { collection, index, item: collection[index], collectionName, ledger } : null;
+}
+
+function clearOwnerAudit(record) {
+  if (!record.usageOwnerOriginal) return;
+  const auditSource = record.source === "cardTxn" ? "cardTxn" : ["accountExpense", "fixedExpense"].includes(record.source) ? "expense" : record.source;
+  const ids = new Set([String(record.id)]);
+  const ledger = state.data.ledgers[record.monthKey];
+  if (auditSource === "expense" && ledger) {
+    const index = (ledger.expenses || []).findIndex((item) => String(item.id || "") === String(record.id));
+    if (index >= 0) ids.add(`${record.monthKey}:expense:${index}`);
+  }
+  const audits = state.data.migrationAudit?.usageOwnerUnresolved || [];
+  const matches = audits.filter((item) => item.source === auditSource && item.monthKey === record.monthKey && item.original === record.usageOwnerOriginal);
+  state.data.migrationAudit.usageOwnerUnresolved = audits.filter((item) => !(
+    item.source === auditSource && item.monthKey === record.monthKey && item.original === record.usageOwnerOriginal && (ids.has(String(item.sourceId)) || matches.length === 1)
+  ));
+  if (ledger) for (const collection of [ledger.incomes, ledger.expenses, ledger.extraIncomes, ledger.extraExpenses, ledger.cardTxns, ledger.transfers]) {
+    for (const item of collection || []) if (String(item.id || "") === String(record.id)) delete item.usageOwnerOriginal;
+  }
+}
+
+function removeRuleOccurrences(ruleId, fromMonth = "0000-00") {
+  for (const [monthKey, ledger] of Object.entries(state.data.ledgers || {})) {
+    if (monthKey >= fromMonth && ledger.cashflowOccurrences) delete ledger.cashflowOccurrences[ruleId];
+  }
+  state.data.settlementReviews = (state.data.settlementReviews || []).filter((item) => !(item.source === "cashflowRule" && String(item.sourceTransactionId).startsWith(`${ruleId}@`) && item.monthKey >= fromMonth));
+}
+
+function saveEditedRecord(record, fields) {
+  if (record.source === "cashflowRule") {
+    const ruleIndex = (state.data.cashflowRules || []).findIndex((item) => item.id === record.ruleId);
+    const rule = state.data.cashflowRules[ruleIndex];
+    if (!rule) return false;
+    let activeRule = rule;
+    if (record.monthKey > (rule.startMonth || record.monthKey)) {
+      const prior = { ...rule, endMonth: previousMonthKey(record.monthKey) };
+      const next = { ...rule, ...fields.rule, id: `rule-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`, startMonth: record.monthKey, endMonth: rule.endMonth || "" };
+      state.data.cashflowRules.splice(ruleIndex, 1, prior, next);
+      for (const [monthKey, ledger] of Object.entries(state.data.ledgers || {})) {
+        if (monthKey < record.monthKey) continue;
+        const occurrence = ledger.cashflowOccurrences?.[rule.id];
+        if (occurrence) {
+          ledger.cashflowOccurrences[next.id] = occurrence;
+          delete ledger.cashflowOccurrences[rule.id];
+        }
+      }
+      state.data.settlementReviews = (state.data.settlementReviews || []).map((review) => {
+        const prefix = `${rule.id}@`;
+        if (review.source !== "cashflowRule" || !String(review.sourceTransactionId).startsWith(prefix) || review.monthKey < record.monthKey) return review;
+        const sourceTransactionId = `${next.id}@${review.monthKey}`;
+        return { ...review, id: `settlement:${sourceTransactionId}`, sourceTransactionId, status: "review" };
+      });
+      activeRule = next;
+    } else Object.assign(rule, fields.rule);
+    if (activeRule.kind === "expense" && activeRule.payment?.type === "card") {
+      const id = `${activeRule.id}@${record.monthKey}`;
+      const day = String(Math.min(Number(activeRule.day) || 1, daysInMonth(record.monthKey))).padStart(2, "0");
+      const occurrenceAmount = state.data.ledgers[record.monthKey]?.cashflowOccurrences?.[activeRule.id]?.amount ?? activeRule.amount;
+      syncSettlementForExpense({ id, source: "cashflowRule", amount: parseAmount(occurrenceAmount), usageOwner: activeRule.usageOwner || "J", payment: activeRule.payment, item: activeRule.name, date: `${record.monthKey}-${day}`, category: activeRule.category || "기타" }, record.monthKey, true);
+    }
+    return true;
+  }
+  const found = findCollectionRecord(record); if (!found) return false;
+  const { item, collection, index, collectionName, ledger } = found;
+  if (record.source === "transfer") Object.assign(item, { name: fields.item, amt: fields.amount, amount: fields.amount, from: fields.from, to: fields.to, day: fields.day, date: fields.date, auto: record.frequency === "monthly" });
+  else if (record.source === "legacyIncome" || record.source === "extraIncome") Object.assign(item, { name: fields.item, amt: fields.amount, amount: fields.amount, owner: fields.owner, usageOwner: fields.owner, acc: fields.accountId, date: record.source === "extraIncome" && record.frequency !== "monthly" ? fields.date : item.date, day: fields.day, payDay: fields.day, freq: record.source === "extraIncome" ? record.frequency : "monthly" });
+  else {
+    const nowCard = fields.payment.type === "card";
+    const replacement = { ...item, name: fields.item, item: fields.item, amt: fields.amount, amount: fields.amount, owner: fields.owner, usageOwner: fields.owner, cat: fields.category, category: fields.category, date: fields.date, day: fields.day, payment: fields.payment, method: nowCard ? "card" : "acc", ref: fields.payment.id, acc: nowCard ? item.acc || "" : fields.payment.id, cardId: nowCard ? fields.payment.id : item.cardId };
+    if (record.source === "extraExpense" && nowCard) {
+      collection.splice(index, 1);
+      ledger.cardTxns.push({ ...replacement, id: record.id });
+    } else if (record.source === "cardTxn" && !nowCard) {
+      collection.splice(index, 1);
+      ledger.extraExpenses.push({ ...replacement, id: record.id, freq: "once" });
+    } else Object.assign(item, replacement);
+    if (nowCard) syncSettlementForExpense({ id: record.id, amount: fields.amount, usageOwner: fields.owner, payment: fields.payment, item: fields.item, date: fields.date, category: fields.category, source: "edit" }, record.monthKey, true);
+    else {
+      const reviewIndex = state.data.settlementReviews.findIndex((entry) => entry.sourceTransactionId === record.id);
+      if (reviewIndex >= 0 && state.data.settlementReviews[reviewIndex].status !== "confirmed") state.data.settlementReviews.splice(reviewIndex, 1);
+    }
+  }
+  clearOwnerAudit(record);
+  return true;
+}
+
+function deleteCashflowRecord(record) {
+  if (state.data.ledgers[record.monthKey]?.closed) { toast("마감된 월은 먼저 마감을 해제해주세요."); return; }
+  if (!confirm(`‘${record.item}’ 기록을 삭제할까요? 연결된 정산 검토도 함께 삭제됩니다.`)) return;
+  if (record.source === "cashflowRule") {
+    const rule = (state.data.cashflowRules || []).find((item) => item.id === record.ruleId);
+    if (!rule) { toast("정기 항목을 찾을 수 없습니다."); return; }
+    if (record.monthKey > (rule.startMonth || record.monthKey)) {
+      rule.endMonth = previousMonthKey(record.monthKey);
+      removeRuleOccurrences(record.ruleId, record.monthKey);
+    } else {
+      state.data.cashflowRules = state.data.cashflowRules.filter((item) => item.id !== record.ruleId);
+      removeRuleOccurrences(record.ruleId);
+    }
+  } else {
+    const found = findCollectionRecord(record);
+    if (!found) { toast("기록을 찾을 수 없습니다."); return; }
+    clearOwnerAudit(record);
+    found.collection.splice(found.index, 1);
+    state.data.settlementReviews = (state.data.settlementReviews || []).filter((item) => item.sourceTransactionId !== record.id);
+  }
+  $("quickEntry").close(); state.editingRecord = null; queueSave(); renderAll(); toast("거래를 삭제했습니다.");
+}
+
 function addTransactionFromForm(event) {
   event.preventDefault();
-  const ledger = currentLedger();
-  if (ledger.closed) { toast("마감된 월은 먼저 마감을 해제해주세요."); $("quickEntry").close(); return; }
   const form = new FormData(event.currentTarget);
-  const payment = paymentFromValue(form.get("payment"));
-  const tx = normalizeTransactionInput({ amount: form.get("amount"), item: form.get("item"), category: form.get("category"), date: form.get("date"), monthKey: state.selectedMonth, usageOwner: form.get("usageOwner"), payment });
-  if (!tx.item || tx.amount <= 0) { toast("항목과 금액을 입력해주세요."); return; }
-  if (payment.type === "card") ledger.cardTxns.push({ id: tx.id, cardId: payment.id, date: tx.date, item: tx.item, amt: tx.amount, amount: tx.amount, owner: tx.usageOwner, usageOwner: tx.usageOwner, cat: tx.category, payment, monthKey: tx.monthKey });
-  else ledger.expenses.push({ id: tx.id, name: tx.item, amt: tx.amount, amount: tx.amount, owner: tx.usageOwner, usageOwner: tx.usageOwner, cat: tx.category, method: "acc", ref: payment.id, acc: payment.id, day: Number(tx.date.slice(-2)) });
-  const result = deriveSettlementForTransaction(tx, state.data.cards, state.data.accounts);
-  if (result.kind === "reimburse") state.data.settlementReviews.push({ id: `settlement:${tx.id}`, sourceTransactionId: tx.id, monthKey: tx.monthKey, payerOwner: result.payerOwner, beneficiaryAccountId: result.beneficiaryAccountId, amount: result.amount, status: "pending", source: "new", item: tx.item, date: tx.date, category: tx.category, createdAt: new Date().toISOString() });
-  if (result.kind === "needsSetup") toast("기록은 저장했지만 결제 수단 설정이 필요합니다."); else toast(result.kind === "coveredByAllowance" ? "용돈 처리로 기록했습니다." : result.kind === "reimburse" ? "정산 필요 항목을 만들었습니다." : "공동 지출로 기록했습니다.");
+  const kind = state.editingRecord?.kind || form.get("kind"); const frequency = state.editingRecord?.frequency || form.get("frequency");
+  const amountValue = parseAmount(form.get("amount")); const item = String(form.get("item") || "").trim();
+  const category = form.get("category") || "기타"; const owner = form.get("usageOwner") || "J";
+  const paymentValue = String(form.get("payment") || ""); const day = Math.min(31, Math.max(1, Number(form.get("day")) || 1));
+  const date = frequency === "monthly" ? `${state.selectedMonth}-${String(Math.min(day, daysInMonth(state.selectedMonth))).padStart(2, "0")}` : String(form.get("date") || "");
+  const payment = kind === "expense" ? paymentFromValue(paymentValue) : null;
+  const fromAccountId = kind === "transfer" ? paymentValue : ""; const toAccountId = String(form.get("toAccount") || "");
+  if (!item || amountValue <= 0) { toast("항목과 0보다 큰 금액을 입력해주세요."); return; }
+  if (kind === "expense" && (!payment?.id || (payment.type !== "account" && payment.type !== "card"))) { toast("지출 계좌 또는 카드를 선택해주세요."); return; }
+  if (kind === "income" && !accountById(paymentValue)) { toast("수입이 입금될 계좌를 선택해주세요."); return; }
+  if (kind === "transfer" && (!accountById(fromAccountId) || !accountById(toAccountId) || fromAccountId === toAccountId)) { toast("서로 다른 출금 계좌와 입금 계좌를 선택해주세요."); return; }
+  const monthKey = frequency === "monthly" ? state.selectedMonth : date.slice(0, 7);
+  if (frequency === "once" && !/^\d{4}-\d{2}-\d{2}$/.test(date)) { toast("거래일을 선택해주세요."); return; }
+  const ledger = ensureLedger(monthKey);
+  if (ledger.closed) { toast("마감된 월은 먼저 마감을 해제해주세요."); return; }
+  const rule = { kind, name: item, amount: amountValue, category, usageOwner: owner, day, startMonth: state.selectedMonth, accountId: kind === "income" ? paymentValue : "", fromAccountId, toAccountId };
+  if (kind === "expense") rule.payment = payment;
+  const fields = { kind, item, amount: amountValue, category, owner, day: Number(date.slice(-2)) || day, date, accountId: paymentValue, payment, from: fromAccountId, to: toAccountId, rule };
+  if (state.editingRecord) {
+    const record = state.editingRecord;
+    if (record.frequency !== "monthly" && date.slice(0, 7) !== record.monthKey) { toast("거래 날짜는 기존 기록과 같은 월 안에서 변경해주세요."); return; }
+    if (!saveEditedRecord(record, fields)) { toast("기록을 찾지 못해 수정하지 못했습니다."); return; }
+    $("quickEntry").close(); state.editingRecord = null; queueSave(); renderAll(); toast("거래를 수정했습니다."); return;
+  }
+  if (frequency === "monthly") {
+    state.data.cashflowRules.push({ id: `rule-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`, ...fields.rule });
+    toast("매월 반복되는 정기 항목으로 등록했습니다.");
+  } else {
+    const id = `flow-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+    if (kind === "income") ledger.extraIncomes.push({ id, name: item, amt: amountValue, amount: amountValue, owner, usageOwner: owner, freq: "once", date, day: Number(date.slice(-2)), acc: paymentValue });
+    else if (kind === "transfer") ledger.transfers.push({ id, name: item, from: fromAccountId, to: toAccountId, amt: amountValue, amount: amountValue, date, day: Number(date.slice(-2)), auto: false });
+    else if (payment.type === "card") {
+      const tx = { id, cardId: payment.id, date, item, amt: amountValue, amount: amountValue, owner, usageOwner: owner, cat: category, payment, monthKey };
+      ledger.cardTxns.push(tx);
+      const result = syncSettlementForExpense({ ...tx, id, source: "cashflow" }, monthKey);
+      if (result.kind === "needsSetup") toast("기록은 저장했지만 카드의 결제 계좌 설정이 필요합니다.");
+      else if (result.kind === "coveredByAllowance") toast("용돈 처리로 기록했습니다.");
+      else if (result.kind === "reimburse") toast("정산 검토 항목을 만들었습니다.");
+    } else ledger.extraExpenses.push({ id, name: item, amt: amountValue, amount: amountValue, owner, usageOwner: owner, cat: category, freq: "once", date, day: Number(date.slice(-2)), acc: payment.id, payment });
+    if (state.recordFilter !== "all") state.recordFilter = "all";
+    state.selectedMonth = monthKey;
+    toast(kind === "income" ? "수입을 기록했습니다." : kind === "transfer" ? "계좌 이체를 기록했습니다." : "지출을 기록했습니다.");
+  }
   $("quickEntry").close(); queueSave(); renderAll();
 }
 
@@ -605,7 +994,7 @@ function renderAnalytics() {
   const types = {}; accounts.forEach((account) => { types[account.type || "기타"] = (types[account.type || "기타"] || 0) + parseAmount(account.amt); });
   destroyChart("assets");
   state.charts.assets = new Chart($("chartAssets"), { type: "doughnut", data: { labels: Object.keys(types).length ? Object.keys(types) : ["자산 없음"], datasets: [{ data: Object.keys(types).length ? Object.values(types) : [1], backgroundColor: COLORS, borderColor: getComputedStyle(document.documentElement).getPropertyValue("--surface").trim(), borderWidth: 3 }] }, options: { ...chartDefaults(), cutout: "62%", maintainAspectRatio: false, onClick: (_event, elements) => { if (!elements.length || !Object.keys(types).length) return; const type = Object.keys(types)[elements[0].index]; const detailRecords = accounts.filter((account) => (account.type || "기타") === type).map((account) => ({ id: `asset:${account.id}`, item: account.name, date: "현재", category: account.type || "기타", amount: parseAmount(account.amt), usageOwner: account.owner, paymentLabel: "자산" })); openAnalyticsDetail(`${type} 계좌`, detailRecords); } } });
-  const months = allMonths(); const trendValues = months.map((monthKey) => totalExpenses(monthKey));
+  const months = allMonths().filter((monthKey) => monthKey <= CURRENT_MONTH); const trendValues = months.map((monthKey) => totalExpenses(monthKey));
   destroyChart("trend");
   state.charts.trend = new Chart($("chartTrend"), { type: "line", data: { labels: months.map(monthLabel), datasets: [{ label: "월 지출", data: trendValues, borderColor: "#2868d7", backgroundColor: "rgba(40,104,215,.12)", fill: true, tension: .3, pointRadius: 4, pointHoverRadius: 6 }] }, options: { ...chartDefaults(), maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { callback: (value) => fmtShort(value) }, grid: { color: getComputedStyle(document.documentElement).getPropertyValue("--line").trim() } }, x: { grid: { display: false } } }, onClick: (_event, elements) => { if (!elements.length) return; const key = months[elements[0].index]; openAnalyticsDetail(`${monthLabel(key)} 지출`, allRecords(key)); } } });
 }
@@ -645,19 +1034,24 @@ function openDetail(title, records = []) {
   $("detailDialog").showModal();
 }
 
-function renderAll() { updateMonthSelects(); renderDashboard(); renderRecords(); renderSettlements(); renderAssets(); renderAnalytics(); updateNavBadge(); }
+function renderAll() { ensureCashflowRuleReviews(state.selectedMonth); updateMonthSelects(); renderDashboard(); renderRecords(); renderSettlements(); renderAssets(); renderAnalytics(); updateNavBadge(); }
 function updateNavBadge() { const count = pendingReviews().length; $("navBadge").textContent = String(count); $("navBadge").hidden = count === 0; }
 
 function bindEvents() {
   document.querySelectorAll("[data-open-screen]").forEach((button) => button.addEventListener("click", () => setScreen(button.dataset.openScreen)));
   $("monthSelect").addEventListener("change", (event) => { state.selectedMonth = event.target.value; state.analyticsDetail = null; renderAll(); });
-  $("recordMonthSelect").addEventListener("change", (event) => { state.selectedMonth = event.target.value; state.analyticsDetail = null; renderRecords(); renderSettlements(); });
+  $("recordMonthSelect").addEventListener("change", (event) => { state.selectedMonth = event.target.value; state.analyticsDetail = null; renderAll(); });
   $("analyticsMonthSelect").addEventListener("change", (event) => { state.selectedMonth = event.target.value; state.analyticsDetail = null; renderAnalytics(); });
   $("recordFilters").addEventListener("click", (event) => { const button = event.target.closest("[data-filter]"); if (!button) return; state.recordFilter = button.dataset.filter; document.querySelectorAll("#recordFilters .segment").forEach((item) => item.classList.toggle("active", item === button)); renderRecords(); });
   $("openQuickEntry").addEventListener("click", openQuickEntry); $("openQuickEntryRecords").addEventListener("click", openQuickEntry);
   $("quickEntryForm").addEventListener("submit", addTransactionFromForm);
+  $("entryOccurrenceActions").addEventListener("click", (event) => { const button = event.target.closest("[data-occurrence-status]"); if (button) setOccurrenceStatus(button.dataset.occurrenceStatus); });
   ["entryAmount", "entryItem", "entryPayment"].forEach((id) => $(id).addEventListener("input", updateEntryPreview));
-  $("entryPayment").addEventListener("change", updateEntryPreview); document.querySelectorAll('input[name="usageOwner"]').forEach((input) => input.addEventListener("change", updateEntryPreview));
+  $("entryPayment").addEventListener("change", () => { if ($("entryKind").value === "transfer") updateEntryFields(); else updateEntryPreview(); });
+  $("entryTransferTo").addEventListener("change", updateEntryPreview);
+  $("entryKind").addEventListener("change", updateEntryFields); $("entryFrequency").addEventListener("change", updateEntryFields);
+  document.querySelectorAll('input[name="usageOwner"]').forEach((input) => input.addEventListener("change", updateEntryPreview));
+  $("deleteEntryBtn").addEventListener("click", () => { if (state.editingRecord) deleteCashflowRecord(state.editingRecord); });
   $("saveBtn").addEventListener("click", async () => { saveLocal(true); await saveCloud(); });
   $("loadBtn").addEventListener("click", async () => { await loadCloud(true); });
   $("exportBtn").addEventListener("click", exportBackup);
@@ -678,7 +1072,7 @@ function bindEvents() {
   });
   $("addCfA").addEventListener("click", () => addHousingEntry("A")); $("addCfB").addEventListener("click", () => addHousingEntry("B")); $("calcHousingBtn").addEventListener("click", calculateHousing);
   $("closeDetail").addEventListener("click", () => $("detailDialog").close());
-  document.addEventListener("click", (event) => { const record = event.target.closest("[data-record-id]"); if (record && !$("detailDialog").open) { const item = allRecords().find((entry) => entry.id === record.dataset.recordId); if (item) openDetail(item.item, [item]); } });
+  document.addEventListener("click", (event) => { const record = event.target.closest("[data-record-id]"); if (record && !$("detailDialog").open) { const item = cashflowRecords().find((entry) => String(entry.id) === record.dataset.recordId); if (item) openDetail(item.item, [item]); } });
 }
 
 const savedTheme = localStorage.getItem("sohakPlannerTheme"); if (savedTheme) document.documentElement.dataset.theme = savedTheme;

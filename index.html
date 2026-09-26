@@ -73,8 +73,8 @@
 
       <section class="screen" id="records" data-screen="records" aria-labelledby="recordsTitle">
         <div class="screen-heading">
-          <div><p class="eyebrow">RECORDS</p><h2 id="recordsTitle">거래 기록</h2><p class="muted">카드와 계좌 사용 내역을 목적 중심으로 관리합니다.</p></div>
-          <button class="primary-btn large" id="openQuickEntryRecords" type="button">＋ 지출 기록</button>
+          <div><p class="eyebrow">RECORDS</p><h2 id="recordsTitle">거래 기록</h2><p class="muted">수입·지출·계좌 이체를 기록하고, 항목을 눌러 수정할 수 있습니다.</p></div>
+          <button class="primary-btn large" id="openQuickEntryRecords" type="button">＋ 거래 추가</button>
         </div>
         <div class="toolbar-row">
           <div class="segmented" id="recordFilters" role="group" aria-label="거래 필터">
@@ -87,7 +87,7 @@
           <label class="field-inline"><span>월</span><select id="recordMonthSelect" aria-label="거래 월"></select></label>
         </div>
         <div class="notice" id="migrationNotice" hidden></div>
-        <div class="panel table-panel"><div class="table-head"><span>날짜·항목</span><span>사용 목적</span><span>결제 수단</span><span class="align-right">금액</span></div><div id="recordList" class="record-table"></div></div>
+        <div class="panel table-panel"><div class="table-head"><span>날짜·항목</span><span>사용 목적</span><span>결제 수단·계좌</span><span class="align-right">금액</span></div><div id="recordList" class="record-table"></div></div>
       </section>
 
       <section class="screen" id="settlements" data-screen="settlements" aria-labelledby="settlementsTitle">
@@ -124,12 +124,13 @@
 
   <dialog class="modal" id="quickEntry">
     <form method="dialog" id="quickEntryForm">
-      <div class="modal-heading"><div><p class="eyebrow">QUICK ENTRY</p><h2>지출 기록</h2></div><button class="icon-btn" value="cancel" aria-label="닫기">×</button></div>
+      <div class="modal-heading"><div><p class="eyebrow">CASH FLOW</p><h2 id="entryDialogTitle">거래 추가</h2></div><button class="icon-btn" value="cancel" aria-label="닫기">×</button></div>
       <div class="amount-field"><span>금액</span><input id="entryAmount" name="amount" inputmode="numeric" autocomplete="off" placeholder="0" required><b>원</b></div>
-      <div class="form-grid"><label class="field"><span>항목</span><input id="entryItem" name="item" placeholder="예: 친구들과 저녁" required></label><label class="field"><span>카테고리</span><select id="entryCategory" name="category"><option>식비</option><option>주거/공과</option><option>교통</option><option>통신</option><option>데이트/여가</option><option>쇼핑</option><option>의료</option><option>교육</option><option>경조사</option><option>저축/투자</option><option>기타</option></select></label><label class="field"><span>사용일</span><input id="entryDate" name="date" type="date" required></label><label class="field"><span>결제 수단</span><select id="entryPayment" name="payment"></select></label></div>
-      <fieldset class="purpose-field"><legend>누구를 위한 지출인가요?</legend><div class="purpose-options"><label><input type="radio" name="usageOwner" value="J" checked><span>공동</span></label><label><input type="radio" name="usageOwner" value="A"><span id="purposeA">나</span></label><label><input type="radio" name="usageOwner" value="B"><span id="purposeB">상대방</span></label></div></fieldset>
-      <div class="entry-preview" id="entryPreview">금액과 결제 수단을 입력하면 처리 방법을 안내합니다.</div>
-      <div class="modal-actions"><button class="outline-btn" value="cancel">취소</button><button class="primary-btn" id="saveEntryBtn" value="default">저장</button></div>
+      <div class="form-grid"><label class="field"><span>구분</span><select id="entryKind" name="kind"><option value="expense">지출</option><option value="income">수입</option><option value="transfer">계좌 이체</option></select></label><label class="field"><span>주기</span><select id="entryFrequency" name="frequency"><option value="once">1회성</option><option value="monthly">매월 정기</option></select></label><label class="field"><span>항목</span><input id="entryItem" name="item" placeholder="예: 친구들과 저녁" required></label><label class="field" id="entryCategoryField"><span>카테고리</span><select id="entryCategory" name="category"><option>식비</option><option>주거/공과</option><option>교통</option><option>통신</option><option>데이트/여가</option><option>쇼핑</option><option>의료</option><option>교육</option><option>경조사</option><option>저축/투자</option><option>기타</option></select></label><label class="field" id="entryDateField"><span>거래일</span><input id="entryDate" name="date" type="date" required></label><label class="field" id="entryDayField" hidden><span>매월 실행일</span><input id="entryDay" name="day" type="number" min="1" max="31" value="1" inputmode="numeric"></label><label class="field" id="entryPaymentField"><span id="entryPaymentLabel">결제 수단</span><select id="entryPayment" name="payment"></select></label><label class="field" id="entryTransferToField" hidden><span>받는 계좌</span><select id="entryTransferTo" name="toAccount"></select></label></div>
+      <fieldset class="purpose-field" id="entryPurposeField"><legend id="entryPurposeLegend">누구를 위한 지출인가요?</legend><div class="purpose-options"><label><input type="radio" name="usageOwner" value="J" checked><span>공동</span></label><label><input type="radio" name="usageOwner" value="A"><span id="purposeA">나</span></label><label><input type="radio" name="usageOwner" value="B"><span id="purposeB">상대방</span></label></div></fieldset>
+      <div class="occurrence-actions" id="entryOccurrenceActions" hidden></div>
+      <div class="entry-preview" id="entryPreview">유형과 계좌를 선택하면 거래 처리 방법을 안내합니다.</div>
+      <div class="modal-actions"><button class="outline-btn danger-action" id="deleteEntryBtn" type="button" hidden>삭제</button><span class="modal-actions-spacer"></span><button class="outline-btn" value="cancel">취소</button><button class="primary-btn" id="saveEntryBtn" value="default">저장</button></div>
     </form>
   </dialog>
 
