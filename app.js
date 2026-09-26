@@ -18,7 +18,7 @@ const COLORS = ["#2868d7", "#159e9b", "#7659c9", "#e28c43", "#bd4c65", "#6f8ea9"
 const CATEGORIES = ["식비", "주거/공과", "교통", "통신", "데이트/여가", "쇼핑", "의료", "교육", "경조사", "저축/투자", "기타"];
 const LOAN_REPAY_LABELS = { eq: "원리금균등", pr: "원금균등", io: "만기일시·이자 매월", iod: "만기일시·이자 만기", graduate: "원리금체증식", custom: "월별 직접입력" };
 const LOAN_KIND_LABELS = { bank: "은행 대출", family: "가족·지인 차용" };
-const state = { data: null, screen: "dashboard", selectedMonth: CURRENT_MONTH, forecastDays: 90, recordFilter: "all", recordTypeFilter: "all", settlementTransferId: null, loanEditingId: null, loanDraft: null, loanScheduleId: null, loanPaymentContext: null, cardPaymentContext: null, deferredInstallPrompt: null, charts: {}, detail: null, analyticsDetail: null, cloudDb: null, saveTimer: null, housingCalculated: false, editingRecord: null };
+const state = { data: null, screen: "dashboard", selectedMonth: CURRENT_MONTH, forecastDays: 90, recordFilter: "all", recordTypeFilter: "all", settlementTransferId: null, loanEditingId: null, loanDraft: null, loanScheduleId: null, loanPaymentContext: null, cardPaymentContext: null, deferredInstallPrompt: null, charts: {}, detail: null, analyticsDetail: null, cloudDb: null, saveTimer: null, localDirty: false, housingCalculated: false, editingRecord: null };
 const RECORD_TYPES = [
   ["all", "전체"], ["recurring-income", "정기 수입"], ["recurring-expense", "정기 지출"],
   ["once-income", "비정기 수입"], ["once-expense", "비정기 지출"], ["transfer", "계좌 이체"]
@@ -154,8 +154,8 @@ function storeSourceBackup(key, data, source = "legacy") {
 
 function storedDataCount(data) {
   if (!data || typeof data !== "object") return 0;
-  const fields = ["incomes", "expenses", "extraIncomes", "extraExpenses", "cardTxns", "transfers"];
-  let count = ["accounts", "cards", "loans", "goals", "cfA", "cfB", "cashflowRules"].reduce((total, key) => total + (Array.isArray(data[key]) ? data[key].length : 0), 0);
+  const fields = ["incomes", "expenses", "extraIncomes", "extraExpenses", "cardTxns", "transfers", "loanPayments", "cardPayments"];
+  let count = ["accounts", "cards", "loans", "goals", "cfA", "cfB", "cashflowRules", "settlementReviews"].reduce((total, key) => total + (Array.isArray(data[key]) ? data[key].length : 0), 0);
   const ledgers = data.ledgers && typeof data.ledgers === "object" ? Object.values(data.ledgers) : [];
   for (const ledger of ledgers) for (const key of fields) count += Array.isArray(ledger?.[key]) ? ledger[key].length : 0;
   if (!ledgers.length) for (const key of fields) count += Array.isArray(data[key]) ? data[key].length : 0;
@@ -193,12 +193,15 @@ function loadLocal() {
   if (!sourceBackupStored) toast("원본 데이터를 브라우저에 백업하지 못했습니다. 저장 공간을 확인하고 백업 파일을 내려받아주세요.");
 }
 
-function saveLocal(showToast = true) {
+function saveLocal(showToast = true, updateTimestamp = true) {
   if (!state.data) return;
-  const payload = { ...state.data, currentMonth: state.selectedMonth, updatedAt: new Date().toISOString() };
+  const updatedAt = updateTimestamp ? new Date().toISOString() : (state.data.updatedAt || new Date().toISOString());
+  state.data.updatedAt = updatedAt;
+  const payload = { ...state.data, currentMonth: state.selectedMonth, updatedAt };
   try {
     localStorage.setItem("sohakPlannerV2:lastBackup", JSON.stringify(payload));
     localStorage.setItem("sohakPlannerV2", JSON.stringify(payload));
+    state.localDirty = false;
     setSaveStatus("저장됨 · " + new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }), "ok");
     if (showToast) toast("현재 데이터가 저장되었습니다.");
   } catch (error) {
@@ -249,9 +252,13 @@ function importBackup(file) {
 }
 
 function queueSave() {
+  state.localDirty = true;
   setSaveStatus("저장 대기 중", "pending");
   clearTimeout(state.saveTimer);
-  state.saveTimer = setTimeout(() => saveLocal(false), 900);
+  state.saveTimer = setTimeout(() => {
+    saveLocal(false);
+    if (state.cloudDb) void saveCloud();
+  }, 900);
 }
 
 async function initCloud() {
@@ -287,16 +294,27 @@ async function loadCloud(showToast = false) {
     const path = cloudDocumentPath();
     const snap = await state.cloudDb.collection(path[0]).doc(path[1]).get();
     if (!snap.exists) {
+      if (state.localDirty) { clearTimeout(state.saveTimer); saveLocal(false); }
+      if (storedDataCount(state.data) > 0) { await saveCloud(); return; }
       setSaveStatus("Firebase에 저장된 데이터가 없습니다", "warning");
       if (showToast) toast("Firebase에 저장된 데이터가 없습니다.");
       return;
     }
     const raw = snap.data();
     const sourceBackupStored = storeSourceBackup("sohakPlannerV2:cloudBackup", raw, "firestore");
+    if (state.localDirty) { clearTimeout(state.saveTimer); saveLocal(false); }
+    const localUpdatedAt = Date.parse(state.data?.updatedAt || "") || 0;
+    const cloudUpdatedAt = Date.parse(raw.updatedAt || "") || 0;
+    const localHasData = storedDataCount(state.data) > 0;
+    if (localHasData && (state.localDirty || localUpdatedAt > cloudUpdatedAt || (!localUpdatedAt && !cloudUpdatedAt))) {
+      await saveCloud();
+      if (showToast) toast("이 기기에 더 최신인 데이터가 있어 Firebase에 반영했습니다.");
+      return;
+    }
     state.data = ensureData(raw);
     const months = allMonths();
     state.selectedMonth = months.includes(state.data.currentMonth) ? state.data.currentMonth : (months.at(-1) || CURRENT_MONTH);
-    saveLocal(false);
+    saveLocal(false, false);
     renderAll();
     setSaveStatus(sourceBackupStored ? "Firebase에서 불러옴" : "Firebase에서 불러왔지만 원본 백업 저장 공간이 부족합니다", sourceBackupStored ? "ok" : "warning");
     if (showToast) toast("Firebase 데이터를 불러왔습니다.");
@@ -310,7 +328,9 @@ async function saveCloud() {
   if (!state.cloudDb) return;
   try {
     const path = cloudDocumentPath();
-    await state.cloudDb.collection(path[0]).doc(path[1]).set({ ...state.data, currentMonth: state.selectedMonth, updatedAt: new Date().toISOString() });
+    const updatedAt = state.data.updatedAt || new Date().toISOString();
+    state.data.updatedAt = updatedAt;
+    await state.cloudDb.collection(path[0]).doc(path[1]).set({ ...state.data, currentMonth: state.selectedMonth, updatedAt });
     setSaveStatus("Firebase 저장됨", "ok");
   } catch { setSaveStatus("Firebase 저장 실패 · 로컬 저장됨", "warning"); }
 }
@@ -1812,6 +1832,11 @@ function bindInstallPrompt() {
 }
 
 function bindEvents() {
+  window.addEventListener("pagehide", () => {
+    if (!state.localDirty) return;
+    clearTimeout(state.saveTimer);
+    saveLocal(false);
+  });
   $("monthSelect").addEventListener("change", (event) => { state.selectedMonth = event.target.value; state.analyticsDetail = null; renderAll(); });
   $("recordMonthSelect").addEventListener("change", (event) => { state.selectedMonth = event.target.value; state.analyticsDetail = null; renderAll(); });
   $("analyticsMonthSelect").addEventListener("change", (event) => { state.selectedMonth = event.target.value; state.analyticsDetail = null; renderAnalytics(); });
