@@ -18,7 +18,7 @@ const COLORS = ["#2868d7", "#159e9b", "#7659c9", "#e28c43", "#bd4c65", "#6f8ea9"
 const CATEGORIES = ["식비", "주거/공과", "교통", "통신", "데이트/여가", "쇼핑", "의료", "교육", "경조사", "저축/투자", "기타"];
 const LOAN_REPAY_LABELS = { eq: "원리금균등", pr: "원금균등", io: "만기일시·이자 매월", iod: "만기일시·이자 만기", graduate: "원리금체증식", custom: "월별 직접입력" };
 const LOAN_KIND_LABELS = { bank: "은행 대출", family: "가족·지인 차용" };
-const state = { data: null, screen: "dashboard", selectedMonth: CURRENT_MONTH, forecastDays: 90, recordFilter: "all", recordTypeFilter: "all", settlementTransferId: null, loanEditingId: null, loanDraft: null, loanScheduleId: null, loanPaymentContext: null, charts: {}, detail: null, analyticsDetail: null, cloudDb: null, saveTimer: null, housingCalculated: false, editingRecord: null };
+const state = { data: null, screen: "dashboard", selectedMonth: CURRENT_MONTH, forecastDays: 90, recordFilter: "all", recordTypeFilter: "all", settlementTransferId: null, loanEditingId: null, loanDraft: null, loanScheduleId: null, loanPaymentContext: null, cardPaymentContext: null, deferredInstallPrompt: null, charts: {}, detail: null, analyticsDetail: null, cloudDb: null, saveTimer: null, housingCalculated: false, editingRecord: null };
 const RECORD_TYPES = [
   ["all", "전체"], ["recurring-income", "정기 수입"], ["recurring-expense", "정기 지출"],
   ["once-income", "비정기 수입"], ["once-expense", "비정기 지출"], ["transfer", "계좌 이체"]
@@ -45,7 +45,7 @@ function ownerClass(owner) { return owner === "A" ? "person-a" : owner === "B" ?
 function toast(message) { const el = $("toast"); el.textContent = message; el.classList.add("show"); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.remove("show"), 2600); }
 function setSaveStatus(text, kind = "") { const el = $("saveStatus"); el.textContent = text; el.dataset.kind = kind; }
 function currentLedger() { return state.data.ledgers[state.selectedMonth] || (state.data.ledgers[state.selectedMonth] = blankLedger()); }
-function blankLedger() { return { incomes: [], expenses: [], extraIncomes: [], extraExpenses: [], cardTxns: [], transfers: [], loanPayments: [], settlementReviews: [], cashflowOccurrences: {} }; }
+function blankLedger() { return { incomes: [], expenses: [], extraIncomes: [], extraExpenses: [], cardTxns: [], transfers: [], loanPayments: [], cardPayments: [], settlementReviews: [], cashflowOccurrences: {} }; }
 function allMonths() {
   const months = new Set([...(state.data.months || []), ...Object.keys(state.data.ledgers || {})]);
   if (state.data.cashflowRules?.length) {
@@ -94,10 +94,11 @@ function ensureData(raw) {
   data.cfB ||= [];
   data.settlementReviews ||= [];
   if (!Array.isArray(data.cashflowRules)) data.cashflowRules = [];
-  for (const key of data.months) {
+  for (const key of new Set([...data.months, ...Object.keys(data.ledgers || {})])) {
     const ledger = data.ledgers[key] = { ...blankLedger(), ...(data.ledgers[key] || {}) };
     if (!ledger.cashflowOccurrences || typeof ledger.cashflowOccurrences !== "object") ledger.cashflowOccurrences = {};
-    for (const collection of ["incomes", "extraIncomes", "extraExpenses", "transfers", "loanPayments"]) {
+    for (const collection of ["incomes", "extraIncomes", "extraExpenses", "transfers", "loanPayments", "cardPayments"]) {
+      if (!Array.isArray(ledger[collection])) ledger[collection] = [];
       ledger[collection].forEach((item, index) => { if (!item.id) item.id = `${key}:${collection}:${index}`; });
     }
     ledger.cardTxns.forEach((item, index) => { if (!item.id) item.id = `${key}:card:${index}`; });
@@ -485,7 +486,7 @@ function buildCashflowForecast(days = 90) {
   for (const group of cardUsage.values()) {
     const card = cardById(group.cardId);
     if (!card || group.amount <= 0) continue;
-    const fundingType = card.fundingType || (card.isAllowance ? "privateAllowance" : (card.acc || card.fundingAccountId ? "managed" : "external"));
+    const fundingType = card.fundingType || (card.isAllowance ? "privateAllowance" : "managed");
     if (fundingType !== "managed") continue;
     const accountId = String(card.fundingAccountId || card.acc || "");
     const account = accountById(accountId);
@@ -495,8 +496,13 @@ function buildCashflowForecast(days = 90) {
     if (!debitCard && payDay <= 0) continue;
     const dueMonth = debitCard ? group.monthKey : nextMonthKey(group.monthKey);
     const dueDate = dateInMonth(dueMonth, debitCard ? (payDay || 1) : payDay);
-    const description = `${monthLabel(group.monthKey)} 사용분 · ${group.count}건`;
-    addEvent({ id: `card-settlement:${group.cardId}@${group.monthKey}`, date: dueDate, title: `${card.name || "카드"} 결제`, kind: "card", amount: group.amount, detail: description, status: "planned", accountLabel: account?.name || (accountId ? "연결 계좌 확인 필요" : "결제 계좌 미설정"), deltas: accountId ? { [accountId]: -group.amount } : {} });
+    const payment = (state.data.ledgers[dueMonth]?.cardPayments || []).find((item) => String(item.cardId) === String(group.cardId));
+    const actualAccountId = String(payment?.accountId || accountId);
+    const actualAccount = accountById(actualAccountId);
+    if (actualAccount && !forecastableAccount(actualAccount)) continue;
+    const amount = parseAmount(payment?.amount ?? group.amount);
+    const description = monthLabel(group.monthKey) + " 사용분 · " + group.count + "건 · " + (payment ? "실제 결제 기록" : "예상 결제");
+    addEvent({ id: "card-settlement:" + group.cardId + "@" + group.monthKey, date: payment?.date || dueDate, title: (card.name || "카드") + " 결제", kind: "card", amount, detail: description, status: payment ? "actual" : "planned", accountLabel: actualAccount?.name || (actualAccountId ? "연결 계좌 확인 필요" : "결제 계좌 미설정"), deltas: actualAccountId ? { [actualAccountId]: -amount } : {} });
   }
 
   events.sort((a, b) => a.date.localeCompare(b.date) || a.title.localeCompare(b.title, "ko"));
@@ -546,6 +552,138 @@ function renderCashflowForecast() {
 function monthReviews(monthKey = state.selectedMonth) { return (state.data.settlementReviews || []).filter((item) => item.monthKey === monthKey); }
 function pendingReviews(monthKey = state.selectedMonth) { return monthReviews(monthKey).filter((item) => !["confirmed", "excluded"].includes(item.status)); }
 function totalExpenses(monthKey = state.selectedMonth) { return allRecords(monthKey).reduce((sum, record) => sum + record.amount, 0); }
+
+function managedCard(card) {
+  const fundingType = card?.fundingType || (card?.isAllowance ? "privateAllowance" : "managed");
+  return fundingType === "managed";
+}
+
+function cardRepaymentPlan(dueMonth) {
+  return (state.data.cards || []).filter(managedCard).flatMap((card) => {
+    const debit = ["체크", "check", "debit"].includes(String(card.kind || "").toLowerCase());
+    const payDay = Number(card.payDay) || 0;
+    const usageMonth = debit ? dueMonth : previousMonthKey(dueMonth);
+    const expenses = cashflowRecords(usageMonth).filter((record) => record.kind === "expense" && record.payment?.type === "card" && String(record.payment.id) === String(card.id) && !["skipped", "notOccurred"].includes(record.status));
+    const expectedAmount = expenses.reduce((sum, record) => sum + parseAmount(record.amount), 0);
+    if (expectedAmount <= 0) return [];
+    const payments = (state.data.ledgers[dueMonth]?.cardPayments || []).filter((payment) => String(payment.cardId) === String(card.id));
+    const actualAmount = payments.reduce((sum, payment) => sum + parseAmount(payment.amount), 0);
+    return [{ cardId: card.id, cardName: card.name || "카드", usageMonth, dueMonth, dueDate: debit || payDay > 0 ? dateInMonth(dueMonth, debit ? (payDay || 1) : payDay) : "", dueDayMissing: !debit && payDay <= 0, expectedAmount, expenseCount: expenses.length, accountId: card.fundingAccountId || card.acc || "", payments, actualAmount }];
+  });
+}
+
+function stableJson(value) {
+  if (Array.isArray(value)) return "[" + value.map(stableJson).join(",") + "]";
+  if (value && typeof value === "object") return "{" + Object.keys(value).sort().map((key) => JSON.stringify(key) + ":" + stableJson(value[key])).join(",") + "}";
+  return JSON.stringify(value);
+}
+
+function monthCloseFingerprint(monthKey) {
+  const ledger = state.data.ledgers[monthKey] || blankLedger();
+  const stableRecord = (item) => ({
+    id: item.id || "", date: item.date || "", amount: parseAmount(item.amount ?? item.amt), principal: parseAmount(item.principal), interest: parseAmount(item.interest),
+    item: item.item || item.name || "", category: item.category || item.cat || "", usageOwner: item.usageOwner || item.owner || "J", status: item.status || "", payment: item.payment || null, accountId: item.accountId || item.acc || "", from: item.from || item.fromAccountId || "", to: item.to || item.toAccountId || "", cardId: item.cardId || "", loanId: item.loanId || "", method: item.method || "", frequency: item.frequency || item.freq || ""
+  });
+  const source = {
+    monthKey,
+    accounts: (state.data.accounts || []).map((item) => ({ id: item.id, amount: parseAmount(item.amount ?? item.amt), owner: item.owner, type: item.type })),
+    cards: (state.data.cards || []).map((item) => ({ id: item.id, kind: item.kind, payDay: item.payDay, fundingType: item.fundingType, fundingAccountId: item.fundingAccountId || item.acc, isAllowance: item.isAllowance })),
+    cardStatements: (state.data.cards || []).filter(managedCard).map((card) => {
+      const debit = ["체크", "check", "debit"].includes(String(card.kind || "").toLowerCase());
+      const usageMonth = debit ? monthKey : previousMonthKey(monthKey);
+      const expenses = cashflowRecords(usageMonth).filter((record) => record.kind === "expense" && record.payment?.type === "card" && String(record.payment.id) === String(card.id) && !["skipped", "notOccurred"].includes(record.status));
+      return { cardId: card.id, usageMonth, expenses: expenses.map(stableRecord) };
+    }),
+    loans: state.data.loans || [],
+    cashflowRules: state.data.cashflowRules || [],
+    ledger: {
+      incomes: (ledger.incomes || []).map(stableRecord), expenses: (ledger.expenses || []).map(stableRecord),
+      extraIncomes: (ledger.extraIncomes || []).map(stableRecord), extraExpenses: (ledger.extraExpenses || []).map(stableRecord),
+      cardTxns: (ledger.cardTxns || []).map(stableRecord), transfers: (ledger.transfers || []).map(stableRecord),
+      loanPayments: (ledger.loanPayments || []).map(stableRecord), cardPayments: (ledger.cardPayments || []).map(stableRecord),
+      cashflowOccurrences: ledger.cashflowOccurrences || {}
+    },
+    settlementReviews: monthReviews(monthKey).map((item) => ({ id: item.id, sourceTransactionId: item.sourceTransactionId, status: item.status, amount: parseAmount(item.amount), transferId: item.transferId || "" }))
+  };
+  return stableJson(source);
+}
+
+function monthCloseChecklist(monthKey) {
+  const overdueOccurrences = cashflowRecords(monthKey).filter((record) => record.source === "cashflowRule" && record.status === "planned" && record.date <= TODAY);
+  const loanSummary = loanRepaymentSummary(monthKey);
+  const overdueLoans = loanSummary.missing.filter((item) => item.row.date <= TODAY);
+  const cardPlans = cardRepaymentPlan(monthKey);
+  const overdueCards = cardPlans.filter((item) => item.dueDayMissing || (item.dueDate <= TODAY && item.actualAmount <= 0));
+  const reviews = pendingReviews(monthKey);
+  const fingerprint = monthCloseFingerprint(monthKey);
+  const acknowledgements = state.data.ledgers[monthKey]?.closeReview || {};
+  const reviewed = { A: acknowledgements.A?.fingerprint === fingerprint, B: acknowledgements.B?.fingerprint === fingerprint };
+  const trackedAccounts = (state.data.accounts || []).filter(forecastableAccount);
+  const blockers = reviews.length + overdueOccurrences.length + overdueLoans.length + overdueCards.length + Number(!reviewed.A) + Number(!reviewed.B);
+  return { monthKey, fingerprint, reviews, overdueOccurrences, overdueLoans, loanSummary, cardPlans, overdueCards, reviewed, trackedAccounts, accountTotal: trackedAccounts.reduce((sum, item) => sum + parseAmount(item.amount ?? item.amt), 0), blockers };
+}
+
+function acknowledgeMonthReview(owner) {
+  const ledger = currentLedger();
+  if (ledger.closed) return;
+  if (!ledger.closeReview || typeof ledger.closeReview !== "object") ledger.closeReview = {};
+  ledger.closeReview[owner] = { fingerprint: monthCloseFingerprint(state.selectedMonth), reviewedAt: new Date().toISOString() };
+  queueSave(); renderAll(); toast(ownerName(owner) + "이(가) " + monthLabel(state.selectedMonth) + " 내역을 확인했습니다.");
+}
+
+function openCardPaymentDialog(plan) {
+  const ledger = ensureLedger(plan.dueMonth);
+  if (ledger.closed) { toast("마감된 월은 먼저 마감을 해제해주세요."); return; }
+  const card = cardById(plan.cardId);
+  if (!card) return;
+  const accounts = (state.data.accounts || []).filter(forecastableAccount);
+  if (!accounts.length) { toast("카드 대금을 낼 관리 계좌를 먼저 등록해주세요."); return; }
+  const existing = plan.payments[0] || null;
+  state.cardPaymentContext = { ...plan, existingId: existing?.id || "" };
+  $("cardPaymentTitle").textContent = (card.name || "카드") + " 결제 기록";
+  $("cardPaymentExpected").textContent = monthLabel(plan.usageMonth) + " 사용 " + plan.expenseCount + "건 · 예상 " + fmt(plan.expectedAmount) + " · 예정일 " + plan.dueDate + (existing ? " · 현재 기록 " + fmt(plan.actualAmount) : "");
+  $("cardPaymentAmount").value = inputNumber(existing?.amount ?? plan.expectedAmount);
+  $("cardPaymentDate").value = existing?.date || plan.dueDate || TODAY;
+  $("cardPaymentAccount").innerHTML = '<option value="">계좌 선택</option>' + accounts.map((account) => '<option value="' + esc(account.id) + '">' + esc(account.name || "계좌") + "</option>").join("");
+  $("cardPaymentAccount").value = existing?.accountId || plan.accountId || "";
+  $("deleteCardPaymentBtn").hidden = !existing;
+  $("cardPaymentDialog").showModal();
+}
+
+function openCardSettings(cardId) {
+  setScreen("assets");
+  window.setTimeout(() => {
+    const payDayInput = [...document.querySelectorAll('#cardList [data-card-key="payDay"]')].find((input) => String(input.dataset.cardId) === String(cardId));
+    payDayInput?.scrollIntoView({ behavior: "smooth", block: "center" });
+    payDayInput?.focus({ preventScroll: true });
+  }, 80);
+  toast("카드 결제일을 설정해주세요.");
+}
+
+function saveCardPayment() {
+  const context = state.cardPaymentContext;
+  if (!context) return;
+  const ledger = ensureLedger(context.dueMonth);
+  if (ledger.closed) { toast("마감된 월은 먼저 마감을 해제해주세요."); return; }
+  const amount = parseAmount($("cardPaymentAmount").value);
+  const date = $("cardPaymentDate").value;
+  const accountId = $("cardPaymentAccount").value;
+  if (amount <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !accountById(accountId)) { toast("0보다 큰 결제 금액, 실제 결제일, 출금 계좌를 확인해주세요."); return; }
+  if (!Array.isArray(ledger.cardPayments)) ledger.cardPayments = [];
+  const existing = ledger.cardPayments.find((item) => String(item.cardId) === String(context.cardId));
+  const payment = { ...(existing || {}), id: existing?.id || "card-payment:" + context.cardId + "@" + context.dueMonth, cardId: context.cardId, cardName: context.cardName, amount, date, accountId, expectedAmount: context.expectedAmount, usageMonth: context.usageMonth, createdAt: existing?.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() };
+  if (existing) Object.assign(existing, payment); else ledger.cardPayments.push(payment);
+  $("cardPaymentDialog").close(); state.cardPaymentContext = null; queueSave(); renderAll(); toast("카드 결제 내역을 저장했습니다.");
+}
+
+function deleteCardPayment() {
+  const context = state.cardPaymentContext;
+  if (!context) return;
+  const ledger = state.data.ledgers[context.dueMonth];
+  if (!ledger || ledger.closed) { toast("마감된 월은 먼저 마감을 해제해주세요."); return; }
+  ledger.cardPayments = (ledger.cardPayments || []).filter((item) => String(item.cardId) !== String(context.cardId));
+  $("cardPaymentDialog").close(); state.cardPaymentContext = null; queueSave(); renderAll(); toast("카드 결제 기록을 삭제했습니다.");
+}
 function accountTotal() { return (state.data.accounts || []).reduce((sum, account) => sum + parseAmount(account.amt), 0); }
 
 function updateMonthSelects() {
@@ -584,7 +722,11 @@ function renderKpis() {
     ["개인 사용", `${fmtShort(personalA + personalB)}`, `${ownerName("A")} ${fmtShort(personalA)} · ${ownerName("B")} ${fmtShort(personalB)}`, ""]
   ];
   $("dashboardKpis").innerHTML = boxes.map(([label, value, note, cls, target]) => `<div class="kpi ${cls}" ${target ? `data-open-screen="${target}" role="button" tabindex="0"` : ""}><div class="kpi-label">${esc(label)}</div><div class="kpi-value">${esc(value)}</div><div class="kpi-note">${esc(note)}</div></div>`).join("");
-  $("dashboardKpis").querySelectorAll("[data-open-screen]").forEach((el) => { el.addEventListener("click", () => setScreen(el.dataset.openScreen)); el.addEventListener("keydown", (e) => { if (e.key === "Enter") setScreen(el.dataset.openScreen); }); });
+  $("dashboardKpis").querySelectorAll("[data-open-screen]").forEach((el) => el.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    setScreen(el.dataset.openScreen);
+  }));
 }
 
 function chartDefaults() {
@@ -767,31 +909,94 @@ function loanRepaymentSummary(monthKey, snapshot = null) {
 
 function renderMonthClose() {
   const ledger = currentLedger();
+  const monthKey = state.selectedMonth;
   const closed = !!ledger.closed;
-  const loanSummary = loanRepaymentSummary(state.selectedMonth, closed ? ledger.closeSnapshot : null);
-  const loanCopy = loanSummary.legacySnapshot ? "이전 마감 스냅샷에는 대출 상환 비교 정보가 없습니다." : `대출 상환 예정 ${loanSummary.expectedCount}건 · ${fmt(loanSummary.expectedTotal)} / 실제 기록 ${loanSummary.actualCount}건 · ${fmt(loanSummary.actualTotal)}${loanSummary.missing?.length ? ` · 미기록 ${loanSummary.missing.length}건` : ""}`;
-  const loanReviewButton = !closed && loanSummary.missing?.length ? `<button class="outline-btn small" id="reviewLoanPaymentsBtn" type="button">대출 상환 확인</button>` : "";
-  $("monthCloseState").textContent = closed ? "마감 완료" : "진행 중";
-  $("monthCloseState").className = `pill ${closed ? "success" : "warning"}`;
-  $("monthCloseBody").innerHTML = closed ? `<p class="month-close-copy">${esc(monthLabel(state.selectedMonth))}은 마감 당시의 스냅샷으로 보존됩니다. ${esc(loanCopy)}</p><button class="outline-btn small" id="reopenMonthBtn" type="button">마감 해제</button>` : `<p class="month-close-copy">정산 검토 ${pendingReviews().length}건을 확인한 뒤 이 달의 결과를 고정할 수 있습니다. ${esc(loanCopy)} 마감 후에는 거래가 읽기 전용이 됩니다.</p>${loanReviewButton}<button class="primary-btn small" id="closeSelectedMonthBtn" type="button">${esc(monthLabel(state.selectedMonth))} 마감하기</button>`;
-  $("closeSelectedMonthBtn")?.addEventListener("click", () => closeMonth(state.selectedMonth));
-  $("reopenMonthBtn")?.addEventListener("click", () => reopenMonth(state.selectedMonth));
-  $("reviewLoanPaymentsBtn")?.addEventListener("click", () => openLoanSchedule(loanSummary.missing[0].loanId));
+  const snapshot = ledger.closeSnapshot;
+  const checklist = monthCloseChecklist(monthKey);
+  $("monthCloseState").textContent = closed ? "마감 완료" : checklist.blockers ? checklist.blockers + "건 확인 필요" : "마감 준비";
+  $("monthCloseState").className = "pill " + (closed ? "success" : checklist.blockers ? "warning" : "success");
+  if (closed) {
+    const captured = snapshot?.monthCloseChecklist;
+    const cardText = Array.isArray(snapshot?.cardPayments) ? "카드 결제 실제 기록 " + snapshot.cardPayments.length + "건" : "이전 마감 스냅샷에는 카드 결제 기록이 없습니다.";
+    $("monthCloseBody").innerHTML = "<p class=\"month-close-copy\">" + esc(monthLabel(monthKey)) + "은 " + esc(snapshot?.capturedAt ? new Date(snapshot.capturedAt).toLocaleString("ko-KR") : "이전") + " 마감 시점의 스냅샷으로 보존되어 있습니다. " + esc(cardText) + (captured ? " · 계좌 " + captured.accountCount + "개 · 잔액 합계 " + fmt(captured.accountTotal) : "") + "</p><button class=\"outline-btn small\" id=\"reopenMonthBtn\" type=\"button\">마감 해제</button>";
+    return;
+  }
+  const row = (label, detail, complete, action = "") => "<div class=\"close-check-row " + (complete ? "is-complete" : "needs-review") + "\"><span class=\"close-check-icon\" aria-hidden=\"true\">" + (complete ? "✓" : "!") + "</span><div class=\"close-check-copy\"><b>" + esc(label) + "</b><span>" + esc(detail) + "</span></div>" + action + "</div>";
+  const settlementAction = checklist.reviews.length ? "<button class=\"outline-btn small\" type=\"button\" data-close-action=\"settlements\">정산 확인</button>" : "";
+  const recurringRows = cashflowRecords(monthKey).filter((record) => record.source === "cashflowRule" && record.status === "planned");
+  const recurringActions = recurringRows.slice(0, 5).map((record) => "<button class=\"outline-btn small\" type=\"button\" data-close-rule=\"" + esc(record.ruleId) + "\">" + esc(record.item) + " · " + (record.date <= TODAY ? "처리 확인" : "예정") + "</button>").join("");
+  const loanActions = checklist.loanSummary.missing.slice(0, 3).map((item) => "<button class=\"outline-btn small\" type=\"button\" data-close-loan=\"" + esc(item.loanId) + "\">" + esc(item.name) + " · " + (item.row.date <= TODAY ? "납부 확인" : "예정") + "</button>").join("");
+  const cardRows = checklist.cardPlans.map((plan) => {
+    const recorded = plan.actualAmount > 0;
+    const overdue = plan.dueDayMissing || (plan.dueDate <= TODAY && !recorded);
+    const detail = "사용 " + monthLabel(plan.usageMonth) + " · 예정 " + fmt(plan.expectedAmount) + " · 실제 " + fmt(plan.actualAmount) + " · 결제일 " + (plan.dueDayMissing ? "미설정" : plan.dueDate);
+    const action = plan.dueDayMissing
+      ? "<button class=\"outline-btn small\" type=\"button\" data-close-card-setting=\"" + esc(plan.cardId) + "\">결제일 설정</button>"
+      : "<button class=\"outline-btn small\" type=\"button\" data-close-card=\"" + esc(plan.cardId) + "\">" + (recorded ? "실제 내역 수정" : overdue ? "결제 기록" : "결제 예정") + "</button>";
+    return "<div class=\"close-card-row\">" + row(plan.cardName, detail, recorded, action) + "</div>";
+  }).join("");
+  const reviewButton = (owner) => {
+    const reviewed = checklist.reviewed[owner];
+    const name = ownerName(owner);
+    const detail = reviewed ? "현재 내역 확인 완료" : ledger.closeReview?.[owner] ? "내역이 바뀌어 다시 확인이 필요합니다" : "이 월의 내역을 검토해주세요";
+    return "<div class=\"partner-review " + (reviewed ? "is-reviewed" : "needs-review") + "\"><div><b>" + esc(name) + "</b><span>" + detail + "</span></div><button class=\"" + (reviewed ? "outline-btn" : "primary-btn") + " small\" type=\"button\" data-close-review=\"" + owner + "\">" + (reviewed ? "확인 완료" : "내용 확인") + "</button></div>";
+  };
+  const loanDetail = "예정 " + checklist.loanSummary.expectedCount + "건 · " + fmt(checklist.loanSummary.expectedTotal) + " / 실제 " + checklist.loanSummary.actualCount + "건 · " + fmt(checklist.loanSummary.actualTotal) + " · 기한이 지난 미기록 " + checklist.overdueLoans.length + "건";
+  const recurringDetail = checklist.overdueOccurrences.length ? "기한이 지난 미처리 " + checklist.overdueOccurrences.length + "건" : "오늘까지 처리할 미확인 항목 없음 · " + recurringRows.length + "건은 이번 달 예정";
+  const cardSection = "<section class=\"close-check-section\"><div class=\"close-check-section-heading\"><b>카드 결제</b><span>" + checklist.cardPlans.length + "개 카드 · 실제 결제는 지출에 중복 합산하지 않습니다.</span></div>" + (cardRows || "<p class=\"muted\">이번 달 확인할 관리 카드 결제가 없습니다.</p>") + "</section>";
+  const reviewSection = "<section class=\"close-check-section\"><div class=\"close-check-section-heading\"><b>두 사람 확인</b><span>기록을 수정하면 확인이 자동으로 다시 필요합니다.</span></div><div class=\"partner-review-grid\">" + reviewButton("A") + reviewButton("B") + "</div></section>";
+  const accountDetail = "계좌 " + checklist.trackedAccounts.length + "개 · 합계 " + fmt(checklist.accountTotal) + " · 현재 등록 잔액을 마감 스냅샷에 저장합니다.";
+  const closeCopy = checklist.blockers ? checklist.blockers + "개 항목을 확인하면 마감할 수 있습니다." : "모든 확인이 끝났습니다. 마감하면 이 달은 읽기 전용이 됩니다.";
+  $("monthCloseBody").innerHTML = "<p class=\"month-close-copy\">" + esc(monthLabel(monthKey)) + "의 거래와 계좌·상환 내역을 점검합니다. 오늘 이후 예정된 정기 항목은 날짜가 되기 전까지 마감을 막지 않습니다.</p><div class=\"close-check-list\">" +
+    row("개인 카드 정산", checklist.reviews.length ? checklist.reviews.length + "건 · " + fmt(checklist.reviews.reduce((sum, item) => sum + parseAmount(item.amount), 0)) + " 확인 필요" : "정산 검토가 모두 처리되었습니다.", !checklist.reviews.length, settlementAction) +
+    row("정기 수입·지출·이체", recurringDetail, !checklist.overdueOccurrences.length, recurringActions) +
+    row("대출 월별 상환", loanDetail, !checklist.overdueLoans.length, loanActions) + cardSection +
+    row("관리 계좌 잔액", accountDetail, true) + reviewSection +
+    "</div><div class=\"close-actions\"><span class=\"muted\">" + closeCopy + "</span><button class=\"primary-btn\" id=\"closeSelectedMonthBtn\" type=\"button\" " + (checklist.blockers ? "disabled" : "") + ">" + esc(monthLabel(monthKey)) + " 마감하기</button></div>";
 }
+
 function closeMonth(monthKey) {
   const ledger = state.data.ledgers[monthKey];
   if (!ledger || ledger.closed) return;
-  if (pendingReviews(monthKey).some((item) => item.status === "review")) { toast("검토 필요 항목을 먼저 확인해주세요."); setScreen("settlements"); return; }
-  ledger.closeSnapshot = createCloseSnapshot(monthKey, state.data);
+  const checklist = monthCloseChecklist(monthKey);
+  if (checklist.blockers) { toast("월마감 체크리스트를 먼저 완료해주세요."); setScreen("settlements"); return; }
+  const snapshot = createCloseSnapshot(monthKey, state.data);
+  snapshot.version = 4;
+  snapshot.cardRepaymentPlan = checklist.cardPlans.map(({ payments, ...plan }) => plan);
+  snapshot.cardPayments = deepClone(ledger.cardPayments || []);
+  snapshot.monthCloseReview = deepClone(ledger.closeReview || {});
+  snapshot.monthCloseChecklist = { fingerprint: checklist.fingerprint, accountCount: checklist.trackedAccounts.length, accountTotal: checklist.accountTotal, settlementCount: checklist.reviews.length, overdueRecurringCount: checklist.overdueOccurrences.length, overdueLoanCount: checklist.overdueLoans.length, overdueCardCount: checklist.overdueCards.length, cardRepaymentCount: checklist.cardPlans.length };
+  ledger.closeSnapshot = snapshot;
   ledger.closed = true;
-  queueSave(); renderAll(); toast(`${monthLabel(monthKey)}을 마감했습니다.`);
+  queueSave(); renderAll(); toast(monthLabel(monthKey) + "을 마감했습니다.");
 }
+
 function reopenMonth(monthKey) {
-  if (!confirm(`${monthLabel(monthKey)} 마감을 해제할까요? 기존 스냅샷은 보존됩니다.`)) return;
+  if (!confirm(monthLabel(monthKey) + " 마감을 해제할까요? 기존 스냅샷은 보존됩니다.")) return;
   state.data.ledgers[monthKey].closed = false;
+  state.data.ledgers[monthKey].closeReview = {};
   queueSave(); renderAll(); toast("마감을 해제했습니다. 필요한 항목을 다시 확인해주세요.");
 }
 
+function bindMonthCloseActions() {
+  $("monthCloseBody").addEventListener("click", (event) => {
+    const button = event.target.closest("button");
+    if (!button) return;
+    if (button.id === "closeSelectedMonthBtn") closeMonth(state.selectedMonth);
+    else if (button.id === "reopenMonthBtn") reopenMonth(state.selectedMonth);
+    else if (button.dataset.closeReview) acknowledgeMonthReview(button.dataset.closeReview);
+    else if (button.dataset.closeAction === "settlements") $("settlementList").scrollIntoView({ behavior: "smooth", block: "start" });
+    else if (button.dataset.closeRule) {
+      const record = cashflowRecords(state.selectedMonth).find((item) => item.source === "cashflowRule" && item.ruleId === button.dataset.closeRule);
+      if (record) openEditEntry(record);
+    } else if (button.dataset.closeLoan) openLoanSchedule(button.dataset.closeLoan);
+    else if (button.dataset.closeCardSetting) openCardSettings(button.dataset.closeCardSetting);
+    else if (button.dataset.closeCard) {
+      const plan = cardRepaymentPlan(state.selectedMonth).find((item) => String(item.cardId) === String(button.dataset.closeCard));
+      if (plan) openCardPaymentDialog(plan);
+    }
+  });
+}
 function renderAssets() {
   syncPeopleInputs();
   const accounts = state.data.accounts || [];
@@ -1558,8 +1763,55 @@ function openDetail(title, records = []) {
 function renderAll() { ensureCashflowRuleReviews(state.selectedMonth); updateMonthSelects(); renderDashboard(); renderRecords(); renderSettlements(); renderAssets(); renderAnalytics(); updateNavBadge(); }
 function updateNavBadge() { const count = pendingReviews().length; $("navBadge").textContent = String(count); $("navBadge").hidden = count === 0; }
 
+function isStandaloneApp() {
+  return window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+}
+
+function setMobileMoreOpen(open) {
+  const menu = $("mobileMoreMenu");
+  const button = $("mobileMoreBtn");
+  menu.hidden = !open;
+  button.setAttribute("aria-expanded", String(open));
+}
+
+async function installApp() {
+  if (isStandaloneApp()) { toast("앱으로 실행 중입니다."); return; }
+  const promptEvent = state.deferredInstallPrompt;
+  if (!promptEvent) { toast("Chrome 메뉴 ⋮에서 ‘앱 설치’ 또는 ‘홈 화면에 추가’를 선택해주세요."); return; }
+  try {
+    await promptEvent.prompt();
+    const choice = await promptEvent.userChoice;
+    state.deferredInstallPrompt = null;
+    if (choice?.outcome === "accepted") toast("앱 설치를 시작했습니다.");
+    else toast("브라우저 메뉴에서 나중에 설치할 수 있습니다.");
+  } catch {
+    toast("Chrome 메뉴 ⋮에서 ‘앱 설치’를 선택해주세요.");
+  }
+}
+
+function bindInstallPrompt() {
+  const installButton = $("installAppBtn");
+  const mobileInstall = $("mobileMoreMenu").querySelector('[data-trigger-action="installAppBtn"]');
+  const hideForStandalone = () => {
+    const standalone = isStandaloneApp();
+    installButton.hidden = standalone;
+    if (mobileInstall) mobileInstall.hidden = standalone;
+  };
+  hideForStandalone();
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    state.deferredInstallPrompt = event;
+    hideForStandalone();
+  });
+  window.addEventListener("appinstalled", () => {
+    state.deferredInstallPrompt = null;
+    hideForStandalone();
+    toast("앱이 설치되었습니다.");
+  });
+  installButton.addEventListener("click", installApp);
+}
+
 function bindEvents() {
-  document.querySelectorAll("[data-open-screen]").forEach((button) => button.addEventListener("click", () => setScreen(button.dataset.openScreen)));
   $("monthSelect").addEventListener("change", (event) => { state.selectedMonth = event.target.value; state.analyticsDetail = null; renderAll(); });
   $("recordMonthSelect").addEventListener("change", (event) => { state.selectedMonth = event.target.value; state.analyticsDetail = null; renderAll(); });
   $("analyticsMonthSelect").addEventListener("change", (event) => { state.selectedMonth = event.target.value; state.analyticsDetail = null; renderAnalytics(); });
@@ -1597,13 +1849,18 @@ function bindEvents() {
     state.loanDraft[key].splice(Number(button.dataset.index), 1); renderLoanRepeatRows();
   }));
   $("loanScheduleRange").addEventListener("change", renderLoanSchedule);
-  $("closeLoanSchedule").addEventListener("click", () => $("loanScheduleDialog").close());
   $("saveLoanPaymentBtn").addEventListener("click", saveLoanPayment);
   $("deleteLoanPaymentBtn").addEventListener("click", deleteLoanPayment);
   $("loanPaymentDialog").addEventListener("close", () => {
     const context = state.loanPaymentContext; state.loanPaymentContext = null;
     if (context?.returnToSchedule && state.data.loans.some((loan) => loan.id === context.loanId)) setTimeout(() => openLoanSchedule(context.loanId), 0);
   });
+  $("cardPaymentDialog").addEventListener("close", () => { state.cardPaymentContext = null; });
+  $("saveCardPaymentBtn").addEventListener("click", saveCardPayment);
+  $("deleteCardPaymentBtn").addEventListener("click", deleteCardPayment);
+  bindMonthCloseActions();
+  bindInstallPrompt();
+  document.addEventListener("keydown", (event) => { if (event.key === "Escape") setMobileMoreOpen(false); });
   $("entryOccurrenceActions").addEventListener("click", (event) => { const button = event.target.closest("[data-occurrence-status]"); if (button) setOccurrenceStatus(button.dataset.occurrenceStatus); });
   ["entryAmount", "entryItem", "entryPayment"].forEach((id) => $(id).addEventListener("input", updateEntryPreview));
   $("entryPayment").addEventListener("change", () => { if ($("entryKind").value === "transfer") updateEntryFields(); else updateEntryPreview(); });
@@ -1617,8 +1874,6 @@ function bindEvents() {
   $("importBtn").addEventListener("click", () => $("importFile").click());
   $("importFile").addEventListener("change", (event) => importBackup(event.target.files?.[0]));
   $("themeBtn").addEventListener("click", () => { const html = document.documentElement; const dark = html.dataset.theme === "dark"; html.dataset.theme = dark ? "light" : "dark"; localStorage.setItem("sohakPlannerTheme", html.dataset.theme); renderAll(); });
-  $("closeMonthBtn").addEventListener("click", () => setScreen("settlements"));
-  $("settlementMonthAction").addEventListener("click", () => setScreen("settlements"));
   $("addAccountBtn").addEventListener("click", addAccount); $("addCardBtn").addEventListener("click", addCard); $("addLoanBtn").addEventListener("click", addLoan); $("addGoalBtn").addEventListener("click", addGoal);
   [["nameAInput", "nameA", "나"], ["nameBInput", "nameB", "상대방"]].forEach(([id, key, fallback]) => {
     const input = $(id);
@@ -1630,8 +1885,35 @@ function bindEvents() {
     input.addEventListener("change", () => { state.data[key] = input.value.trim() || fallback; renderAll(); });
   });
   $("addCfA").addEventListener("click", () => addHousingEntry("A")); $("addCfB").addEventListener("click", () => addHousingEntry("B")); $("calcHousingBtn").addEventListener("click", calculateHousing);
-  $("closeDetail").addEventListener("click", () => $("detailDialog").close());
-  document.addEventListener("click", (event) => { const record = event.target.closest("[data-record-id]"); if (record && !$("detailDialog").open) { const item = cashflowRecords().find((entry) => String(entry.id) === record.dataset.recordId); if (item) openDetail(item.item, [item]); } });
+  document.addEventListener("click", (event) => {
+    if (event.target.closest("#mobileMoreBtn")) {
+      setMobileMoreOpen($("mobileMoreMenu").hidden);
+      return;
+    }
+    const action = event.target.closest("[data-trigger-action]");
+    if (action) {
+      event.preventDefault();
+      setMobileMoreOpen(false);
+      $(action.dataset.triggerAction)?.click();
+      return;
+    }
+    const screenButton = event.target.closest("[data-open-screen]");
+    if (screenButton) { setScreen(screenButton.dataset.openScreen); return; }
+    const closeButton = event.target.closest("[data-close-dialog]");
+    if (closeButton) {
+      const dialog = closeButton.closest("dialog");
+      if (dialog?.id === "loanPaymentDialog" && state.loanPaymentContext) state.loanPaymentContext.returnToSchedule = false;
+      if (dialog?.open) dialog.close();
+      return;
+    }
+    if (event.target instanceof HTMLDialogElement && event.target.open) { event.target.close(); return; }
+    if (!event.target.closest(".mobile-more-wrap")) setMobileMoreOpen(false);
+    const record = event.target.closest("[data-record-id]");
+    if (record && !$("detailDialog").open) {
+      const item = cashflowRecords().find((entry) => String(entry.id) === record.dataset.recordId);
+      if (item) openDetail(item.item, [item]);
+    }
+  });
 }
 
 const savedTheme = localStorage.getItem("sohakPlannerTheme"); if (savedTheme) document.documentElement.dataset.theme = savedTheme;
