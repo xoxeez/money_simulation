@@ -28,9 +28,9 @@ Firebase 설정이 없으면 자동으로 localStorage 모드로 동작합니다
 2. `coupleV8`
 3. `coupleV7`
 
-기존 `coupleV8` 또는 `coupleV7` 데이터는 새 구조로 마이그레이션됩니다. Firebase에서 읽은 원본 문서는 최초 로드 시 `sohakPlannerV2:cloudBackup`에도 보관하고, 변환된 데이터는 `sohakPlannerV2`에 저장합니다.
+기존 `coupleV8` 또는 `coupleV7` 데이터는 새 구조로 마이그레이션됩니다. Firebase에서 읽은 원본 문서는 `sohakPlannerV2:cloudBackup`, 구형 로컬 데이터는 `sohakPlannerV2:localBackup`에 최초 로드 시 보관하고, 변환된 데이터는 `sohakPlannerV2`에 저장합니다. 구형 단일 월 데이터와 월별 장부가 함께 있는 기록도 읽으며, 변환된 월·수입·지출·카드·이체 건수를 거래 화면에서 확인할 수 있습니다.
 
-상단의 `백업` 버튼으로 현재 데이터를 JSON 파일로 저장하고, `복원` 버튼으로 백업 파일을 다시 불러올 수 있습니다.
+상단의 `백업` 버튼은 현재 데이터와 보관된 원본 스냅샷을 JSON 파일로 저장합니다. `복원` 버튼은 새 백업 파일과 기존 형식의 JSON 파일을 모두 읽습니다.
 
 ## 용돈 카드 설정
 

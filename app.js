@@ -98,17 +98,58 @@ function syncPeopleInputs() {
   }
 }
 
+function parseStoredJson(value) {
+  if (!value) return null;
+  try { return JSON.parse(value); } catch { return null; }
+}
+
+function storeSourceBackup(key, data, source = "legacy") {
+  if (parseStoredJson(localStorage.getItem(key))) return true;
+  try {
+    localStorage.setItem(key, JSON.stringify({ format: "sohakPlannerSourceBackup", source, capturedAt: new Date().toISOString(), data }));
+    return true;
+  } catch { return false; }
+}
+
+function storedDataCount(data) {
+  if (!data || typeof data !== "object") return 0;
+  const fields = ["incomes", "expenses", "extraIncomes", "extraExpenses", "cardTxns", "transfers"];
+  let count = ["accounts", "cards", "loans", "goals", "cfA", "cfB"].reduce((total, key) => total + (Array.isArray(data[key]) ? data[key].length : 0), 0);
+  const ledgers = data.ledgers && typeof data.ledgers === "object" ? Object.values(data.ledgers) : [];
+  for (const ledger of ledgers) for (const key of fields) count += Array.isArray(ledger?.[key]) ? ledger[key].length : 0;
+  if (!ledgers.length) for (const key of fields) count += Array.isArray(data[key]) ? data[key].length : 0;
+  return count;
+}
+
+function readSourceBackup(key) {
+  const stored = parseStoredJson(localStorage.getItem(key));
+  if (!stored) return null;
+  return stored.format === "sohakPlannerSourceBackup"
+    ? stored
+    : { format: "sohakPlannerSourceBackup", source: "legacy-backup", capturedAt: null, data: stored };
+}
+
 function loadLocal() {
-  let raw = null;
+  const candidates = [];
   for (const key of ["sohakPlannerV2", "coupleV8", "coupleV7"]) {
     const value = localStorage.getItem(key);
     if (!value) continue;
-    try { raw = JSON.parse(value); break; } catch { /* ignore malformed backup */ }
+    const parsed = parseStoredJson(value);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) candidates.push({ key, data: parsed });
   }
+  let selected = candidates[0] || null;
+  if (selected?.key === "sohakPlannerV2" && storedDataCount(selected.data) === 0) {
+    selected = candidates.slice(1).find((candidate) => storedDataCount(candidate.data) > 0) || selected;
+  }
+  const raw = selected?.data || null;
+  const sourceKey = selected?.key || null;
+  const sourceBackupStored = !raw || sourceKey === "sohakPlannerV2" || storeSourceBackup("sohakPlannerV2:localBackup", raw, sourceKey);
   state.data = ensureData(raw || defaultData());
   const months = allMonths();
   state.selectedMonth = state.data.currentMonth && months.includes(state.data.currentMonth) ? state.data.currentMonth : (months.at(-1) || CURRENT_MONTH);
-  setSaveStatus(raw ? "기존 데이터를 불러왔어요" : "새 플래너 준비 완료", "ok");
+  if (raw && sourceKey !== "sohakPlannerV2") saveLocal(false);
+  setSaveStatus(raw ? (sourceKey === "sohakPlannerV2" ? "기존 데이터를 불러왔어요" : `${sourceKey} 데이터에서 복구했어요`) : "새 플래너 준비 완료", sourceBackupStored ? "ok" : "warning");
+  if (!sourceBackupStored) toast("원본 데이터를 브라우저에 백업하지 못했습니다. 저장 공간을 확인하고 백업 파일을 내려받아주세요.");
 }
 
 function saveLocal(showToast = true) {
@@ -126,7 +167,16 @@ function saveLocal(showToast = true) {
 }
 
 function exportBackup() {
-  const payload = JSON.stringify({ ...state.data, currentMonth: state.selectedMonth, exportedAt: new Date().toISOString() }, null, 2);
+  const payload = JSON.stringify({
+    format: "sohakPlannerBackup",
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    data: { ...state.data, currentMonth: state.selectedMonth },
+    sourceSnapshots: {
+      local: readSourceBackup("sohakPlannerV2:localBackup"),
+      cloud: readSourceBackup("sohakPlannerV2:cloudBackup")
+    }
+  }, null, 2);
   const url = URL.createObjectURL(new Blob([payload], { type: "application/json" }));
   const link = document.createElement("a"); link.href = url; link.download = `sohak-planner-backup-${TODAY}.json`; link.click(); URL.revokeObjectURL(url);
   toast("백업 파일을 저장했습니다.");
@@ -134,7 +184,26 @@ function exportBackup() {
 function importBackup(file) {
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = () => { try { state.data = ensureData(JSON.parse(reader.result)); state.selectedMonth = state.data.currentMonth || allMonths().at(-1) || CURRENT_MONTH; saveLocal(false); renderAll(); toast("백업 데이터를 복원했습니다."); } catch { toast("백업 파일을 읽을 수 없습니다."); } };
+  reader.onload = () => {
+    try {
+      const parsed = JSON.parse(reader.result);
+      const isEnvelope = parsed?.format === "sohakPlannerBackup" && parsed.version === 1;
+      const source = isEnvelope ? parsed.data : parsed;
+      if (!source || typeof source !== "object" || Array.isArray(source)) throw new Error("Invalid backup");
+      if (isEnvelope) {
+        for (const [name, key] of [["local", "sohakPlannerV2:localBackup"], ["cloud", "sohakPlannerV2:cloudBackup"]]) {
+          const snapshot = parsed.sourceSnapshots?.[name];
+          if (snapshot?.data && typeof snapshot.data === "object") {
+            try { localStorage.setItem(key, JSON.stringify(snapshot)); } catch { /* current data can still be restored */ }
+          }
+        }
+      }
+      state.data = ensureData(source);
+      const months = allMonths();
+      state.selectedMonth = months.includes(state.data.currentMonth) ? state.data.currentMonth : (months.at(-1) || CURRENT_MONTH);
+      saveLocal(false); renderAll(); toast("백업 데이터를 복원했습니다.");
+    } catch { toast("백업 파일을 읽을 수 없습니다."); }
+  };
   reader.readAsText(file);
 }
 
@@ -182,15 +251,13 @@ async function loadCloud(showToast = false) {
       return;
     }
     const raw = snap.data();
-    if (!localStorage.getItem("sohakPlannerV2:cloudBackup")) {
-      try { localStorage.setItem("sohakPlannerV2:cloudBackup", JSON.stringify(raw)); } catch { /* keep loading if backup storage is full */ }
-    }
+    const sourceBackupStored = storeSourceBackup("sohakPlannerV2:cloudBackup", raw, "firestore");
     state.data = ensureData(raw);
     const months = allMonths();
     state.selectedMonth = months.includes(state.data.currentMonth) ? state.data.currentMonth : (months.at(-1) || CURRENT_MONTH);
     saveLocal(false);
     renderAll();
-    setSaveStatus("Firebase에서 불러옴", "ok");
+    setSaveStatus(sourceBackupStored ? "Firebase에서 불러옴" : "Firebase에서 불러왔지만 원본 백업 저장 공간이 부족합니다", sourceBackupStored ? "ok" : "warning");
     if (showToast) toast("Firebase 데이터를 불러왔습니다.");
   } catch (error) {
     setSaveStatus("Firebase 불러오기 실패 · 로컬 데이터 유지", "warning");
@@ -312,11 +379,25 @@ function renderRecords() {
   $("recordList").querySelectorAll("[data-record-id]").forEach((el) => el.addEventListener("click", () => { const record = allRecords().find((item) => item.id === el.dataset.recordId); if (record) openDetail(record.item, [record]); }));
   const reviews = pendingReviews();
   const auditCount = state.data.migrationAudit?.usageOwnerUnresolved?.length || 0;
+  const importSummary = state.data.migrationAudit?.importSummary;
   const messages = [];
+  if (importSummary && !state.data.migrationAudit.importSummaryAcknowledgedAt) {
+    messages.push(`기존 데이터 확인: ${importSummary.monthCount}개월 · 계좌 ${importSummary.accountCount}개 · 카드 ${importSummary.cardCount}개 · 대출 ${importSummary.loanCount}건 · 목표 ${importSummary.goalCount}개 · 수입 ${importSummary.incomeCount}건 · 지출 ${importSummary.expenseCount}건 · 카드 내역 ${importSummary.cardTransactionCount}건 · 이체 ${importSummary.transferCount}건`);
+    if (importSummary.unmappedLedgerCount) messages.push(`월 형식이 맞지 않아 별도로 보존한 장부 ${importSummary.unmappedLedgerCount}개가 있습니다.`);
+  }
   if (reviews.length) messages.push(`${reviews.length}건의 개인 카드 사용 내역이 정산 검토를 기다리고 있습니다. 과거에 이미 이체했다면 정산 화면에서 완료로 표시해주세요.`);
   if (auditCount) messages.push(`과거 사용 목적 표기 ${auditCount}건은 공동으로 임시 분류했습니다. 자산 화면에서 이름을 설정한 뒤 ‘확인 필요’ 항목을 재검토해주세요.`);
   $("migrationNotice").hidden = messages.length === 0;
-  if (messages.length) $("migrationNotice").textContent = messages.join(" ");
+  if (messages.length) {
+    const acknowledgeButton = importSummary && !state.data.migrationAudit.importSummaryAcknowledgedAt
+      ? `<br><button class="outline-btn small" id="ackMigrationSummary" type="button">가져온 데이터 확인</button>`
+      : "";
+    $("migrationNotice").innerHTML = `${messages.map(esc).join("<br>")}${acknowledgeButton}`;
+    $("ackMigrationSummary")?.addEventListener("click", () => {
+      state.data.migrationAudit.importSummaryAcknowledgedAt = new Date().toISOString();
+      queueSave(); renderRecords();
+    });
+  }
 }
 
 function settlementStatusLabel(status) { return status === "confirmed" ? "이체 완료" : status === "excluded" ? "대상 아님" : status === "pending" ? "이체 필요" : "검토 필요"; }
